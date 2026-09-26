@@ -25,6 +25,8 @@ static int failures;
 static int keyboard_reports, mouse_reports, consumer_reports, system_reports;
 static hid_keyboard_report_t last_keys;
 static int32_t last_x, last_y, last_buttons;
+static uint16_t last_consumer;
+static uint8_t last_system;
 
 void process_keyboard_report(uint8_t *raw, int len, uint8_t itf, hid_interface_t *iface) {
     if (len < KBD_REPORT_LENGTH)
@@ -45,12 +47,18 @@ void process_mouse_report(uint8_t *raw, int len, uint8_t itf, hid_interface_t *i
 }
 
 void process_consumer_report(uint8_t *raw, int len, uint8_t itf, hid_interface_t *iface) {
-    (void)raw, (void)len, (void)itf, (void)iface;
+    uint8_t out[CONSUMER_CONTROL_LENGTH];
+    (void)itf;
+    if (!extract_consumer_report(raw, len, iface, out))
+        return;
+    last_consumer = (uint16_t)(out[0] | out[1] << 8);
     consumer_reports++;
 }
 
 void process_system_report(uint8_t *raw, int len, uint8_t itf, hid_interface_t *iface) {
-    (void)raw, (void)len, (void)itf, (void)iface;
+    (void)itf;
+    if (!extract_system_report(raw, len, iface, &last_system))
+        return;
     system_reports++;
 }
 
@@ -62,6 +70,8 @@ static void mount(const uint8_t *desc, int len) {
     memset(&iface, 0, sizeof(iface));
     keyboard_reports = mouse_reports = consumer_reports = system_reports = 0;
     last_x = last_y = last_buttons = 0;
+    last_consumer = 0;
+    last_system = 0;
     parse_report_descriptor(&iface, desc, len);
 }
 
@@ -128,6 +138,13 @@ static void put_mouse(desc_t *d, uint8_t id) {
            0xC0, 0xC0);
 }
 
+/* Power, sleep and wake, then 5 bits of padding, closing the collection. */
+static void put_system_body(desc_t *d) {
+    PUT(d, 0x19, 0x81, 0x29, 0x83, 0x15, 0x00, 0x25, 0x01,
+           0x75, 0x01, 0x95, 0x03, 0x81, 0x02,
+           0x95, 0x05, 0x81, 0x01, 0xC0);
+}
+
 /* A 16-bit consumer-control array behind a report ID. */
 static void put_consumer(desc_t *d, uint8_t id) {
     PUT(d, 0x05, 0x0C, 0x09, 0x01, 0xA1, 0x01, 0x85, id,
@@ -137,10 +154,27 @@ static void put_consumer(desc_t *d, uint8_t id) {
 
 /* System power, sleep and wake bits behind a report ID. */
 static void put_system(desc_t *d, uint8_t id) {
-    PUT(d, 0x05, 0x01, 0x09, 0x80, 0xA1, 0x01, 0x85, id,
-           0x19, 0x81, 0x29, 0x83, 0x15, 0x00, 0x25, 0x01,
-           0x75, 0x01, 0x95, 0x03, 0x81, 0x02,
-           0x95, 0x05, 0x81, 0x01, 0xC0);
+    PUT(d, 0x05, 0x01, 0x09, 0x80, 0xA1, 0x01, 0x85, id);
+    put_system_body(d);
+}
+
+/* The same system bits on an interface that declares no report ID. */
+static void put_system_no_id(desc_t *d) {
+    PUT(d, 0x05, 0x01, 0x09, 0x80, 0xA1, 0x01);
+    put_system_body(d);
+}
+
+/* The Cherry KC 6000 Slim's consumer collection: nine 1-bit controls, then
+   7 bits of padding. Its report has no ID; id != 0 adds one for comparison. */
+static void put_consumer_bits(desc_t *d, uint8_t id) {
+    PUT(d, 0x05, 0x0C, 0x09, 0x01, 0xA1, 0x01);
+    if (id)
+        PUT(d, 0x85, id);
+    PUT(d, 0x15, 0x00, 0x25, 0x01,
+           0x75, 0x01, 0x95, 0x09,
+           0x09, 0xCD, 0x09, 0xB5, 0x09, 0xB6, 0x09, 0xB8, 0x09, 0xE2,
+           0x09, 0xEA, 0x09, 0xE9, 0x0A, 0x23, 0x02, 0x0A, 0x92, 0x01,
+           0x81, 0x02, 0x95, 0x07, 0x81, 0x01, 0xC0);
 }
 
 /* ---- Tests ------------------------------------------------------------- */
@@ -282,13 +316,15 @@ static void test_report_ids_across_the_eight_bit_range_route(void) {
     put_mouse(&d, 255);
     mount(d.buf, d.len);
 
-    uint8_t sys[] = {1, 0x01};
+    uint8_t sys[] = {1, 0x04};
     feed(sys, sizeof(sys));
     CHECK(system_reports == 1);
+    CHECK(last_system == 0x04);
 
-    uint8_t cc[] = {23, 0xE9, 0x00};
+    uint8_t cc[] = {23, 0x23, 0x02};
     feed(cc, sizeof(cc));
     CHECK(consumer_reports == 1);
+    CHECK(last_consumer == 0x223);
 
     uint8_t kbd[] = {24, 0x02, 0x00, 0x04, 0, 0, 0, 0, 0};
     feed(kbd, sizeof(kbd));
@@ -349,6 +385,97 @@ static void test_empty_report_is_dropped(void) {
     CHECK(keyboard_reports == 0);
 }
 
+/* A consumer report without an ID starts its payload at byte 0. */
+static void test_consumer_bits_without_id_decodes(void) {
+    desc_t d = {0};
+    put_consumer_bits(&d, 0);
+    mount(d.buf, d.len);
+
+    uint8_t play[] = {0x01, 0x00};
+    feed(play, sizeof(play));
+    CHECK(consumer_reports == 1);
+    CHECK(last_consumer == 0xCD);
+
+    uint8_t calculator[] = {0x00, 0x01};
+    feed(calculator, sizeof(calculator));
+    CHECK(consumer_reports == 2);
+    CHECK(last_consumer == 0x192);
+
+    uint8_t volume_up[] = {0x40};                   /* cut after byte 0: its bits still count */
+    feed(volume_up, sizeof(volume_up));
+    CHECK(consumer_reports == 3);
+    CHECK(last_consumer == 0xE9);
+}
+
+/* The same bitmap behind a report ID reads its bits after the ID byte. */
+static void test_consumer_bits_with_id_decode_after_the_id(void) {
+    desc_t d = {0};
+    put_consumer_bits(&d, 5);
+    mount(d.buf, d.len);
+
+    uint8_t calculator[] = {5, 0x00, 0x01};
+    feed(calculator, sizeof(calculator));
+    CHECK(consumer_reports == 1);
+    CHECK(last_consumer == 0x192);
+}
+
+/* A 16-bit consumer array without an ID is its two-byte payload. */
+static void test_consumer_array_without_id_decodes(void) {
+    desc_t d = {0};
+    PUT(&d, 0x05, 0x0C, 0x09, 0x01, 0xA1, 0x01,
+            0x15, 0x00, 0x26, 0xFF, 0x03, 0x19, 0x00, 0x2A, 0xFF, 0x03,
+            0x75, 0x10, 0x95, 0x01, 0x81, 0x00, 0xC0);
+    mount(d.buf, d.len);
+
+    uint8_t home[] = {0x23, 0x02};
+    feed(home, sizeof(home));
+    CHECK(consumer_reports == 1);
+    CHECK(last_consumer == 0x223);
+}
+
+/* A system report without an ID is its one-byte payload. */
+static void test_system_without_id_decodes(void) {
+    desc_t d = {0};
+    put_system_no_id(&d);
+    mount(d.buf, d.len);
+
+    uint8_t sleep[] = {0x02};
+    feed(sleep, sizeof(sleep));
+    CHECK(system_reports == 1);
+    CHECK(last_system == 0x02);
+}
+
+/* A report with no payload, or cut off inside its control, makes no control. */
+static void test_empty_and_truncated_controls_are_dropped(void) {
+    desc_t d = {0};
+    put_consumer_bits(&d, 0);
+    mount(d.buf, d.len);
+    uint8_t *report = malloc(1);
+    feed(report + 1, 0);                            /* one past the end, as ASan sees it */
+    CHECK(consumer_reports == 0);
+
+    d.len = 0;
+    put_system_no_id(&d);
+    mount(d.buf, d.len);
+    feed(report + 1, 0);
+    CHECK(system_reports == 0);
+
+    d.len = 0;
+    put_system(&d, 1);
+    put_consumer(&d, 23);
+    mount(d.buf, d.len);
+    report[0] = 1;
+    feed(report, 1);                                /* ID only */
+    report[0] = 23;
+    feed(report, 1);
+    CHECK(system_reports + consumer_reports == 0);
+
+    uint8_t half[] = {23, 0xE9};                    /* 16-bit control, one byte */
+    feed(half, sizeof(half));
+    CHECK(consumer_reports == 0);
+    free(report);
+}
+
 int main(void) {
     test_elements_past_the_usages_repeat_the_last_usage();
     test_fields_past_one_items_usages_repeat_its_last_usage();
@@ -362,6 +489,11 @@ int main(void) {
     test_undeclared_report_id_is_dropped();
     test_report_layouts_past_the_limit_are_dropped();
     test_empty_report_is_dropped();
+    test_consumer_bits_without_id_decodes();
+    test_consumer_bits_with_id_decode_after_the_id();
+    test_consumer_array_without_id_decodes();
+    test_system_without_id_decodes();
+    test_empty_and_truncated_controls_are_dropped();
 
     if (failures) {
         fprintf(stderr, "hid_parser_test: %d failure(s)\n", failures);

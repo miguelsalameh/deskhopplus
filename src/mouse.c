@@ -27,7 +27,7 @@ static inline bool extract_value(bool uses_id, int32_t *dst, report_val_t *src, 
     if (uses_id && (*raw_report++ != src->report_id))
         return false;
 
-    *dst = get_report_value(raw_report, len, src);
+    *dst = get_report_value(raw_report, len - uses_id, src);
     return true;
 }
 

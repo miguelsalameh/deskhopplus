@@ -21,6 +21,8 @@ void extract_data(hid_interface_t *, report_val_t *);
 int32_t get_report_value(uint8_t *, int, report_val_t *);
 int32_t extract_kbd_data(uint8_t *, int, uint8_t, hid_interface_t *, hid_keyboard_report_t *);
 keyboard_t *get_keyboard(hid_interface_t *, uint8_t);
+bool extract_consumer_report(uint8_t *, int, hid_interface_t *, uint8_t *);
+bool extract_system_report(uint8_t *, int, hid_interface_t *, uint8_t *);
 
 void process_mouse_report(uint8_t *, int, uint8_t, hid_interface_t *);
 void process_keyboard_report(uint8_t *, int, uint8_t, hid_interface_t *);

@@ -278,46 +278,15 @@ void process_keyboard_report(uint8_t *raw_report, int length, uint8_t itf, hid_i
 }
 
 void process_consumer_report(uint8_t *raw_report, int length, uint8_t itf, hid_interface_t *iface) {
-    uint8_t new_report[CONSUMER_CONTROL_LENGTH] = {0};
-    uint16_t *report_ptr = (uint16_t *)new_report;
+    uint8_t new_report[CONSUMER_CONTROL_LENGTH];
 
-    device_t *state = &global_state;
-    keyboard_t *keyboard = get_keyboard(iface, raw_report[0]);
-
-    /* If consumer control is variable, read the values from cc_array and send as array. */
-    if (iface->consumer.is_variable) {
-        for (int i = 0; i < MAX_CC_BUTTONS && i < 8 * (length - 1); i++) {
-            int bit_idx = i % 8;
-            int byte_idx = i >> 3;
-
-            if ((raw_report[byte_idx + 1] >> bit_idx) & 1) {
-                report_ptr[0] = keyboard->cc_array[i];
-            }
-        }
-    }
-    else {
-        for (int i = 0; i < length - 1 && i < CONSUMER_CONTROL_LENGTH; i++)
-            new_report[i] = raw_report[i + 1];
-    }
-
-    if (CURRENT_BOARD_IS_ACTIVE_OUTPUT) {
-        send_consumer_control(new_report, state);
-    } else {
-        (void)queue_packet((uint8_t *)new_report, CONSUMER_CONTROL_MSG, CONSUMER_CONTROL_LENGTH);
-    }
+    if (extract_consumer_report(raw_report, length, iface, new_report))
+        send_consumer_control(new_report, &global_state);
 }
 
 void process_system_report(uint8_t *raw_report, int length, uint8_t itf, hid_interface_t *iface) {
-    if (length <= SYSTEM_CONTROL_LENGTH)
-        return;
+    uint8_t new_report;
 
-    uint16_t new_report = raw_report[1];
-    uint8_t *report_ptr = (uint8_t *)&new_report;
-    device_t *state = &global_state;
-
-    if (CURRENT_BOARD_IS_ACTIVE_OUTPUT) {
-        send_system_control(report_ptr, state);
-    } else {
-        (void)queue_packet(report_ptr, SYSTEM_CONTROL_MSG, SYSTEM_CONTROL_LENGTH);
-    }
+    if (extract_system_report(raw_report, length, iface, &new_report))
+        send_system_control(&new_report, &global_state);
 }

@@ -67,9 +67,14 @@ keyboard_t *get_keyboard(hid_interface_t *iface, uint8_t report_id) {
     return &iface->keyboards[PRIMARY_KEYBOARD];
 }
 
-/* After processing the descriptor, assign the values so we can later use them to interpret reports */
+/* After processing the descriptor, assign the values so we can later use them to interpret reports.
+   Also keeps the first array control in dst, which extract_consumer_report uses as a length bound. */
 void handle_consumer_control_values(report_val_t *src, report_val_t *dst, hid_interface_t *iface) {
     keyboard_t *keyboard = get_keyboard(iface, src->report_id);
+
+    /* Keep the first array control, so a report cut off inside it is dropped */
+    if (src->data_type == ARRAY && src->item_type == DATA && dst->size == 0)
+        *dst = *src;
 
     if (src->offset >= MAX_CC_BUTTONS) {
         return;
@@ -277,6 +282,56 @@ void route_report(uint8_t *report, int len, uint8_t device_idx, hid_interface_t 
 
     if (receiver != NULL)
         receiver(report, len, device_idx, iface);
+}
+
+/* Decodes a consumer-control report into the CONSUMER_CONTROL_LENGTH bytes sent
+   to the computer. The payload follows the report ID only on an interface that
+   declares IDs. Returns false for a report with no payload, or one that ends
+   inside its array control. */
+bool extract_consumer_report(uint8_t *raw_report, int len, hid_interface_t *iface, uint8_t *out) {
+    int data_len = len - iface->uses_report_id;
+
+    if (data_len <= 0)
+        return false;
+
+    uint8_t *data = raw_report + iface->uses_report_id;
+    keyboard_t *keyboard = get_keyboard(iface, raw_report[0]);
+
+    memset(out, 0, CONSUMER_CONTROL_LENGTH);
+
+    /* A variable report is a bitmap; send the usage of the last bit set. */
+    if (iface->consumer.is_variable) {
+        for (int i = 0; i < MAX_CC_BUTTONS && i < 8 * data_len; i++) {
+            if ((data[i >> 3] >> (i % 8)) & 1) {
+                out[0] = keyboard->cc_array[i] & 0xFF;
+                out[1] = keyboard->cc_array[i] >> 8;
+            }
+        }
+    }
+    else {
+        report_val_t *val = &iface->consumer.val;
+        uint8_t report_id = iface->uses_report_id ? raw_report[0] : 0;
+
+        /* ponytail: bounds only the first array's report ID; store one per ID if a
+           device with two consumer arrays sends short reports */
+        if (val->report_id == report_id && 8 * data_len < val->offset + val->size)
+            return false;
+
+        for (int i = 0; i < data_len && i < CONSUMER_CONTROL_LENGTH; i++)
+            out[i] = data[i];
+    }
+    return true;
+}
+
+/* Decodes a system-control report into the SYSTEM_CONTROL_LENGTH byte sent to
+   the computer. The payload follows the report ID only on an interface that
+   declares IDs. Returns false for a report with no payload. */
+bool extract_system_report(uint8_t *raw_report, int len, hid_interface_t *iface, uint8_t *out) {
+    if (len - iface->uses_report_id < SYSTEM_CONTROL_LENGTH)
+        return false;
+
+    *out = raw_report[iface->uses_report_id];
+    return true;
 }
 
 int32_t extract_bit_variable(report_val_t *kbd, uint8_t *raw_report, int len, uint8_t *dst) {

@@ -339,6 +339,11 @@ void handle_consumer_control_msg(uart_packet_t *packet, device_t *state) {
     queue_cc_packet(packet->data, state);
 }
 
+/* Process system control message */
+void handle_system_control_msg(uart_packet_t *packet, device_t *state) {
+    queue_system_packet(packet->data, state);
+}
+
 /* Process request to store config to flash */
 void handle_save_config_msg(uart_packet_t *packet, device_t *state) {
     if (!dh_hotkey_table_is_valid(state->config.hotkeys, DH_HOTKEY_ACTION_COUNT))
