@@ -10,6 +10,7 @@
  * the Free Software Foundation, version 3.
  *
  * See the file LICENSE for the full license text.
+ * Modified by Derek Reynolds, 2026, for deskhopplus.
  */
 #include "main.h"
 
@@ -54,13 +55,17 @@ uint32_t get_current_offset(parser_state_t *parser) {
     return offset ? *offset : 0;
 }
 
-void update_usage(parser_state_t *parser, int i) {
-    /* If we don't have as many usages as elements, the usage for the previous element applies */
-    if (i > 0 && i >= parser->usage_count && i < HID_MAX_USAGES)
-        *(parser->p_usage + i) = *(parser->p_usage + i - 1);
+/* Usage for element i of the current main item. Past the declared usages the last one
+   repeats (HID spec); with none declared, the usage carried from the previous main item
+   in usages[0] applies. Never reads past usage_count, however large the report count. */
+uint16_t get_usage(parser_state_t *parser, uint32_t i) {
+    if (parser->usage_count == 0)
+        return parser->usages[0];
+
+    return parser->usages[i < parser->usage_count ? i : parser->usage_count - 1];
 }
 
-void store_element(parser_state_t *parser, report_val_t *val, int i, uint32_t data, uint16_t size, hid_interface_t *iface) {
+void store_element(parser_state_t *parser, report_val_t *val, uint16_t usage, uint32_t data, uint16_t size, hid_interface_t *iface) {
     uint32_t current_offset = get_current_offset(parser);
 
     *val = (report_val_t){
@@ -74,7 +79,7 @@ void store_element(parser_state_t *parser, report_val_t *val, int i, uint32_t da
         .item_type   = (data & 0x01) ? CONSTANT : DATA,
         .data_type   = (data & 0x02) ? VARIABLE : ARRAY,
 
-        .usage        = *(parser->p_usage + i),
+        .usage        = usage,
         .usage_page   = parser->globals[RI_GLOBAL_USAGE_PAGE].val,
         .global_usage = parser->global_usage,
         .report_id    = parser->report_id
@@ -100,8 +105,9 @@ void handle_local_item(parser_state_t *parser, item_t *item) {
         if(IS_BLOCK_END)
             parser->global_usage = item->val;
 
-        else if (parser->usage_count < HID_MAX_USAGES - 1)
-            *(parser->p_usage + parser->usage_count++) = item->val;
+        /* Every main item starts again at usages[0]; usages past the storage are dropped */
+        else if (parser->usage_count < HID_MAX_USAGES)
+            parser->usages[parser->usage_count++] = item->val;
     }
 }
 
@@ -123,9 +129,10 @@ void handle_main_input(parser_state_t *parser, item_t *item, hid_interface_t *if
     if (!current_offset)
         return;
 
-    for (int i = 0; i < count; i++) {
-        update_usage(parser, i);
-        store_element(parser, &val, i, item->val, size, iface);
+    /* report_val_t keeps bit offsets in 16 bits, so nothing past that is readable. This
+       also ends a zero-size field with a huge count, which would never advance. */
+    for (uint32_t i = 0; i < count && size > 0 && *current_offset <= UINT16_MAX; i++) {
+        store_element(parser, &val, get_usage(parser, i), item->val, size, iface);
 
         /* Use the parsed data to populate internal device structures */
         extract_data(iface, &val);
@@ -134,11 +141,9 @@ void handle_main_input(parser_state_t *parser, item_t *item, hid_interface_t *if
         *current_offset += size;
     }
 
-    /* Advance the usage array pointer by global report count and reset the count variable */
-    parser->p_usage += parser->usage_count;
-
-    /* Carry the last usage to the new location */
-    *parser->p_usage = *(parser->p_usage - parser->usage_count);
+    /* Carry this item's last usage to a next main item that declares none */
+    if (parser->usage_count > 0)
+        parser->usages[0] = parser->usages[parser->usage_count - 1];
 }
 
 void handle_main_item(parser_state_t *parser, item_t *item, hid_interface_t *iface) {
@@ -177,7 +182,6 @@ void parse_report_descriptor(hid_interface_t *iface,
 
     /* Wipe parser_state clean */
     memset(&parser_state, 0, sizeof(parser_state_t));
-    parser_state.p_usage = parser_state.usages;
 
     while (desc_len > 0) {
         item.hdr = *(header_t *)report++;

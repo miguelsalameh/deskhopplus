@@ -7,10 +7,11 @@
  * the Free Software Foundation, version 3.
  *
  * See the file LICENSE for the full license text.
+ * Modified by Derek Reynolds, 2026, for deskhopplus.
  */
 #pragma once
 
-#include "main.h"
+#include "hid_parser.h"
 
 /*==============================================================================
  *  Function Pointer Definitions

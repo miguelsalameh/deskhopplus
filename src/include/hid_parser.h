@@ -7,10 +7,12 @@
  * the Free Software Foundation, version 3.
  *
  * See the file LICENSE for the full license text.
+ * Modified by Derek Reynolds, 2026, for deskhopplus.
  */
 #pragma once
 
-#include "main.h"
+#include <stdbool.h>
+#include <stdint.h>
 #include "tusb.h"
 
 /*==============================================================================
@@ -156,7 +158,6 @@ typedef struct {
 
     uint32_t usage_count;
     uint16_t usages[HID_MAX_USAGES];
-    uint16_t *p_usage;
     uint16_t global_usage;
 
     collection_t collection;

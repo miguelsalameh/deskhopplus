@@ -7,6 +7,7 @@
  * the Free Software Foundation, version 3.
  *
  * See the file LICENSE for the full license text.
+ * Modified by Derek Reynolds, 2026, for deskhopplus.
  */
 #include "hid_report.h"
 #include "main.h"
@@ -32,7 +33,7 @@ int32_t get_report_value(uint8_t *report, int len, report_val_t *val) {
     int32_t result = report[byte_offset] >> offset_in_bits;
 
     /* Move to the next byte and continue fetching bits until the desired length is reached */
-    while (val->size > remaining_bits && byte_offset < len) {
+    while (val->size > remaining_bits && byte_offset + 1 < len) {
         result |= report[++byte_offset] << remaining_bits;
         remaining_bits += 8;
     }
@@ -48,6 +49,22 @@ int32_t get_report_value(uint8_t *report, int len, report_val_t *val) {
     }
 
     return result;
+}
+
+keyboard_t *get_keyboard(hid_interface_t *iface, uint8_t report_id) {
+    /* When we have just one keyboard (most cases), or don't use report ID */
+    if (iface->num_keyboards == 1 || !iface->uses_report_id)
+        return &iface->keyboards[PRIMARY_KEYBOARD];
+
+    /* Go through known keyboards and match on report ID, return pointer to keyboard_t */
+    for (int i = 0; i < iface->num_keyboards && i < MAX_KEYBOARDS; i++) {
+        if (iface->keyboards[i].report_id == report_id) {
+            return &iface->keyboards[i];
+        }
+    }
+
+    /* If nothing else is matched, return the primary keyboard. */
+    return &iface->keyboards[PRIMARY_KEYBOARD];
 }
 
 /* After processing the descriptor, assign the values so we can later use them to interpret reports */

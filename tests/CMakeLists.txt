@@ -39,6 +39,15 @@ if(NOT MSVC)
   target_include_directories(boot_hid_test PRIVATE boot_stubs ../src ../src/include ../src/core)
   target_include_directories(boot_hid_test SYSTEM PRIVATE ../pico-sdk/lib/tinyusb/src)
   add_test(NAME boot_hid_test COMMAND boot_hid_test)
+
+  # Attached-device input seam (#240). hid_stubs comes first so its main.h
+  # wins; boot_stubs supplies tusb_config.h.
+  add_executable(hid_parser_test hid_parser_test.c ../src/hid_parser.c ../src/hid_report.c)
+  target_include_directories(hid_parser_test PRIVATE hid_stubs boot_stubs ../src/include ../src/core)
+  target_include_directories(hid_parser_test SYSTEM PRIVATE ../pico-sdk/lib/tinyusb/src)
+  target_compile_options(hid_parser_test PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+  target_link_options(hid_parser_test PRIVATE -fsanitize=address)
+  add_test(NAME hid_parser_test COMMAND hid_parser_test)
 endif()
 
 # Public headers must compile in both languages without consumer definitions (#121).
