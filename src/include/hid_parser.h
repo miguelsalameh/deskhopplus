@@ -25,7 +25,7 @@
 #define MAX_DEVICES                 4
 #define MAX_INTERFACES              12  // Per device; allows for complex devices like QMK
 #define MAX_KEYS                    32
-#define MAX_REPORTS                 24
+#define MAX_REPORT_LAYOUTS          24  // Distinct report IDs whose layout one interface parses
 #define MAX_KEYBOARDS               5
 #define MAX_SYS_BUTTONS             8
 #define PRIMARY_KEYBOARD            0
@@ -117,6 +117,16 @@ typedef struct {
 typedef struct hid_interface_t hid_interface_t;
 typedef void (*process_report_f)(uint8_t *, int, uint8_t, hid_interface_t *);
 
+/* Which receiver a report ID goes to. One byte each, so an interface can map
+   all 256 report IDs; route_report turns it into the receiver function. */
+typedef enum {
+    RECEIVER_NONE = 0,
+    RECEIVER_MOUSE,
+    RECEIVER_KEYBOARD,
+    RECEIVER_CONSUMER,
+    RECEIVER_SYSTEM,
+} receiver_e;
+
 /* Defines information about HID report format for the keyboard. */
 typedef struct {
     report_val_t modifier;
@@ -146,7 +156,7 @@ struct hid_interface_t {
     mouse_t mouse;
     report_t consumer;
     report_t system;
-    process_report_f report_handler[MAX_REPORTS];
+    uint8_t report_receiver[UINT8_MAX + 1]; // receiver_e, indexed by report ID
     uint8_t protocol;
     bool uses_report_id;
 };
@@ -162,7 +172,7 @@ typedef struct {
 
     collection_t collection;
 
-    report_offset_map_t report_offsets[MAX_REPORTS];
+    report_offset_map_t report_offsets[MAX_REPORT_LAYOUTS];
     uint8_t num_report_offsets;
 
     /* as tag is 4 bits, there can be 16 different tags in global header type */
@@ -171,5 +181,7 @@ typedef struct {
     /* as tag is 4 bits, there can be 16 different tags in local header type */
     item_t locals[16];
 } parser_state_t;
+
+void route_report(uint8_t *report, int len, uint8_t device_idx, hid_interface_t *iface);
 
 ///////////////

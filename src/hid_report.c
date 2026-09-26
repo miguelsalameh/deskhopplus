@@ -182,7 +182,7 @@ void extract_data(hid_interface_t *iface, report_val_t *val) {
         {.usage_page   = HID_USAGE_PAGE_BUTTON,
          .global_usage = HID_USAGE_DESKTOP_MOUSE,
          .handler      = handle_buttons,
-         .receiver     = process_mouse_report,
+         .receiver     = RECEIVER_MOUSE,
          .dst          = &iface->mouse.buttons,
          .get_id       = get_mouse_id},
 
@@ -190,7 +190,7 @@ void extract_data(hid_interface_t *iface, report_val_t *val) {
          .global_usage = HID_USAGE_DESKTOP_MOUSE,
          .usage        = HID_USAGE_DESKTOP_X,
          .handler      = _store,
-         .receiver     = process_mouse_report,
+         .receiver     = RECEIVER_MOUSE,
          .dst          = &iface->mouse.move_x,
          .get_id       = get_mouse_id},
 
@@ -198,7 +198,7 @@ void extract_data(hid_interface_t *iface, report_val_t *val) {
          .global_usage = HID_USAGE_DESKTOP_MOUSE,
          .usage        = HID_USAGE_DESKTOP_Y,
          .handler      = _store,
-         .receiver     = process_mouse_report,
+         .receiver     = RECEIVER_MOUSE,
          .dst          = &iface->mouse.move_y,
          .get_id       = get_mouse_id},
 
@@ -206,7 +206,7 @@ void extract_data(hid_interface_t *iface, report_val_t *val) {
          .global_usage = HID_USAGE_DESKTOP_MOUSE,
          .usage        = HID_USAGE_DESKTOP_WHEEL,
          .handler      = _store,
-         .receiver     = process_mouse_report,
+         .receiver     = RECEIVER_MOUSE,
          .dst          = &iface->mouse.wheel,
          .get_id       = get_mouse_id},
 
@@ -214,27 +214,27 @@ void extract_data(hid_interface_t *iface, report_val_t *val) {
          .global_usage = HID_USAGE_DESKTOP_MOUSE,
          .usage        = HID_USAGE_CONSUMER_AC_PAN,
          .handler      = _store,
-         .receiver     = process_mouse_report,
+         .receiver     = RECEIVER_MOUSE,
          .dst          = &iface->mouse.pan,
          .get_id       = get_mouse_id},
 
         {.usage_page   = HID_USAGE_PAGE_KEYBOARD,
          .global_usage = HID_USAGE_DESKTOP_KEYBOARD,
          .handler      = handle_keyboard_descriptor_values,
-         .receiver     = process_keyboard_report,
+         .receiver     = RECEIVER_KEYBOARD,
          .get_id       = get_next_keyboard_id},
 
         {.usage_page   = HID_USAGE_PAGE_CONSUMER,
          .global_usage = HID_USAGE_CONSUMER_CONTROL,
          .handler      = handle_consumer_control_values,
-         .receiver     = process_consumer_report,
+         .receiver     = RECEIVER_CONSUMER,
          .dst          = &iface->consumer.val,
          .get_id       = get_consumer_id},
 
         {.usage_page   = HID_USAGE_PAGE_DESKTOP,
          .global_usage = HID_USAGE_DESKTOP_SYSTEM_CONTROL,
          .handler      = _store,
-         .receiver     = process_system_report,
+         .receiver     = RECEIVER_SYSTEM,
          .dst          = &iface->system.val,
          .get_id       = get_system_id},
     };
@@ -253,10 +253,30 @@ void extract_data(hid_interface_t *iface, report_val_t *val) {
 
             hay->handler(val, hay->dst, iface);
 
-            if (val->report_id < MAX_REPORTS)
-                iface->report_handler[val->report_id] = hay->receiver;
+            iface->report_receiver[val->report_id] = hay->receiver;
         }
     }
+}
+
+/* Sends a report from an interface that uses report IDs (or declares no boot
+   protocol) to the receiver its descriptor declared for that ID. A report
+   with an undeclared ID, or too short to hold its ID, is dropped. */
+void route_report(uint8_t *report, int len, uint8_t device_idx, hid_interface_t *iface) {
+    static const process_report_f receivers[] = {
+        [RECEIVER_NONE]     = NULL,
+        [RECEIVER_MOUSE]    = process_mouse_report,
+        [RECEIVER_KEYBOARD] = process_keyboard_report,
+        [RECEIVER_CONSUMER] = process_consumer_report,
+        [RECEIVER_SYSTEM]   = process_system_report,
+    };
+    if (iface->uses_report_id && len < 1)
+        return;
+
+    uint8_t report_id = iface->uses_report_id ? report[0] : 0;
+    process_report_f receiver = receivers[iface->report_receiver[report_id]];
+
+    if (receiver != NULL)
+        receiver(report, len, device_idx, iface);
 }
 
 int32_t extract_bit_variable(report_val_t *kbd, uint8_t *raw_report, int len, uint8_t *dst) {

@@ -30,6 +30,6 @@ typedef struct {
     int usage;
     report_val_t *dst;
     value_handler_f handler;
-    process_report_f receiver;
+    receiver_e receiver;
     report_id_getter_f get_id;
 } usage_map_t;
