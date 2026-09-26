@@ -60,6 +60,8 @@ need_toolchain() {
         PATH="$found:$PATH"
     fi
 
+    command -v ninja >/dev/null 2>&1 || die "no ninja. brew install ninja"
+
     export PATH
 }
 
@@ -101,6 +103,17 @@ elapsed() {
     fi
 }
 
+# Configure a cmake tree for Ninja. /usr/bin/make (3.81) compares file times
+# to the second, so a header saved in the same second as an object it feeds
+# leaves that object stale for good: a #251 mutation test did exactly that,
+# and the stale object corrupted board B's heartbeat (#264). Ninja compares to
+# the nanosecond. cmake cannot switch an existing tree to another generator,
+# so a tree made by any other generator is dropped once.
+configure() {  # configure <source dir> <build dir>
+    grep -qx 'CMAKE_GENERATOR:INTERNAL=Ninja' "$2/CMakeCache.txt" 2>/dev/null || rm -rf "$2"
+    cmake -G Ninja -S "$1" -B "$2" >/dev/null
+}
+
 # ----------------------------------------------------------------- firmware
 
 build_fw() {
@@ -110,7 +123,7 @@ build_fw() {
 
     # Reconfigure every time. It is cheap, and a stale cache has bitten before:
     # a version bump that never reached the image.
-    cmake -S . -B build >/dev/null
+    configure . build
     cmake --build build -j"$(sysctl -n hw.ncpu)"
 }
 
@@ -159,7 +172,7 @@ test_helper() {
 test_core() {
     need_toolchain
     say "C core tests"
-    cmake -S tests -B tests/build >/dev/null
+    configure tests tests/build
     cmake --build tests/build >/dev/null
     ctest --test-dir tests/build --output-on-failure
 }
