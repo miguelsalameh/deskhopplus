@@ -50,6 +50,10 @@ static struct {
      */
     volatile bool config_wiped;
 
+    /* A pair chord press waiting to be applied, for the same reason and in
+       the same way as config_wiped. */
+    volatile bool pairing_window_requested;
+
 } channel;
 
 void channel_lifecycle_lock(void) {
@@ -199,37 +203,10 @@ void channel_link_lost(void) {
     channel_lifecycle_link_lost(&channel.lifecycle);
 }
 
+/* Both callers — the chord and the peer's PAIR_WINDOW_MSG — run on core 1,
+   and the pairing state is core 0's. See pairing_window_requested. */
 void channel_open_pairing_window(void) {
-    /*
-     * Open the window, and nothing else. v1 rotated the device secret on every
-     * chord press, because a bearer token that had leaked stayed valid until
-     * the configuration was wiped — and ADR-0008 recorded the sting in that:
-     * where the channel is not exclusive, rotating *re-issued* the pairing to
-     * whatever was listening. Nothing secret crosses now, so there is nothing
-     * to rotate, and a chord press nobody pairs against leaves the existing
-     * registration exactly as it was. An accidental press costs the user
-     * nothing.
-     */
-    dh_pair_open_window(&channel.lifecycle.pair, channel_now_ms());
-
-    /*
-     * Clearing the session here is defensive, not an eviction anyone hears
-     * about: the only caller is setup.c, on the normal-mode boot after the
-     * chord's reboot, where channel_init has just cleared it anyway and no
-     * helper has said hello. The helper re-pairs silently inside the window
-     * it is standing in, having learned of the reboot from the USB
-     * re-enumeration — a louder signal than any frame could be.
-     */
-    dh_session_drop(&channel.lifecycle.session);
-}
-
-/* Consumed once, on the normal-mode boot after a config chord. */
-bool channel_pairing_window_owed(void) {
-    if (watchdog_hw->scratch[3] != MAGIC_WORD_PAIR)
-        return false;
-
-    watchdog_hw->scratch[3] = 0;
-    return true;
+    channel.pairing_window_requested = true;
 }
 
 bool channel_helper_present(void) {
@@ -589,6 +566,10 @@ void channel_task(device_t *state) {
     if (channel.config_wiped) {
         channel.config_wiped = false;
         channel_lifecycle_config_wiped(&channel.lifecycle, now);
+    }
+    if (channel.pairing_window_requested) {
+        channel.pairing_window_requested = false;
+        channel_lifecycle_open_pairing_window(&channel.lifecycle, now);
     }
     if (dh_session_needs_nonce(&channel.lifecycle.session)) {
         uint8_t nonce[DH_NONCE_SIZE];

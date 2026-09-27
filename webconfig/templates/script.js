@@ -8,8 +8,7 @@ const packetType = {
   getCursorTraceMsg: 33, cursorTraceMsg: 34
 };
 
-/* boot: q bit0 into config mode, bit1 watchdog reset, bit2 meant (bit1 without bit2 = hang);
-   d=(1,_) after the chord.
+/* boot: q bit0 into config mode, bit1 watchdog reset, bit2 meant (bit1 without bit2 = hang).
    hid-mount/unmount (#102): q=dev_addr d=(instance,protocol);
    mount dir bit0 keyboard seen, bit1 mouse seen; transition 1 polling, 2 refused, 3 rejected.
    dev-mount/unmount: q=dev_addr, the device before any class driver. replug: q=pulls so far. */
@@ -446,7 +445,7 @@ function renderPairedHelper() {
      rather than showing sixteen noughts as if they were a key. */
   if (paired === null || parseInt(paired) === 0) {
     if (paired !== null)
-      shown.value = 'none — press the config chord to pair a helper';
+      shown.value = 'none — press the Pair chord (Left Ctrl + Right Shift + P)';
     return;
   }
 

@@ -131,7 +131,7 @@ std::string state_message(dh_helper_state state) {
     case DH_HELPER_RECONNECTING_REPEATEDLY:
         return "Reconnecting repeatedly — check the cable, and that the helper is up to date";
     case DH_HELPER_NOT_PAIRED:
-        return "Not paired — press the config chord on the device";
+        return "Not paired — press the Pair chord (Left Ctrl + Right Shift + P)";
     case DH_HELPER_DEVICE_IN_CONFIG_MODE:
         return "Device in config mode";
     case DH_HELPER_DEVICE_ABSENT:
@@ -140,7 +140,7 @@ std::string state_message(dh_helper_state state) {
         return "Helper version does not match the device — file transfers are refused";
     case DH_HELPER_LISTENER_DETECTED:
         return "Another program is writing to the device channel — find and stop it, "
-               "and do not press the config chord while it is running";
+               "and do not press the pair chord while it is running";
     case DH_HELPER_BOARD_IDENTITY_CHANGED:
         return "Device identity changed — if you re-flashed it, remove the pinned board key";
     case DH_HELPER_STATE_COUNT:
@@ -225,7 +225,7 @@ bool state_names_a_remedy(dh_helper_state state) {
      *
      * This is presentation, which is why it lives here. The one predicate that
      * is *not* — whether the chord may be offered at all — is
-     * dh_helper_prompts_config_chord and is called, never restated: the chord
+     * dh_helper_prompts_pair_chord and is called, never restated: the chord
      * provisions whatever is attached to the channel during its window (#34),
      * so it has one answer across both helpers.
      */

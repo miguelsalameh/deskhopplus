@@ -22,7 +22,7 @@
  * **Here:** every decision. The state values, both policy predicates, the
  * timings, the backoff, the negotiation, and the frames that go out.
  *
- * `dh_helper_prompts_config_chord` is the one that is not a presentation
+ * `dh_helper_prompts_pair_chord` is the one that is not a presentation
  * choice. The chord provisions whatever is attached to the channel during its
  * window (#34), so a state that offers it while something else holds the
  * channel hands that something else the pairing. It is decided once, not per
@@ -218,7 +218,7 @@ typedef enum {
  * and DH_HELPER_BOARD_IDENTITY_CHANGED, where pressing it is the act that
  * accepts a swapped board.
  */
-static inline bool dh_helper_prompts_config_chord(dh_helper_state s) {
+static inline bool dh_helper_prompts_pair_chord(dh_helper_state s) {
     return s == DH_HELPER_NOT_PAIRED;
 }
 

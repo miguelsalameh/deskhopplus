@@ -37,7 +37,7 @@
  * will not pair. That first test is per key id rather than per board (#117), so
  * that a board registered to *someone else* says so instead of falling silent —
  * silence never reaches the helper state that asks to be paired, which left the
- * config chord with nothing to provision. docs/protocol.md weighs the widening
+ * pair chord with nothing to provision. docs/protocol.md weighs the widening
  * against the "safe to overhear" argument.
  *
  * **Every answer echoes the caller's correlation value.** A listener can still

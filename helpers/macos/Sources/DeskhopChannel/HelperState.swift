@@ -10,7 +10,7 @@ import DHCore
  * not one string table living in C.
  *
  * The distinction that carries a security property: **only `notPaired` prompts
- * the config chord**, because the chord provisions whatever is attached to the
+ * the pair chord**, because the chord provisions whatever is attached to the
  * channel during its window (#34). Two states here are precisely the ones a
  * chord press would make worse — `listenerDetected`, where something else is
  * writing to the channel, and `boardIdentityChanged`, where pressing it is the
@@ -75,14 +75,14 @@ public enum HelperState: UInt32, CaseIterable, Equatable {
         case .connectedConfigMode: return "Connected and paired — config mode"
         case .reconnectingRepeatedly:
             return "Reconnecting repeatedly — check the link, and that the helper is up to date"
-        case .notPaired: return "Not paired — press the config chord on the device"
+        case .notPaired: return "Not paired — press the Pair chord (Left Ctrl + Right Shift + P)"
         case .deviceInConfigMode: return "Device in config mode"
         case .deviceAbsent: return "Device not connected"
         case .versionIncompatible:
             return "Helper version does not match the device — update the helper; file transfers are refused"
         case .listenerDetected:
             return "Another program is writing to the device channel — find and stop it, "
-                 + "and do not press the config chord while it is running"
+                 + "and do not press the pair chord while it is running"
         case .boardIdentityChanged:
             return "Device identity changed — if you re-flashed it, remove the pinned board key"
         }
@@ -90,7 +90,7 @@ public enum HelperState: UInt32, CaseIterable, Equatable {
 
     /* The chord remedy is shown only from `notPaired`. Decided by the core, so
        that the #34 property has one answer across both helpers. */
-    public var promptsConfigChord: Bool { dh_helper_prompts_config_chord(core) }
+    public var promptsPairChord: Bool { dh_helper_prompts_pair_chord(core) }
 
     /*
      * An incompatible peer keeps placement and refuses bulk: a misparsed

@@ -236,11 +236,6 @@ void initial_setup(device_t *state) {
        there are no 2000 Hz queues here to stall. */
     channel_init(state);
 
-    /* A config chord before the last reboot owes a pairing window. Provisioning
-       still happens after Exit, not during the live config-mode session. */
-    if (!state->config_mode_active && channel_pairing_window_owed())
-        channel_open_pairing_window();
-
     /* Detect which board we're running on */
     state->board_role = board_autoprobe();
 

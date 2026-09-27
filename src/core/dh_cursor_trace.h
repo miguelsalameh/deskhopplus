@@ -36,8 +36,8 @@ typedef enum {
      * the one thing a dead-after-boot keyboard needs a log to do. Fields:
      * BOOT      query_id bit0 = booting into config mode, bit1 = the
      *           watchdog reset the board, bit2 = the firmware meant to
-     *           reboot. bit1 without bit2 is a hang. move_x = 1 after the
-     *           config chord. All clear: power-on or a flash.
+     *           reboot. bit1 without bit2 is a hang. All clear:
+     *           power-on or a flash.
      * HID_MOUNT query_id = dev_addr, move_x = instance, move_y = itf protocol
      *           (1 keyboard, 2 mouse, 0 none); direction bit0 = keyboard seen,
      *           bit1 = mouse seen; transition 1 = report polling started,

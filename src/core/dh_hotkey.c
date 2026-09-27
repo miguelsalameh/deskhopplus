@@ -42,7 +42,8 @@ bool dh_hotkey_action_passes_to_os(uint8_t action_id) {
 }
 
 bool dh_hotkey_action_acknowledges(uint8_t action_id) {
-    return action_id < DH_HOTKEY_ACTION_COUNT && action_id != DH_HOTKEY_ACTION_OUTPUT_TOGGLE;
+    return action_id == DH_HOTKEY_ACTION_PAIR ||
+           (action_id < DH_HOTKEY_ACTION_COUNT && action_id != DH_HOTKEY_ACTION_OUTPUT_TOGGLE);
 }
 
 uint8_t dh_hotkey_action_id(const char *name) {
@@ -157,22 +158,29 @@ const dh_hotkey_t *dh_hotkey_match(const dh_hotkey_t *hotkeys,
     return NULL;
 }
 
-const dh_hotkey_t *dh_hotkey_match_with_recovery(
+/* The fixed chords win over any user binding of the same keys: the recovery
+   chord (Left Ctrl + Right Shift + C + O) and the pair chord (Left Ctrl +
+   Right Shift + P). */
+const dh_hotkey_t *dh_hotkey_match_with_fixed(
     const dh_hotkey_t *hotkeys, size_t count, uint8_t modifier,
     const uint8_t keys[DH_HOTKEY_KEY_CAPACITY]) {
-    static const dh_hotkey_t recovery = {
-        .modifier = 0x21, .keys = {0x06, 0x12}, .key_count = 2,
-        .action_id = DH_HOTKEY_ACTION_CONFIG_ENABLE};
-    if (dh_hotkey_match(&recovery, 1, modifier, keys))
-        return &recovery;
-    return dh_hotkey_match(hotkeys, count, modifier, keys);
+    static const dh_hotkey_t fixed[] = {
+        {.modifier = 0x21, .keys = {0x06, 0x12}, .key_count = 2,
+         .action_id = DH_HOTKEY_ACTION_CONFIG_ENABLE},
+        {.modifier = 0x21, .keys = {0x13}, .key_count = 1,
+         .action_id = DH_HOTKEY_ACTION_PAIR},
+    };
+    const dh_hotkey_t *match =
+        dh_hotkey_match(fixed, sizeof fixed / sizeof fixed[0], modifier, keys);
+    return match ? match : dh_hotkey_match(hotkeys, count, modifier, keys);
 }
 
 dh_keyboard_hotkey_result_t dh_keyboard_hotkey_resolve(
     const dh_hotkey_t *hotkeys, size_t count, uint8_t modifier,
     const uint8_t keys[DH_HOTKEY_KEY_CAPACITY]) {
-    const dh_hotkey_t *match = dh_hotkey_match_with_recovery(hotkeys, count, modifier, keys);
-    if (!match || match->action_id >= DH_HOTKEY_ACTION_COUNT)
+    const dh_hotkey_t *match = dh_hotkey_match_with_fixed(hotkeys, count, modifier, keys);
+    if (!match || (match->action_id >= DH_HOTKEY_ACTION_COUNT &&
+                   match->action_id != DH_HOTKEY_ACTION_PAIR))
         return (dh_keyboard_hotkey_result_t){0};
     return (dh_keyboard_hotkey_result_t){
         .matched = true,

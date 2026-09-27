@@ -139,6 +139,8 @@ void channel_lifecycle_receive_channel_report(channel_lifecycle *c, uint8_t inde
                                                const uint8_t *buffer, uint16_t len);
 void channel_lifecycle_receive_report(channel_lifecycle *c, const uint8_t *buffer, uint16_t len);
 void channel_lifecycle_config_wiped(channel_lifecycle *c, uint32_t now);
+/* The pair chord's effect on this board: a window, and nothing else. */
+void channel_lifecycle_open_pairing_window(channel_lifecycle *c, uint32_t now);
 /* One clock for decoding and liveness, with hardware work between them. */
 void channel_lifecycle_step(channel_lifecycle *c, uint32_t now, void *context);
 

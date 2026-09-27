@@ -368,7 +368,7 @@ private func testFailuresAreDistinct() throws {
     unpaired.send(.channelsAcquired(count: 1))
     Check.equal(unpaired.states(unpaired.send(try unpaired.helloRefused(.unpaired))),
                 [.notPaired], "an unpaired board was not reported as unpaired")
-    Check.that(unpaired.session.state.promptsConfigChord,
+    Check.that(unpaired.session.state.promptsPairChord,
                "an unpaired helper must be told which keystroke fixes it")
     Check.that(unpaired.session.negotiated == nil,
                "an unpaired session must not claim negotiated terms")
@@ -442,7 +442,7 @@ private func testARefusedOpenIsReportedAsAnUnusableDevice() throws {
 
     Check.equal(f.states(f.advance(HelperSession.silenceWindow)), [.deviceAbsent],
                 "a device that never opens was never reported at all")
-    Check.that(!f.session.state.promptsConfigChord, "a refused open prompted the chord")
+    Check.that(!f.session.state.promptsPairChord, "a refused open prompted the chord")
 }
 
 /*
@@ -597,7 +597,7 @@ private func testListenerAlertIsReported() throws {
     Check.equal(f.states(outputs), [.listenerDetected], "a detected listener was not reported")
     Check.that(f.notes(outputs).contains { $0.contains("4") && $0.contains("10000") },
                "the measurement behind the alert was not recorded")
-    Check.that(!f.session.state.promptsConfigChord,
+    Check.that(!f.session.state.promptsPairChord,
                "a listener prompted the chord, which would provision whoever is listening")
 
     /* The words, not only the flag. This is the state that replaced
@@ -607,7 +607,7 @@ private func testListenerAlertIsReported() throws {
     Check.that(message.contains("writing to the device channel"),
                "the state does not say what was detected")
     Check.that(message.contains("find and stop it"), "the state names no remedy")
-    Check.that(message.lowercased().contains("do not press the config chord"),
+    Check.that(message.lowercased().contains("do not press the pair chord"),
                "the state does not warn off the chord, which is what would pair the listener")
 
     /* The session is untouched. What the board detected is somebody *writing*
@@ -865,7 +865,7 @@ private func testConfigModeIsDistinct() throws {
                 "the config-mode identity was never reported")
     Check.unequal(f.session.state, .deviceAbsent,
                   "seeing the config-mode identity was reported as an absent device")
-    Check.that(!f.session.state.promptsConfigChord, "config mode prompted the chord")
+    Check.that(!f.session.state.promptsPairChord, "config mode prompted the chord")
 
     /* And it keeps saying so. Config mode lasts as long as the user leaves
        it — up to minutes — so being right for five seconds is not being
@@ -1021,7 +1021,7 @@ private func testPairingRoundTrip() throws {
     /* The device accepts it, and *that* is what the user sees. */
     Check.equal(f.states(f.send(try f.ack())), [.connected],
                 "pairing succeeded but the helper never confirmed it visibly")
-    Check.that(!f.session.state.promptsConfigChord, "a paired helper still prompts the chord")
+    Check.that(!f.session.state.promptsPairChord, "a paired helper still prompts the chord")
 }
 
 /*
@@ -1123,7 +1123,7 @@ private func testABoardWhoseKeyChangedIsNotSilentlyAccepted() throws {
     }), "a different board's key was pinned without a word")
     Check.equal(f.session.state, .boardIdentityChanged,
                 "a board with a new identity key was accepted as the paired one")
-    Check.that(!f.session.state.promptsConfigChord,
+    Check.that(!f.session.state.promptsPairChord,
                "a changed board identity prompted the chord — pressing it is what accepts it")
     Check.that(!f.session.state.allowsBulkTransfers,
                "a board that may not be ours would carry bulk")
@@ -1182,7 +1182,7 @@ private func testRepeatedReconnectionIsNotReportedAsConnected() throws {
     Check.equal(f.session.state, .reconnectingRepeatedly,
                 "a connection rebuilt \(HelperSession.reconnectLimit) times in a few seconds "
                 + "went on reading as connected")
-    Check.that(!f.session.state.promptsConfigChord,
+    Check.that(!f.session.state.promptsPairChord,
                "a connection being rebuilt prompted the chord: the chord provisions whoever is "
                + "connected, and this helper barely is")
     Check.that(f.session.canSendBulk,
@@ -1292,7 +1292,7 @@ private func testAStuckHandshakeStillAsksToBePaired() throws {
                 "a handshake that never completes was not reported")
     Check.that(asked >= 1,
                "a helper looping on an unanswerable hello never asked to be paired, so the "
-               + "config chord could not rescue it")
+               + "pair chord could not rescue it")
 
     /* And the chord works. The next retry acquires the channels and asks
        again; the user presses the chord while that request is in flight. The
@@ -1383,7 +1383,7 @@ private func testAConnectionThatHoldsGoesBackToConnected() throws {
  * The one place the binding can drift silently. `HelperState` pairs with
  * `dh_helper_state` by raw value rather than by a switch, so a state renumbered
  * in the core would quietly become a different state here — the user would be
- * shown the wrong sentence, and `promptsConfigChord` would answer for the
+ * shown the wrong sentence, and `promptsPairChord` would answer for the
  * wrong case, which is the #34 property.
  *
  * The two predicates are read off the core deliberately (`dh_helper.h` says
@@ -1430,7 +1430,7 @@ private func testEveryStateCrossesTheSeamIntact() throws {
 
     for (swift, core) in pairing {
         Check.equal(swift.rawValue, core.rawValue, "\(swift) is not the core's \(core.rawValue)")
-        Check.equal(swift.promptsConfigChord, dh_helper_prompts_config_chord(core),
+        Check.equal(swift.promptsPairChord, dh_helper_prompts_pair_chord(core),
                     "\(swift) answers the chord question against the wrong state")
         Check.equal(swift.allowsBulkTransfers, dh_helper_allows_bulk(core),
                     "\(swift) answers the bulk question against the wrong state")
@@ -1445,14 +1445,17 @@ private func testEveryStateCrossesTheSeamIntact() throws {
     }
 
     /* The chord, from exactly one state — the rule #34 buys. */
-    Check.equal(HelperState.allCases.filter(\.promptsConfigChord), [.notPaired],
+    Check.equal(HelperState.notPaired.message,
+                "Not paired — press the Pair chord (Left Ctrl + Right Shift + P)",
+                "the not-paired words do not name the pair chord")
+    Check.equal(HelperState.allCases.filter(\.promptsPairChord), [.notPaired],
                 "the chord is offered from somewhere other than an unpaired helper")
 
     /* And the two that must warn against it say so in words, not only by
        withholding the prompt (#38): a user who has heard "press the chord"
        once will press it again unless told not to. */
     let listener = HelperState.listenerDetected.message ?? ""
-    Check.that(listener.lowercased().contains("do not press the config chord"),
+    Check.that(listener.lowercased().contains("do not press the pair chord"),
                "a detected listener does not warn off the chord")
     let swapped = HelperState.boardIdentityChanged.message ?? ""
     Check.that(swapped.contains("remove the pinned board key"),

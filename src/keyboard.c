@@ -265,8 +265,12 @@ void process_keyboard_report(uint8_t *raw_report, int length, uint8_t itf, hid_i
         if (hotkey.acknowledge)
             blink_led(state);
 
-        /* Execute the corresponding handler */
-        hotkey_actions[hotkey.action_id].handler(state, &new_report);
+        /* Execute the corresponding handler. The pair chord is fixed and has
+           no slot in the table. */
+        if (hotkey.action_id == DH_HOTKEY_ACTION_PAIR)
+            pair_hotkey_handler(state, &new_report);
+        else
+            hotkey_actions[hotkey.action_id].handler(state, &new_report);
 
         /* And pass the key to the output PC if configured to do so. */
         if (!hotkey.pass_to_os)

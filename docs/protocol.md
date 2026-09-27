@@ -343,7 +343,7 @@ at all, and a corrupted one is now indistinguishable from a lost one rather than
 event. Every other frame type — hello, pairing, credits, retransmits, DONE, cursor placement — still
 drops the connection on any bad tag, unchanged.
 
-The helper state this alert drives must never prompt the config chord. That rule is inherited
+The helper state this alert drives must never prompt the pair chord. That rule is inherited
 verbatim from the `channelHeld` state it replaces, which is now removed
 ([#72](https://github.com/myn/deskhopplus/issues/72),
 [#114](https://github.com/myn/deskhopplus/issues/114), ADR-0008). The macOS helper asserts it in
@@ -413,10 +413,11 @@ CryptoKit's `rawRepresentation`, so no end has to add or strip an X9.63 `0x04` p
 
 ### Pairing
 
-The gesture is unchanged: the physical config chord, a 60-second window, nothing typed and
-nothing displayed. What changed is what crosses.
+The gesture is physical: the pair chord, a 60-second window, nothing typed and nothing
+displayed. One press opens the window on both boards; the peer learns of it over the
+inter-board link ([ADR-0014](adr/0014-pair-chord-opens-both-boards.md)).
 
-1. The user presses the chord. The board opens the window.
+1. The user presses the chord. Each board opens its window.
 2. A helper sends `DH_MSG_PAIR_REQUEST`, carrying a fresh random correlation value and **its
    public key**.
 3. The board registers that key, computes one ECDH against its own private key, stores the
@@ -494,7 +495,7 @@ which answer is given tells the user which remedy to reach for.
    error before it is a hello; see the v3 note at the top.)
 2. **The board holds no registration for the `helper_key_id` this hello names** →
    `HELLO_REFUSED(unpaired)`, untagged. There is no secret to prove and the honest remedy really
-   is the config chord. Per key id, not per board: a board registered to *someone else* is
+   is the pair chord. Per key id, not per board: a board registered to *someone else* is
    unpaired as far as this asker is concerned, and telling it so is what keeps the chord a remedy
    ([#117](https://github.com/myn/deskhopplus/issues/117)). See *What an unauthenticated frame
    causes* for why this stays safe to overhear.

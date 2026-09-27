@@ -101,6 +101,7 @@ const uart_handler_t uart_handler[] = {
 
     /* Config */
     {.type = WIPE_CONFIG_MSG, .handler = handle_wipe_config_msg},
+    {.type = PAIR_WINDOW_MSG, .handler = handle_pair_window_msg},
     {.type = SAVE_CONFIG_MSG, .handler = handle_save_config_msg},
     {.type = REBOOT_MSG, .handler = handle_reboot_msg},
     {.type = GET_VAL_MSG, .handler = handle_api_msgs},

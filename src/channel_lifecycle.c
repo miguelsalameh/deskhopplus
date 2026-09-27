@@ -261,6 +261,16 @@ void channel_lifecycle_config_wiped(channel_lifecycle *c, uint32_t now) {
     c->registration_unsaved = false;
 }
 
+/*
+ * Open the window, and nothing else. The chord arrives at run time, and on a
+ * board that is already paired its helper is live and connected: dropping
+ * the session here would evict the one helper that did nothing wrong. A press
+ * nobody pairs against leaves the registration exactly as it was.
+ */
+void channel_lifecycle_open_pairing_window(channel_lifecycle *c, uint32_t now) {
+    dh_pair_open_window(&c->pair, now);
+}
+
 bool channel_lifecycle_emit_placement(channel_lifecycle *c, uint8_t type, const uint8_t *body,
                                       size_t body_len, uint32_t now) {
     if (body_len > DH_PLACE_BODY_SIZE)

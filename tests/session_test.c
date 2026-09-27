@@ -647,7 +647,7 @@ static void test_the_two_refusals_echo_the_callers_correlation(void) {
     CHECK(!s.present, "refusal", "an incompatible helper was admitted to a session");
 
     /* 2. A board with no registration. There is no secret to prove and the
-          honest remedy really is the config chord. */
+          honest remedy really is the pair chord. */
     an_unpaired_board(&s);
     dh_hello unpaired = golden;
     unpaired.correlation = 0x1122334455667788ull;

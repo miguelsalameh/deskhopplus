@@ -491,7 +491,7 @@ static dh_frame_result answer_hello(dh_session *s, dh_pair *pair, const dh_frame
 
     /*
      * 2. No registration **for the key id this hello names**. There is no
-     *    secret to prove and the honest remedy really is the config chord.
+     *    secret to prove and the honest remedy really is the pair chord.
      *
      *    Per key id, not per board (#117). Asking only "does this board hold
      *    any registration?" left the case that matters — a board registered to

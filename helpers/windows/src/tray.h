@@ -28,7 +28,7 @@
  *     `promote`.
  *
  * The wording and the look are words.h's. What the *states* are, and whether
- * the config chord may be offered from one, are the shared core's and are
+ * the pair chord may be offered from one, are the shared core's and are
  * called rather than restated (#34).
  */
 

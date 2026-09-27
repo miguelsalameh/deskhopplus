@@ -96,7 +96,7 @@ int main() {
               == "DeskHopPlus — Files offered: photo.jpg — 1.0 MB, about 5 seconds.",
           "a waiting question outranks everything");
     CHECK(tooltip(DH_HELPER_NOT_PAIRED, "", 0, 0, false)
-              == "DeskHopPlus — Not paired — press the config chord on the device",
+              == "DeskHopPlus — Not paired — press the Pair chord (Left Ctrl + Right Shift + P)",
           "a state with a remedy keeps its remedy");
 
     /* The size spelling the Mac and Windows quote one transfer at. */

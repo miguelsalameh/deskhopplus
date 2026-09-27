@@ -657,7 +657,7 @@ static void test_an_unpaired_helper_is_told_so_and_waits(void) {
     answer_all(&h, &acquired, 0, &out);
 
     CHECK(saw_state(&out, DH_HELPER_NOT_PAIRED), name, "the refusal did not reach not-paired");
-    CHECK(dh_helper_prompts_config_chord(h.state), name, "the chord was not offered");
+    CHECK(dh_helper_prompts_pair_chord(h.state), name, "the chord was not offered");
     no_overflow(name);
 
     /* Nothing further arrives, for a long time. It must not give up. */
@@ -767,7 +767,7 @@ static void test_a_cold_start_in_config_mode_says_config_mode(void) {
 
     CHECK(h.state == DH_HELPER_DEVICE_IN_CONFIG_MODE, name, "config mode was not reported");
     CHECK(!said_absent, name, "a board in config mode was called absent");
-    CHECK(!dh_helper_prompts_config_chord(h.state), name,
+    CHECK(!dh_helper_prompts_pair_chord(h.state), name,
           "the chord was offered while the board was in config mode");
 
     /* It comes back under its own identity. */
@@ -962,7 +962,7 @@ static void test_a_flapping_link_is_reported_as_a_rate(void) {
     CHECK(h.state == DH_HELPER_RECONNECTING_REPEATEDLY, name, "the rate was not reported");
     CHECK(rate_reported, name, "the rate was reported without its number");
     CHECK(dh_helper_allows_bulk(h.state), name, "a rebuilt session was refused bulk");
-    CHECK(!dh_helper_prompts_config_chord(h.state), name, "a flapping link offered the chord");
+    CHECK(!dh_helper_prompts_pair_chord(h.state), name, "a flapping link offered the chord");
     CHECK(dh_helper_can_send_bulk(&h), name, "a rebuilt session is still a session");
 
     /* It ages out: the link holds, and the reading stops being true. */
@@ -1290,7 +1290,7 @@ static void test_a_board_whose_key_changed_is_not_accepted(void) {
     CHECK(h.state == DH_HELPER_BOARD_IDENTITY_CHANGED, name, "a different board was accepted");
     CHECK(first_of(&out, DH_HELPER_OUT_STORE_BOARD_KEY) == NULL, name,
           "the new board's key was stored anyway");
-    CHECK(!dh_helper_prompts_config_chord(h.state), name,
+    CHECK(!dh_helper_prompts_pair_chord(h.state), name,
           "the chord was offered for a swapped board");
     CHECK(memcmp(h.board_public_key, helper_public, DH_P256_PUBLIC_SIZE) == 0, name,
           "the pin was overwritten");
@@ -1350,7 +1350,7 @@ static void test_the_listener_alert_expires_like_a_rate(void) {
     CHECK(saw_note(&out, DH_NOTE_LISTENER_DETECTED), name, "the alert was reported without its rate");
     CHECK(dh_helper_allows_bulk(h.state), name,
           "a detected listener withheld bulk, disagreeing with the session");
-    CHECK(!dh_helper_prompts_config_chord(h.state), name,
+    CHECK(!dh_helper_prompts_pair_chord(h.state), name,
           "the chord was offered while something else was writing to the channel");
 
     /* Nothing further. The session must be kept alive, or the silence timeout
@@ -1812,7 +1812,7 @@ static void test_the_policy_predicates_are_decided_once(void) {
            cannot leave another state covered twice and a third not at all. */
         CHECK(table[i].state == (dh_helper_state)i, name,
               "the table's rows are not in the enum's order");
-        CHECK(dh_helper_prompts_config_chord(table[i].state) == table[i].chord, name,
+        CHECK(dh_helper_prompts_pair_chord(table[i].state) == table[i].chord, name,
               "the chord is offered from the wrong state");
         CHECK(dh_helper_allows_bulk(table[i].state) == table[i].bulk, name,
               "bulk is allowed from the wrong state");

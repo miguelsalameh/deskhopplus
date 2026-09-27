@@ -19,6 +19,9 @@ enum dh_hotkey_action_id {
     DH_HOTKEY_ACTIONS(DH_HOTKEY_ACTION)
 #undef DH_HOTKEY_ACTION
     DH_HOTKEY_ACTION_COUNT,
+    /* The pair chord's action. Outside the table on purpose: the table is
+       stored config, and a new entry there is a config version bump (ADR-0014). */
+    DH_HOTKEY_ACTION_PAIR = 0xfe,
     DH_HOTKEY_ACTION_INVALID = 0xff
 };
 
@@ -60,6 +63,7 @@ const dh_hotkey_t *dh_hotkey_match(const dh_hotkey_t *hotkeys,
                                    size_t count,
                                    uint8_t modifier,
                                    const uint8_t keys[DH_HOTKEY_KEY_CAPACITY]);
-const dh_hotkey_t *dh_hotkey_match_with_recovery(
+/* dh_hotkey_match, but the fixed recovery and pair chords win over the table. */
+const dh_hotkey_t *dh_hotkey_match_with_fixed(
     const dh_hotkey_t *hotkeys, size_t count, uint8_t modifier,
     const uint8_t keys[DH_HOTKEY_KEY_CAPACITY]);

@@ -224,6 +224,17 @@ static void test_link_loss_discards_work_but_keeps_registration_and_window(void)
     CHECK(drain(sizeof wire) > 0 && wire[0] == DH_MSG_HELLO_ACK);
 }
 
+/* The pair chord opens a window at run time, often on a board whose helper is
+   paired and connected (ADR-0014). That helper must not hear a thing. */
+static void test_pairing_window_keeps_the_live_session(void) {
+    init();
+    channel_lifecycle_open_pairing_window(&c, 100);
+    CHECK(dh_pair_window_open(&c.pair, 101));
+    CHECK(c.session.present);
+    CHECK(dh_pair_is_registered_key(&c.pair, key_id));
+    CHECK(drain(sizeof wire) == 0);
+}
+
 static void test_wipe_revokes_session_and_registration_but_preserves_identity(void) {
     init();
     uint8_t private_key[DH_P256_PRIVATE_SIZE] = {0};
@@ -655,6 +666,7 @@ int main(void) {
     test_refused_hello_preserves_live_stream();
     test_queue_refusal_survives_reconnect();
     test_link_loss_discards_work_but_keeps_registration_and_window();
+    test_pairing_window_keeps_the_live_session();
     test_wipe_revokes_session_and_registration_but_preserves_identity();
     test_backlog_overflow_drops_a_report_and_keeps_the_session();
     test_malformed_report_ends_session_and_allows_reconnect();

@@ -18,13 +18,6 @@
 #define CORE1_HANG_TIMEOUT_US   WATCHDOG_TIMEOUT * 1000 // Convert to microseconds
 
 #define MAGIC_WORD_1 0xdeadf00f // When these are set, we'll boot to configuration mode
-/* Set by the config chord and consumed on the next normal-mode boot: a
-   pairing window is owed (#46). Pairing still waits until Exit, so the flag
-   has to survive a boot it is not consumed on. It lives in
-   scratch[3] for that reason: the SDK's own watchdog_enable() overwrites
-   scratch[4] on every boot, and watchdog_reboot() writes 5, 6 and 7, so a
-   flag in any of those is erased before the boot that would have used it. */
-#define MAGIC_WORD_PAIR 0x9a17c0de
 /* Set on every reboot the firmware means — the chord's watchdog-timeout
    path and reboot() alike — and read and cleared by cursor_trace_boot, so a
    boot the watchdog caused without it is a hang (#102). scratch[2] because

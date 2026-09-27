@@ -47,16 +47,14 @@ void channel_receive_report(uint8_t index, const uint8_t *buffer, uint16_t bufsi
    helper — is declared with the rest of the scheduler's tasks, in tasks.h. */
 
 /*
- * A chord press was recorded before the last reboot: open the pairing window.
- * Only meaningful in normal mode, which is the only mode with a channel for a
- * helper to be provisioned over.
+ * The pair chord was pressed, here or on the peer's keyboard: open the pairing
+ * window. Callable from either core; channel_task applies it on core 0.
  *
  * Nothing is rotated and nothing is persisted, unlike v1. Only public halves
  * cross now, so there is no secret a window has to replace — and a chord press
  * nobody pairs against leaves the existing registration exactly as it was.
  */
 void channel_open_pairing_window(void);
-bool channel_pairing_window_owed(void);
 
 /* One inter-board packet of a frame being relayed from the peer board. */
 void handle_channel_relay_msg(uart_packet_t *, device_t *);

@@ -544,7 +544,7 @@ void dh_helper_channels_acquired(dh_helper *h, uint8_t count, uint32_t now_ms,
      *
      * Kept anyway, deliberately. Firmware and helper ship separately, so this
      * helper still meets boards that predate #117 — and on those, silence
-     * never reaches the state that asks to be paired, which leaves the config
+     * never reaches the state that asks to be paired, which leaves the pair
      * chord with nothing to provision and the machine reconnecting for ever.
      * The cost is one untagged frame per acquisition, and only once the rate
      * already says retrying is not working. A board outside a pairing window

@@ -136,6 +136,13 @@ void wipe_config_hotkey_handler(device_t *state, hid_keyboard_report_t *report) 
     (void)send_value(ENABLE, WIPE_CONFIG_MSG);
 }
 
+/* When pressed, opens a pairing window on this board and on its peer, so the
+   keyboard can sit on either board (ADR-0014). */
+void pair_hotkey_handler(device_t *state, hid_keyboard_report_t *report) {
+    channel_open_pairing_window();
+    (void)send_value(ENABLE, PAIR_WINDOW_MSG);
+}
+
 /* When pressed, toggles the current mouse zoom mode state */
 void mouse_zoom_hotkey_handler(device_t *state, hid_keyboard_report_t *report) {
     state->mouse_zoom ^= 1;
@@ -171,14 +178,6 @@ void disable_screensaver_hotkey_handler(device_t *state, hid_keyboard_report_t *
 
 /* Enter or leave the special configuration mode */
 void config_enable_hotkey_handler(device_t *state, hid_keyboard_report_t *report) {
-    /*
-     * Entering or leaving config mode opens a pairing window (#46). Both are
-     * this chord, and both are recorded the same way: pairing is still
-     * honoured on the next normal-mode boot, after Exit. Physical-chord-gated
-     * is the whole security property — no remote process can press it.
-     */
-    watchdog_hw->scratch[3] = MAGIC_WORD_PAIR;
-
     /* If config mode is already active, skip this: the chord is the exit */
     if (!state->config_mode_active) {
         watchdog_hw->scratch[5] = MAGIC_WORD_1;
@@ -322,6 +321,11 @@ void handle_sync_borders_msg(uart_packet_t *packet, device_t *state) {
 /* When this message is received, flash the locally attached LED to verify serial comms */
 void handle_flash_led_msg(uart_packet_t *packet, device_t *state) {
     blink_led(state);
+}
+
+/* The peer's keyboard pressed the pair chord */
+void handle_pair_window_msg(uart_packet_t *packet, device_t *state) {
+    channel_open_pairing_window();
 }
 
 /* When this message is received, wipe the local flash config */

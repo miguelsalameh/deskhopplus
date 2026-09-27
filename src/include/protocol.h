@@ -54,6 +54,9 @@ enum packet_type_e {
     GET_CURSOR_TRACE_MSG = 33,
     CURSOR_TRACE_MSG = 34,
     BOOT_MOUSE_MODE_MSG = 35,
+    /* The pair chord, pressed on the peer's keyboard (ADR-0014). Never on the
+       config endpoint's allow list: only a physical press may open a window. */
+    PAIR_WINDOW_MSG = 36,
 };
 
 _Static_assert(KEYBOARD_REPORT_MSG == DH_KEYBOARD_PHYSICAL_PACKET,

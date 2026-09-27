@@ -32,15 +32,13 @@ void cursor_trace_boot(bool config_mode) {
     /* One record per boot, saying why it happened (#102). Raw: nothing in
        `state` is loaded yet. The chord reboots through the watchdog too, so
        its reason alone cannot name a hang; the firmware marks the reboots it
-       meant, and a watchdog boot without the mark is one it did not. The
-       chord's own magic is read before channel_init consumes it. */
+       meant, and a watchdog boot without the mark is one it did not. */
     const bool meant = watchdog_hw->scratch[2] == MAGIC_WORD_REBOOT;
     watchdog_hw->scratch[2] = 0;
     dh_cursor_trace_append(&cursor_trace_storage, (dh_cursor_trace_record_t){
         .event = DH_CURSOR_TRACE_BOOT,
         .query_id = (uint8_t)((config_mode ? 1u : 0u) | (watchdog_caused_reboot() ? 2u : 0u) |
-                              (meant ? 4u : 0u)),
-        .move_x = watchdog_hw->scratch[3] == MAGIC_WORD_PAIR});
+                              (meant ? 4u : 0u))});
     critical_section_exit(&cursor_trace_lock);
 }
 

@@ -61,9 +61,7 @@ Helpers exist for macOS and Windows. A Linux computer gets the keyboard and mous
 
 ### 3. Pair
 
-Start the helper first. Then, on the keyboard plugged into the board, press **Left Ctrl + Right Shift + C + O**. The board reboots into config mode and its LED starts to blink. When it blinks, press the same chord again. The board reboots back and opens a 60-second pairing window. The helper pairs by itself and its menu shows **Connected and paired**.
-
-The chord reaches only the board the keyboard is plugged into. To pair the other computer's helper, move the keyboard to the other board's USB-A port and press the chord there.
+Start the helper on each computer first. Then press the **pair chord**, **Left Ctrl + Right Shift + P**, once. Both boards open a 60-second pairing window, whichever board the keyboard is on. Each helper pairs by itself and its menu shows **Connected and paired**.
 
 The [user guide](docs/user-guide.md) has the rest: what each menu state means, how the clipboard behaves, how to fix things, and how to remove it all.
 

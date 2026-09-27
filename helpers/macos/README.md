@@ -58,7 +58,7 @@ and [#49](https://github.com/myn/deskhopplus/issues/49)'s Windows helper drives 
 | Secret storage — `SecretStore` | The core decides a board key is worth keeping; whether it lands in a 0600 file or in DPAPI is the platform's business. |
 | The Secure Enclave — `EnclaveIdentity` | The private half cannot be handed to C at all. What the enclave *can* do is one ECDH, which is the whole of `dh_helper_identity`. The HKDF over the result stays in the core, so both ends run one derivation rather than two that happen to agree. |
 
-The two policy predicates — *does this state prompt the config chord*, and *may bulk go out* —
+The two policy predicates — *does this state prompt the pair chord*, and *may bulk go out* —
 are read off the core rather than restated, because the first carries a security property
 (a chord press provisions whatever is attached to the channel during its window,
 [#34](https://github.com/myn/deskhopplus/issues/34)) and a second helper must not get to answer
@@ -126,7 +126,7 @@ cmake -S tests -B tests/build && cmake --build tests/build && ctest --test-dir t
 
 The states, their wording and what a user does about each are the user guide's
 [What the menu bar or tray says](../../docs/user-guide.md#what-the-menu-bar-or-tray-says); the
-wording itself is `HelperState.message`. Only **not paired** prompts the config chord.
+wording itself is `HelperState.message`. Only **not paired** prompts the pair chord.
 
 **"Version mismatch" is the board's refusal of a hello it could read.** A helper and board on
 different sides of the v3 report shape ([ADR-0012](../../docs/adr/0012-frame-start-flag-for-report-resync.md))

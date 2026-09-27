@@ -74,9 +74,9 @@ helper draws.
 
 ## Pairing
 
-Start the helper **first**, then press the config chord on the board. The three facts that have
-each cost a debugging session — the chord is a toggle, the window is per board and opens only on
-the board the keyboard is plugged into, and it lasts 60 seconds — are in the user guide's
+Start the helper **first**, then press the pair chord (Left Ctrl + Right Shift + P). It opens a
+60-second window on both boards at once
+([ADR-0014](../../docs/adr/0014-pair-chord-opens-both-boards.md)). The rest is in the user guide's
 [Pair a helper](../../docs/user-guide.md#pair-a-helper).
 
 ## The clipboard payload is sealed

@@ -10,8 +10,10 @@ Two words used throughout:
 
 - **Board A** and **board B** are the two halves of the DeskHop. Each plugs into one computer.
   The keyboard and mouse plug into one of them, usually board A.
-- **The chord** is `Left Ctrl + Right Shift + C + O`. It always works, whatever you change on the
-  config page.
+- **The chord** is `Left Ctrl + Right Shift + C + O`. It enters and leaves config mode. It always
+  works, whatever you change on the config page.
+- **The pair chord** is `Left Ctrl + Right Shift + P`. It opens a pairing window on both boards.
+  It is fixed too.
 
 A Linux computer gets the keyboard and mouse. There is no helper for it, so no clipboard and no
 cursor placement on that side.
@@ -19,44 +21,34 @@ cursor placement on that side.
 ## Pair a helper
 
 A helper must be paired with its board before the clipboard or cursor placement work. Pairing is
-one chord press with the helper already running.
+one press of the **pair chord**, `Left Ctrl + Right Shift + P`, with the helper already running.
 
-1. Start the helper on the computer you are pairing. Wait until its menu says
-   **Not paired — press the config chord on the device**.
-2. On the keyboard plugged into the board, press the chord once. The board reboots into config
-   mode and its on-board LED blinks. A drive named `DESKHOP` may appear; ignore it.
-3. Press the chord once more. The board reboots back to normal and opens a **60-second pairing
-   window**. The helper pairs by itself. Its menu changes to **Connected and paired**.
+1. Start the helper on each computer you are pairing. Wait until its menu says
+   **Not paired — press the Pair chord (Left Ctrl + Right Shift + P)**.
+2. Press the pair chord once, on the keyboard. The on-board LED blinks. Both boards open a
+   **60-second pairing window** at once, so the keyboard can be on either board.
+3. Each waiting helper pairs by itself. Its menu changes to **Connected and paired**.
 
-Three things that cost people an hour:
+Nothing reboots and no drive appears. The pair chord is fixed, like the chord: a hotkey you
+set on the config page cannot replace it.
 
-- **The chord is a toggle.** One press enters config mode, the next leaves it. Two quick presses
-  enter and leave at once, which looks exactly like the chord not working. Press
-  once, wait for the blink, then press again.
-- **The chord reaches only the board the keyboard is plugged into.** To pair the helper on the
-  other board's computer, move the keyboard to that board's USB-A port, press the chord twice
-  there, and move it back. [#196](https://github.com/myn/deskhopplus/issues/196) tracks doing
-  this without moving the keyboard.
-- **The helper must be running before the window opens.** The window is 60 seconds from the
-  reboot back. A helper started after that has missed it. Press the chord again.
+- **The helper must be running before the window opens.** A helper started more than 60 seconds
+  after the press has missed it. Press the pair chord again.
 
 Each board holds exactly one paired helper. Pairing a second helper to the same board replaces the
 first. The wipe chord (`Right Shift + F12 + D`) clears the pairing on both boards, along with every
 other setting.
 
-Config mode ends by itself after five minutes if you do not press the chord again. The pairing
-window still opens on the way back.
-
 ### Which helper is a board paired with?
 
 Open the config page: press the chord, open the `DESKHOP` drive, open `config.htm` in Chrome, click
 **Connect**. Under **Status**, **Paired helper** shows an id of sixteen hex characters, or
-*none — press the config chord to pair a helper*.
+*none — press the Pair chord (Left Ctrl + Right Shift + P)*.
 
 Each helper writes its own id, `helper key id: …`, as the first line every time it starts. Look
 for the last one in the log. Where the log is:
 [Where the logs are](#where-the-logs-are). Same id: this helper is the one. Different id: the
-board is paired with something else, and a chord press moves it.
+board is paired with something else, and a pair chord press moves it.
 
 ## What the menu bar or tray says
 
@@ -90,14 +82,14 @@ second row is the state.
 | --- | --- | --- |
 | **Waiting for the device** (macOS) or **Looking for the device** (Windows) | The helper is looking for the board, or the board went away for a moment. | Wait a few seconds. If it stays, check the USB cable. |
 | **Connected and paired** | Everything works. | Nothing. |
-| **Not paired — press the config chord on the device** | The board has no pairing for this helper. | [Pair a helper](#pair-a-helper). |
+| **Not paired — press the Pair chord (Left Ctrl + Right Shift + P)** | The board has no pairing for this helper. | [Pair a helper](#pair-a-helper). |
 | **Device in config mode** | You pressed the chord once. | Press it again, or wait five minutes. |
 | **Connected and paired — config mode** | The helper has a live session while the config page is open. | Save and try the layout, then Exit when finished. |
 | **Device not connected** | The helper cannot find the board. | Check the USB cable. If the board was just replugged, wait a few seconds. |
 | **Reconnecting repeatedly — check the link, and that the helper is up to date** | The connection keeps dropping and coming back. | Check the cable. Make sure the helper and the firmware are from the same release. |
 | **Helper version does not match the device — update the helper; file transfers are refused** | The board and the helper speak different versions. | Install the helper from the same release as the firmware. The cursor still works; the clipboard does not. |
-| **Another program is writing to the device channel — find and stop it, and do not press the config chord while it is running** | Something else on this computer is talking to the board. | Find and quit it. Do not press the chord until it is gone: the chord would pair whatever is attached. |
-| **Device identity changed — if you re-flashed it, remove the pinned board key** | The board's own key is not the one this helper remembers. A firmware upgrade never changes it; a whole-flash erase or a swapped board does. | Only if you did that yourself: [Identity changed](#identity-changed-after-a-re-flash). Otherwise do not press the chord; pressing it would accept the new board. |
+| **Another program is writing to the device channel — find and stop it, and do not press the pair chord while it is running** | Something else on this computer is talking to the board. | Find and quit it. Do not press the pair chord until it is gone: the pair chord would pair whatever is attached. |
+| **Device identity changed — if you re-flashed it, remove the pinned board key** | The board's own key is not the one this helper remembers. A firmware upgrade never changes it; a whole-flash erase or a swapped board does. | Only if you did that yourself: [Identity changed](#identity-changed-after-a-re-flash). Otherwise do not press the pair chord; pressing it would accept the new board. |
 
 Below the state the menu may also show:
 
@@ -182,7 +174,7 @@ Change what you want and click **Save**. Wait for **Connected and paired — con
 in the helper menu, then try multi-monitor navigation while the page stays connected. **Device in
 config mode** means there is no usable helper channel; multi-monitor hops may then land on the wrong
 monitor. Click **Exit** when finished, or the board leaves config mode after five minutes. Each
-entry and exit reboots the board and starts a fresh helper session. Pair a new helper after Exit.
+entry and exit reboots the board and starts a fresh helper session.
 
 **On a Mac, eject `DESKHOP` in Finder before you leave config mode** — before Exit, before the
 chord, and before the five minutes run out. macOS can hang its disk mounter when a mounted drive
@@ -348,12 +340,15 @@ The defaults:
 | screensaver_disable | `lctrl+rshift+x` | Screensaver off |
 | wipe_config | `rshift+f12+d` | Erase every setting on both boards, including pairings |
 | screen_seam | `rshift+f12+y` | Save the cursor height for the seam |
-| config_mode | `lctrl+rshift+c+o` | Config mode, and the pairing window on the way out |
+| config_mode | `lctrl+rshift+c+o` | Config mode on or off |
 | firmware_upgrade_a | `lshift+rshift+a` | Put board A into its USB bootloader (`RPI-RP2` drive) |
 | firmware_upgrade_b | `lshift+rshift+b` | Put board B into its USB bootloader |
 
 `lctrl+rshift+c+o` always enters config mode, even if you change the config_mode box to something
 else. That is the way back if a hotkey change locks you out.
+
+The pair chord, `lctrl+rshift+p`, has no box. It always opens a pairing window, and it wins over
+any hotkey you give the same keys.
 
 ### Key names
 
@@ -413,7 +408,7 @@ Windows: click **Quit DeskHopPlus Helper** in the tray menu, delete
 
 Then [pair](#pair-a-helper) again.
 
-If you did **not** re-flash or swap anything, leave the chord alone and find out what changed.
+If you did **not** re-flash or swap anything, leave the pair chord alone and find out what changed.
 
 ### Where the logs are
 
@@ -428,8 +423,8 @@ each line starts with the time since Windows booted, in milliseconds.
 
 ### The DESKHOP drive does not appear on macOS
 
-Pressed the chord, LED blinks, no drive. First: did you press twice? See
-[Pair a helper](#pair-a-helper).
+Pressed the chord, LED blinks, no drive. First: did you press twice? The chord is a toggle, and
+a second press leaves config mode.
 
 If you pressed once and still nothing, and Disk Utility or `diskutil list` hangs, macOS's disk
 mounter is stuck. Nothing else will mount either until the Mac reboots. Reboot the Mac. This is

@@ -113,10 +113,30 @@ static int recovery_chord_always_reaches_config_mode(void) {
                                  .action_id = DH_HOTKEY_ACTION_OUTPUT_TOGGLE}};
     const uint8_t recovery[DH_HOTKEY_KEY_CAPACITY] = {0x06, 0x12};
 
-    const dh_hotkey_t *match = dh_hotkey_match_with_recovery(
+    const dh_hotkey_t *match = dh_hotkey_match_with_fixed(
         configured, 1, 0x21, recovery);
     ASSERT_TRUE(match != NULL);
     ASSERT_TRUE(match->action_id == DH_HOTKEY_ACTION_CONFIG_ENABLE);
+    return 0;
+}
+
+/* Left Ctrl + Right Shift + P, fixed like the recovery chord (ADR-0014). */
+static int pair_chord_is_fixed_and_wins_over_a_user_binding(void) {
+    dh_hotkey_t configured[] = {{.modifier = 0x21,
+                                 .keys = {0x13},
+                                 .key_count = 1,
+                                 .action_id = DH_HOTKEY_ACTION_OUTPUT_TOGGLE}};
+    const uint8_t pair[DH_HOTKEY_KEY_CAPACITY] = {0x13};
+
+    const dh_keyboard_hotkey_result_t result =
+        dh_keyboard_hotkey_resolve(configured, 1, 0x21, pair);
+    ASSERT_TRUE(result.matched);
+    ASSERT_TRUE(result.action_id == DH_HOTKEY_ACTION_PAIR);
+    ASSERT_TRUE(result.acknowledge && !result.pass_to_os);
+
+    /* P alone, or with only one of the two modifiers, is typing. */
+    ASSERT_TRUE(!dh_keyboard_hotkey_resolve(configured, 0, 0x01, pair).matched);
+    ASSERT_TRUE(!dh_keyboard_hotkey_resolve(configured, 0, 0x00, pair).matched);
     return 0;
 }
 
@@ -225,6 +245,8 @@ int main(void) {
     if (chord_usages_become_a_runtime_binding())
         return 1;
     if (recovery_chord_always_reaches_config_mode())
+        return 1;
+    if (pair_chord_is_fixed_and_wins_over_a_user_binding())
         return 1;
     if (action_properties_and_complete_table_are_resolved_at_the_keyboard_seam())
         return 1;
