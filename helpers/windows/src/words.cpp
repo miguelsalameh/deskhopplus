@@ -180,7 +180,8 @@ std::string progress_row(uint64_t received, uint64_t total) {
 }
 
 std::string tooltip(dh_helper_state state, const std::string &question_summary,
-                    uint64_t received, uint64_t total, bool sending) {
+                    uint64_t received, uint64_t total, bool sending,
+                    const std::string &peer) {
     std::string tip;
     if (!question_summary.empty()) {
         tip = "Files offered: " + question_summary;
@@ -194,7 +195,14 @@ std::string tooltip(dh_helper_state state, const std::string &question_summary,
            icon to hover over, so it borrows the menu's. */
         if (tip.empty()) tip = "Looking for the device";
     }
+    if (!peer.empty()) tip += "\n" + peer;
     return "DeskHopPlus \xe2\x80\x94 " + tip;
+}
+
+std::string peer_row(dh_helper_state state, std::optional<bool> connected) {
+    /* The states that allow bulk are the ones with a session. */
+    if (!connected || !dh_helper_allows_bulk(state)) return {};
+    return *connected ? "Other computer connected" : "Other computer not connected";
 }
 
 std::string size_text(uint64_t bytes) {

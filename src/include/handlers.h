@@ -76,7 +76,6 @@ void handle_switch_lock_msg(uart_packet_t *, device_t *);
 void handle_sync_borders_msg(uart_packet_t *, device_t *);
 void handle_wipe_config_msg(uart_packet_t *, device_t *);
 void handle_pair_window_msg(uart_packet_t *, device_t *);
-void handle_peer_paired_msg(uart_packet_t *, device_t *);
 void handle_write_fw_msg(uart_packet_t *, device_t *);
 
 /*==============================================================================

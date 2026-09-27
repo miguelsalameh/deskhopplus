@@ -25,6 +25,7 @@ constexpr UINT kIdProgress = 8;
 constexpr UINT kIdAbortTransfer = 9;
 constexpr UINT kIdAbortSend = 10;
 constexpr UINT kIdVersion = 11;
+constexpr UINT kIdPeer = 12;
 
 std::wstring widen(const std::string &text) {
     if (text.empty()) return {};
@@ -188,7 +189,8 @@ void Tray::update() {
     data.hIcon = fresh ? fresh : icon_for(words::look(state_, have_question_));
     copy_into(data.szTip, sizeof(data.szTip) / sizeof(wchar_t),
               widen(words::tooltip(state_, have_question_ ? summary(question_) : std::string(),
-                                   progress_received_, progress_total_, sending_)));
+                                   progress_received_, progress_total_, sending_,
+                                   words::peer_row(state_, peer_))));
     Shell_NotifyIconW(NIM_MODIFY, &data);
     if (digits_) DestroyIcon(digits_);
     digits_ = fresh;
@@ -276,6 +278,7 @@ void Tray::show(dh_helper_state state) {
     const bool changed = state != state_;
     state_ = state;
     if (changed) announced_ = false;
+    if (!dh_helper_allows_bulk(state_)) peer_.reset();
 
     update();
 
@@ -283,6 +286,11 @@ void Tray::show(dh_helper_state state) {
         announced_ = true;
         balloon(words::state_message(state_));
     }
+}
+
+void Tray::show_peer(bool connected) {
+    peer_ = connected;
+    update();
 }
 
 void Tray::show_sending(bool sending) {
@@ -334,6 +342,9 @@ void Tray::show_menu() {
     const std::string status = words::state_message(state_);
     AppendMenuW(menu, MF_STRING | MF_GRAYED, kIdStatus,
                 widen(status.empty() ? "Looking for the device" : status).c_str());
+    const std::string peer = words::peer_row(state_, peer_);
+    if (!peer.empty())
+        AppendMenuW(menu, MF_STRING | MF_GRAYED, kIdPeer, widen(peer).c_str());
 
     if (have_question_) {
         AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);

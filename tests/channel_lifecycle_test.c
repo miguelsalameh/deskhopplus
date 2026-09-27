@@ -22,8 +22,6 @@ static uint32_t observed_now;
 static bool unavailable_accepts;
 static unsigned unavailable_count;
 static uint8_t unavailable_id;
-static bool peer_accepts;
-static unsigned peer_told;
 
 void channel_lifecycle_position(void *context, const uint8_t *body, size_t len) {
     (void)context; (void)body; (void)len;
@@ -44,12 +42,6 @@ bool channel_lifecycle_query_unavailable(void *context, uint8_t query_id) {
     if (!unavailable_accepts) return false;
     unavailable_count++;
     unavailable_id = query_id;
-    return true;
-}
-bool channel_lifecycle_tell_peer_paired(void *context) {
-    (void)context;
-    if (!peer_accepts) return false;
-    peer_told++;
     return true;
 }
 
@@ -133,8 +125,6 @@ static void init(void) {
     packet_count = 0;
     unavailable_accepts = false;
     unavailable_count = 0;
-    peer_accepts = true;
-    peer_told = 0;
     dh_session_init(&c.session, DH_BUILD_RELEASE);
     dh_pair_init(&c.pair);
     dh_pair_set_registration(&c.pair, key_id, secret);
@@ -347,6 +337,8 @@ static void test_policy_refusal_leaves_work_owed(void) {
     CHECK(drain(sizeof wire) > 0 && wire[0] == DH_MSG_POS_QUERY);
     CHECK(drain(sizeof wire) == 0);
     channel_lifecycle_step(&c, 102, NULL);
+    /* The peer status waited out the full lane too (#275). */
+    CHECK(drain(sizeof wire) > 0 && wire[0] == DH_MSG_PEER_HELPER);
     CHECK(drain(sizeof wire) > 0 && wire[0] == DH_MSG_CLIP_POLICY);
 }
 
@@ -669,53 +661,74 @@ static void test_arrival_waits_for_a_busy_priority_lane(void) {
     CHECK(arrivals_after_step(202) == 1);
 }
 
-/* A helper asks to pair inside a window the chord opened. The board's own
-   public key stands in for the helper's: any point on the curve registers. */
-static void pair_a_helper(uint32_t now) {
-    uint8_t private_key[DH_P256_PRIVATE_SIZE] = {0};
-    private_key[0] = 1;
-    CHECK(dh_pair_set_identity(&c.pair, private_key));
-    channel_lifecycle_open_pairing_window(&c, now);
-    dh_pair_request request = {.correlation = 7};
-    memcpy(request.helper_public, dh_pair_public_key(&c.pair), sizeof request.helper_public);
-    uint8_t bytes[DH_FRAME_MAX_SIZE];
+/* PEER_HELPER bodies the step sent this pass, in order, as a string of '0'
+   and '1'; everything else drained is ignored. */
+static const char *peer_helper_after_step(uint32_t now) {
+    static char told[8];
+    size_t n = 0;
+    channel_lifecycle_step(&c, now, NULL);
+    size_t len;
+    while ((len = drain(sizeof wire)) > 0)
+        if (wire[0] == DH_MSG_PEER_HELPER) {
+            CHECK(len == DH_FRAME_HEADER_SIZE + DH_FRAME_AUTH_PREFIX_SIZE + 1);
+            CHECK(n + 1 < sizeof told);
+            told[n++] = (char)('0' + wire[DH_FRAME_HEADER_SIZE + DH_FRAME_AUTH_PREFIX_SIZE]);
+        }
+    told[n] = 0;
+    return told;
+}
+
+/* This board's helper beats, so its own session outlives a long test. */
+static void helper_beats(uint64_t counter) {
+    uint8_t bytes[DH_SESSION_REPLY_MAX], h2b[DH_SESSION_KEY_SIZE], b2h[DH_SESSION_KEY_SIZE];
     size_t len = 0;
-    CHECK(dh_pair_request_encode(&request, bytes, sizeof bytes, &len) == DH_FRAME_OK);
+    dh_auth_derive_session_keys(secret, helper_nonce, board_nonce, h2b, b2h);
+    CHECK(dh_auth_frame(DH_MSG_HEARTBEAT, 0, h2b, counter, NULL, 0,
+                         bytes, sizeof bytes, &len) == DH_FRAME_OK);
     receive_bytes(bytes, len);
 }
 
-/* A registration is news for the other computer too: the board tells its peer
-   once, and keeps trying while the link refuses (#268). */
-static void test_a_registration_tells_the_peer_once(void) {
+/* The helper is told whether the peer's helper is connected: at the start of
+   its session, then on every change. A peer board that stops beating counts
+   as not connected (#275). */
+static void test_peer_helper_status_follows_the_peer_heartbeat(void) {
     init();
-    channel_lifecycle_step(&c, 200, NULL);
-    CHECK(peer_told == 0);
+    CHECK(strcmp(peer_helper_after_step(200), "0") == 0);
+    CHECK(strcmp(peer_helper_after_step(201), "") == 0);
 
-    peer_accepts = false;
-    pair_a_helper(201);
-    channel_lifecycle_step(&c, 201, NULL);
-    CHECK(peer_told == 0);
+    channel_lifecycle_peer_board_heartbeat(&c, true);
+    CHECK(strcmp(peer_helper_after_step(1000), "1") == 0);
+    channel_lifecycle_peer_board_heartbeat(&c, true);
+    CHECK(strcmp(peer_helper_after_step(2000), "") == 0);
 
-    peer_accepts = true;
-    channel_lifecycle_step(&c, 202, NULL);
-    CHECK(peer_told == 1);
-    channel_lifecycle_step(&c, 203, NULL);
-    CHECK(peer_told == 1);
+    channel_lifecycle_peer_board_heartbeat(&c, false);
+    helper_beats(0);
+    CHECK(strcmp(peer_helper_after_step(3000), "0") == 0);
+    channel_lifecycle_peer_board_heartbeat(&c, true);
+    CHECK(strcmp(peer_helper_after_step(4000), "1") == 0);
+
+    /* Silence: the last beat at 4000 still holds just short of the timeout. */
+    helper_beats(1);
+    CHECK(strcmp(peer_helper_after_step(4000 + CHANNEL_PEER_BOARD_SILENT_MS - 1), "") == 0);
+    CHECK(strcmp(peer_helper_after_step(4000 + CHANNEL_PEER_BOARD_SILENT_MS), "0") == 0);
+    CHECK(c.session.present);
 }
 
-/* The peer's registration reaches this board's helper once, as PEER_PAIRED,
-   and only while that helper is live: it is an event, not a state (#268). */
-static void test_peer_paired_goes_once_to_a_live_helper(void) {
+/* A new session is told again, whatever the last one heard; with no helper,
+   nothing goes out. */
+static void test_each_session_is_told_the_peer_status(void) {
     init();
-    CHECK(sent_after_step(DH_MSG_PEER_PAIRED, 200) == 0);
-
-    channel_lifecycle_peer_paired(&c);
-    CHECK(sent_after_step(DH_MSG_PEER_PAIRED, 201) == 1);
-    CHECK(sent_after_step(DH_MSG_PEER_PAIRED, 202) == 0);
+    channel_lifecycle_peer_board_heartbeat(&c, true);
+    CHECK(strcmp(peer_helper_after_step(200), "1") == 0);
 
     channel_lifecycle_link_lost(&c);
-    channel_lifecycle_peer_paired(&c);
-    CHECK(sent_after_step(DH_MSG_PEER_PAIRED, 203) == 0);
+    channel_lifecycle_peer_board_heartbeat(&c, false);
+    CHECK(strcmp(peer_helper_after_step(201), "") == 0);
+    channel_lifecycle_peer_board_heartbeat(&c, true);
+    CHECK(strcmp(peer_helper_after_step(202), "") == 0);
+
+    hello(true);
+    CHECK(strcmp(peer_helper_after_step(203), "1") == 0);
 }
 
 int main(void) {
@@ -741,8 +754,8 @@ int main(void) {
     test_inbound_pressure_retains_frames_behind_the_counted_loss();
     test_arrival_goes_only_to_the_new_active_outputs_helper();
     test_arrival_waits_for_a_busy_priority_lane();
-    test_a_registration_tells_the_peer_once();
-    test_peer_paired_goes_once_to_a_live_helper();
+    test_peer_helper_status_follows_the_peer_heartbeat();
+    test_each_session_is_told_the_peer_status();
     puts("channel lifecycle tests passed");
     return 0;
 }

@@ -95,6 +95,11 @@ class Tray {
        told when a send starts or ends. */
     void show_sending(bool sending);
 
+    /* Whether the other computer's helper is connected, as the board last
+       said (#275). A standing line in the menu and the tooltip; forgotten
+       when this helper's session ends, and told anew by the next. */
+    void show_peer(bool connected);
+
     /*
      * Files are being offered from the other computer (#56).
      *
@@ -148,6 +153,7 @@ class Tray {
     bool icon_shown_{false};
     dh_helper_state state_{DH_HELPER_QUIET};
     bool sending_{false};
+    std::optional<bool> peer_;
     /* The three looks, loaded from the exe's resources on first use, in
        `words::Look` order. */
     HICON looks_[3]{};

@@ -86,8 +86,8 @@ check(MenuBar.suffix(question: false, progress: nil, warning: true, news: true, 
 // Good news stays up for minutes, so it reads as an event with its time,
 // not as a live status (#275).
 let at1506 = ISO8601DateFormatter().date(from: "2026-09-27T15:06:00Z")!
-check(MenuBar.newsRow("Other computer paired", at: at1506, timeZone: TimeZone(identifier: "UTC")!,
-                      locale: Locale(identifier: "en_GB")) == "Other computer paired at 15:06",
+check(MenuBar.newsRow("Paired", at: at1506, timeZone: TimeZone(identifier: "UTC")!,
+                      locale: Locale(identifier: "en_GB")) == "Paired at 15:06",
       "a news row carries the local time it happened")
 menuBar.show(state: .listenerDetected)
 menuBar.menuNeedsUpdate(menu)
@@ -132,6 +132,24 @@ check(menu.items[2].title.contains("Another program"), "placement status does no
 menuBar.show(placementProblem: nil)
 menuBar.menuNeedsUpdate(menu)
 check(!menu.items.contains { $0.title.contains("Cursor placement unavailable") }, "successful placement clears its warning")
+// The other computer's helper, as the board last said, while this helper is
+// connected; nothing once it is not (#275).
+func rows() -> [String] { menuBar.menuNeedsUpdate(menu); return menu.items.map(\.title) }
+menuBar.show(state: .connected)
+menuBar.show(peerConnected: false)
+check(rows().contains("Other computer not connected"), "a missing peer helper is said")
+menuBar.show(peerConnected: true)
+check(rows().contains("Other computer connected"), "a connected peer helper is said")
+menuBar.show(state: .listenerDetected)
+check(rows().contains("Other computer connected"), "a live session with a warning keeps the status")
+check(!rows().contains("Other computer not connected"), "the status replaces itself")
+menuBar.show(state: .deviceAbsent)
+check(!rows().contains { $0.hasPrefix("Other computer") }, "without a board there is no peer status")
+menuBar.show(state: .connected)
+check(!rows().contains { $0.hasPrefix("Other computer") }, "a new session waits to be told")
+check(MenuBar.tooltip(state: .connected, placementProblem: nil, notice: nil,
+                      peer: MenuBar.peerRow(true)).contains("Other computer connected"),
+      "the tooltip carries the peer status")
 menuBar.show(news: "Paired")
 menuBar.menuNeedsUpdate(menu)
 check(menu.items.contains { $0.title.hasPrefix("Paired at ") }, "the news row in the menu carries its time (#275)")

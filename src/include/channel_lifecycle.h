@@ -35,6 +35,11 @@
  */
 #define CHANNEL_REPORT_BACKLOG 32u
 
+/* The peer board beats once a second; three missed beats and its helper counts
+   as having no session — a rebooting board or a pulled link cable says nothing. */
+#define CHANNEL_PEER_BOARD_SILENT_MS 3000u
+#define CHANNEL_PEER_BOARD_UNTOLD 0xFFu
+
 typedef enum { CURSOR_QUERY_NONE, CURSOR_QUERY_LOCAL, CURSOR_QUERY_PEER } channel_query_origin;
 
 typedef struct {
@@ -118,14 +123,18 @@ typedef struct {
        with PLACE and POS_QUERY, and a refused arrival would be lost. */
     bool arrival_owed;
 
-    /* A PEER_PAIRED this board owes its helper, set when the peer board
-       registers a helper (#268). Owed and sent exactly as arrival_owed. */
-    bool peer_paired_owed;
-
-    /* This board registered a helper and has not yet told the peer board,
-       whose helper shows "Other computer paired" (#268). Retried while the
-       inter-board link refuses it. */
-    bool tell_peer_paired_owed;
+    /*
+     * Whether the peer board's helper has a session, for this board's helper to
+     * show (#275). The peer says so in every inter-board heartbeat.
+     * `peer_board_beat` and `peer_board_beat_session` are set on core 1 under the outbound
+     * lock; channel_task stamps the beat with its own clock and owns the rest.
+     */
+    bool peer_board_beat;
+    bool peer_board_beat_session;
+    bool peer_board_session;
+    uint32_t peer_board_beat_at;
+    /* The value this session's helper was last sent, or CHANNEL_PEER_BOARD_UNTOLD. */
+    uint8_t peer_board_told;
 
 } channel_lifecycle;
 
@@ -164,12 +173,10 @@ bool channel_lifecycle_emit_placement(channel_lifecycle *c, uint8_t type,
    helper is live, an ARRIVAL is owed to it and channel_lifecycle_step sends it,
    retrying while the priority lane is full. A switch away cancels it (#250). */
 void channel_lifecycle_arrive(channel_lifecycle *c, uint8_t role, uint8_t new_output);
-/* The peer board registered a helper. When a helper is live here, a
-   PEER_PAIRED is owed to it and sent like an arrival (#268). Either core. */
-void channel_lifecycle_peer_paired(channel_lifecycle *c);
-/* Platform effect: tell the peer board this board registered a helper. False
-   when the link would not take it; it is asked again next pass. */
-bool channel_lifecycle_tell_peer_paired(void *context);
+/* A heartbeat arrived from the peer board, saying whether its helper has a
+   session. channel_lifecycle_step sends this board's helper a PEER_HELPER
+   when that changes, and at the start of each session (#275). Either core. */
+void channel_lifecycle_peer_board_heartbeat(channel_lifecycle *c, bool helper_session);
 void channel_lifecycle_barrier(void);
 void channel_lifecycle_save_registration(void *context);
 bool channel_lifecycle_query_unavailable(void *context, uint8_t query_id);

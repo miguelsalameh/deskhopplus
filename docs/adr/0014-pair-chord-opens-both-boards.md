@@ -9,8 +9,14 @@
 A dedicated, fixed **pair chord** (Left Ctrl + Right Shift + P) opens a pairing window on the
 board that hosts the keyboard **and** on its peer, which learns of the press over the
 inter-board link. A config wipe does the same. The config chord no longer opens a window at all.
-When a board registers a helper, it tells its peer, and the peer's helper shows "Other computer
-paired".
+Each helper shows whether the other computer's helper is connected: "Other computer connected"
+or "Other computer not connected".
+
+**Amended 2026-09-27 ([#275](https://github.com/myn/deskhopplus/issues/275)).** This was a
+one-shot "Other computer paired" event, sent when the peer registered a helper. It stayed on the
+Mac menu for five minutes and read as a live status: a fresh, unpaired helper started on the
+other computer in that time, and the menu still said paired. Now each board puts "my helper's
+session is live" in the inter-board heartbeat, and tells its own helper when that changes.
 
 ## Why
 
@@ -32,10 +38,14 @@ the cable move goes.
 
 ## Consequences
 
-- The user is usually not looking at the peer's screen when its window opens. The "Other
-  computer paired" notice is how they learn it worked; its absence is how they learn it did not.
-- The notice proves *a* helper paired, not *which*. Malware that wins the peer's window still
-  triggers it; the peer's real helper keeps showing "not paired".
+- The user is usually not looking at the peer's screen when its window opens. The line changing
+  to "Other computer connected" is how they learn it worked; "not connected" is how they learn it
+  did not.
+- The line proves *a* helper holds a session over there, not *which*. Malware that wins the
+  peer's window still shows as connected; the peer's real helper keeps showing "not paired".
+- "Not connected" also covers a peer helper that is paired but not running, a peer board that is
+  rebooting, and a pulled link cable: no heartbeat for 3 s counts as not connected.
 - A window opens on an already-paired board too, where no honest helper claims it. That is the
   same exposure the config chord had.
-- The new board-to-helper message bumps the protocol to v5; older helpers are refused cleanly.
+- The new board-to-helper message bumped the protocol to v5; the status that replaced it bumped
+  it to v6. Older helpers are refused cleanly.

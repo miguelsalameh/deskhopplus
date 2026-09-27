@@ -95,6 +95,9 @@ public protocol HelperEffects: AnyObject {
     /// Put good news in front of the user, once: shown like `tellUser` but
     /// not as a complaint ("Paired", #268).
     func tellNews(_ message: String)
+
+    /// Whether the other computer's helper is connected now (#275).
+    func show(peerConnected: Bool)
 }
 
 public final class OutputDispatch {
@@ -128,11 +131,16 @@ public final class OutputDispatch {
         return sendFrame(frame, name: name + refusalSuffix)
     }
 
-    /// A board message that is only news for the user — today PEER_PAIRED,
-    /// shown as "Other computer paired" (#268). True when `type` was one.
-    public func boardNotice(type: UInt8) -> Bool {
-        guard type == UInt8(DH_MSG_PEER_PAIRED.rawValue) else { return false }
-        news("Other computer paired")
+    /// PEER_HELPER: whether the other computer's helper is connected now
+    /// (#275). True when `type` was one, malformed or not.
+    public func peerStatus(type: UInt8, body: [UInt8]) -> Bool {
+        guard type == UInt8(DH_MSG_PEER_HELPER.rawValue) else { return false }
+        guard body.count == 1 else {
+            effects.note("a PEER_HELPER of \(body.count) bytes, not 1, was ignored")
+            return true
+        }
+        effects.note("other computer " + (body[0] != 0 ? "connected" : "not connected"))
+        effects.show(peerConnected: body[0] != 0)
         return true
     }
 

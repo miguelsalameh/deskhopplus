@@ -89,6 +89,8 @@ class HelperEffects {
     /* Put good news in front of the user, once: shown like tell_user but not
        as a complaint ("Paired", #268). */
     virtual void tell_news(const std::string &message) = 0;
+    /* Whether the other computer's helper is connected now (#275). */
+    virtual void show_peer(bool connected) = 0;
     virtual void withdraw_file_question(uint32_t id) = 0;
     virtual void deliver_files(const FileDelivery &delivery) = 0;
 
@@ -122,9 +124,9 @@ class OutputDispatch {
     bool send_payload(uint8_t type, const std::vector<uint8_t> &body,
                       const std::string &name, const std::string &refusal_suffix = "");
 
-    /* A board message that is only news for the user — today PEER_PAIRED,
-       shown as "Other computer paired" (#268). True when `type` was one. */
-    bool board_notice(uint8_t type);
+    /* PEER_HELPER: whether the other computer's helper is connected now
+       (#275). True when `type` was one, malformed or not. */
+    bool peer_status(uint8_t type, const uint8_t *body, size_t len);
 
   private:
     bool send_frame(const std::vector<uint8_t> &frame, const std::string &name);

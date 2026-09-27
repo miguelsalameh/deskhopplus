@@ -89,7 +89,13 @@ Look look(dh_helper_state state, bool question_waiting);
  * offered; `total` of zero means nothing is arriving.
  */
 std::string tooltip(dh_helper_state state, const std::string &question_summary,
-                    uint64_t received, uint64_t total, bool sending);
+                    uint64_t received, uint64_t total, bool sending,
+                    const std::string &peer = "");
+
+/* The standing line about the other computer's helper, "Other computer
+   connected" or "... not connected" (#275). Empty until the board has said,
+   and whenever this helper has no session to hear it on. */
+std::string peer_row(dh_helper_state state, std::optional<bool> connected);
 
 /* "Receiving X of Y — N%", the tooltip's receive and the tray menu's row.
    `total` must not be zero. */

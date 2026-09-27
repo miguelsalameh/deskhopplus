@@ -81,6 +81,9 @@ final class MenuBar: NSObject, NSMenuDelegate {
     /// not a warning.
     private var noticeIsNews = false
     static let noticeLifetime: TimeInterval = 300
+    /// Whether the other computer's helper is connected, as the board last
+    /// said; nil until it says, and while this helper has no session (#275).
+    private var peerConnected: Bool?
     private var progress: (received: UInt64, total: UInt64)?
 
     /*
@@ -132,7 +135,20 @@ final class MenuBar: NSObject, NSMenuDelegate {
     func show(state: HelperState) {
         guard self.state != state else { return }
         self.state = state
+        /* Only a live session hears about the peer; the next one is told anew.
+           The same states that allow bulk: the ones with a session. */
+        if !state.allowsBulkTransfers { peerConnected = nil }
         updateTitle()
+    }
+
+    func show(peerConnected: Bool) {
+        self.peerConnected = peerConnected
+        updateTitle()
+    }
+
+    /// The standing line about the other computer's helper (#275).
+    static func peerRow(_ connected: Bool?) -> String? {
+        connected.map { $0 ? "Other computer connected" : "Other computer not connected" }
     }
 
     func show(placementProblem: String?) {
@@ -318,8 +334,9 @@ final class MenuBar: NSObject, NSMenuDelegate {
     }
 
     /// With an icon-only title, the tooltip is what names the helper.
-    static func tooltip(state: HelperState, placementProblem: String?, notice: String?) -> String {
-        [releaseRow, state.message ?? "Waiting for the device", placementProblem, notice]
+    static func tooltip(state: HelperState, placementProblem: String?, notice: String?,
+                        peer: String? = nil) -> String {
+        [releaseRow, state.message ?? "Waiting for the device", peer, placementProblem, notice]
             .compactMap { $0 }.joined(separator: "\n")
     }
 
@@ -332,7 +349,8 @@ final class MenuBar: NSObject, NSMenuDelegate {
                                  sending: shownSending)
         button.title = suffix
         button.imagePosition = suffix.isEmpty ? .imageOnly : .imageLeading
-        button.toolTip = Self.tooltip(state: state, placementProblem: placementProblem, notice: notice)
+        button.toolTip = Self.tooltip(state: state, placementProblem: placementProblem, notice: notice,
+                                      peer: Self.peerRow(peerConnected))
     }
 
     // MARK: - The glyph
@@ -401,6 +419,7 @@ final class MenuBar: NSObject, NSMenuDelegate {
         addWords(Self.releaseRow, to: menu)
         menu.addItem(.separator())
         addWords(state.message ?? "Waiting for the device", to: menu)
+        if let peer = Self.peerRow(peerConnected) { addWords(peer, to: menu) }
         if let placementProblem {
             menu.addItem(.separator())
             addWords(placementProblem, to: menu)

@@ -30,9 +30,14 @@ bool OutputDispatch::send_payload(uint8_t type, const std::vector<uint8_t> &body
     return send_frame(frame, name + refusal_suffix);
 }
 
-bool OutputDispatch::board_notice(uint8_t type) {
-    if (type != DH_MSG_PEER_PAIRED) return false;
-    effects_.tell_news("Other computer paired");
+bool OutputDispatch::peer_status(uint8_t type, const uint8_t *body, size_t len) {
+    if (type != DH_MSG_PEER_HELPER) return false;
+    if (len != 1) {
+        effects_.log("a PEER_HELPER of " + std::to_string(len) + " bytes, not 1, was ignored");
+        return true;
+    }
+    effects_.log(body[0] ? "other computer connected" : "other computer not connected");
+    effects_.show_peer(body[0] != 0);
     return true;
 }
 

@@ -57,9 +57,10 @@ void channel_receive_report(uint8_t index, const uint8_t *buffer, uint16_t bufsi
  */
 void channel_open_pairing_window(void);
 
-/* The peer board registered a helper: this board's live helper is owed a
-   PEER_PAIRED, and shows "Other computer paired" (#268). Either core. */
-void channel_peer_paired(void);
+/* A heartbeat from the peer board, saying whether its helper has a session.
+   This board's helper is told, and shows "Other computer connected" or "not
+   connected" (#275). Either core. */
+void channel_peer_board_heartbeat(bool helper_session);
 
 /* One inter-board packet of a frame being relayed from the peer board. */
 void handle_channel_relay_msg(uart_packet_t *, device_t *);

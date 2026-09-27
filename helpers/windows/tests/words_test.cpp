@@ -95,6 +95,15 @@ int main() {
     CHECK(tooltip(DH_HELPER_CONNECTED, "photo.jpg — 1.0 MB, about 5 seconds.", 4096, 8192, true)
               == "DeskHopPlus — Files offered: photo.jpg — 1.0 MB, about 5 seconds.",
           "a waiting question outranks everything");
+    /* The other computer's helper, only while this one has a session (#275). */
+    CHECK(peer_row(DH_HELPER_CONNECTED, true) == "Other computer connected", "a connected peer is said");
+    CHECK(peer_row(DH_HELPER_LISTENER_DETECTED, false) == "Other computer not connected",
+          "a missing peer is said on any live session");
+    CHECK(peer_row(DH_HELPER_DEVICE_ABSENT, true).empty(), "without a session there is no peer status");
+    CHECK(peer_row(DH_HELPER_CONNECTED, std::nullopt).empty(), "a session not yet told says nothing");
+    CHECK(tooltip(DH_HELPER_CONNECTED, "", 0, 0, false, "Other computer connected")
+              == "DeskHopPlus — Connected and paired\nOther computer connected",
+          "the tooltip carries the peer status on its own line");
     CHECK(tooltip(DH_HELPER_NOT_PAIRED, "", 0, 0, false)
               == "DeskHopPlus — Not paired — press the Pair chord (Left Ctrl + Right Shift + P)",
           "a state with a remedy keeps its remedy");

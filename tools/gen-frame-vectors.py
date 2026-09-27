@@ -297,9 +297,9 @@ def seal(counter: int, plaintext: bytes, aad: bytes) -> bytes:
 # --------------------------------------------------------------------------
 
 
-# Mirrors DH_PROTO_VERSION in src/core/dh_session.h. 5 as of #268: the new
-# PEER_PAIRED type, not any field below.
-PROTO_VERSION = 5
+# Mirrors DH_PROTO_VERSION in src/core/dh_session.h. 6 as of #275: 0x24 is
+# PEER_HELPER with a one-byte body, not any field below.
+PROTO_VERSION = 6
 
 
 def build():
@@ -365,7 +365,7 @@ def build():
     v.append(("place_chain2_mid", frame(0x20, struct.pack("<BBH", 2, 1, 0x8000), K_B2H, 6)))
     v.append(("pos_query", frame(0x21, b"", K_B2H, 7)))
     v.append(("arrival", frame(0x23, b"", K_B2H, 11)))
-    v.append(("peer_paired", frame(0x24, b"", K_B2H, 12)))
+    v.append(("peer_helper_session", frame(0x24, b"\x01", K_B2H, 12)))
     v.append(("pos_response_chain1", frame(0x22, struct.pack("<BHH", 1, 0x4000, 0xC000), K_H2B, 1)))
 
     # --- the seal exchange --------------------------------------------------
@@ -429,7 +429,7 @@ HEADER = """\
 #   device to helper (k_b2h)   hello_ack 0, device_heartbeat 1, session_end 2/3/4,
 #                              listener_alert 5, place 6, pos_query 7,
 #                              clip_policy_both 8, clip_policy_receive_only 9,
-#                              device_drops 10, arrival 11, peer_paired 12
+#                              device_drops 10, arrival 11, peer_helper_session 12
 #   pair_* and hello_refused_* carry no prefix and no counter at all
 #
 # The bulk vectors are all in the helper-to-device direction. Which way a relayed

@@ -57,9 +57,7 @@ enum packet_type_e {
     /* The pair chord, pressed on the peer's keyboard (ADR-0014). Never on the
        config endpoint's allow list: only a physical press may open a window. */
     PAIR_WINDOW_MSG = 36,
-    /* The peer board registered a helper (#268). Not on the config endpoint's
-       allow list either: a forged one would show "Other computer paired". */
-    PEER_PAIRED_MSG = 37,
+    /* 37 was PEER_PAIRED_MSG (#268); the heartbeat carries it now (#275). */
 };
 
 _Static_assert(KEYBOARD_REPORT_MSG == DH_KEYBOARD_PHYSICAL_PACKET,

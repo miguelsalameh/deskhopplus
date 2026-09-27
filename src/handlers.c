@@ -329,11 +329,6 @@ void handle_pair_window_msg(uart_packet_t *packet, device_t *state) {
     channel_open_pairing_window();
 }
 
-/* The peer board registered a helper; tell ours, if one is live (#268) */
-void handle_peer_paired_msg(uart_packet_t *packet, device_t *state) {
-    channel_peer_paired();
-}
-
 /* When this message is received, wipe the local flash config */
 void handle_wipe_config_msg(uart_packet_t *packet, device_t *state) {
     _wipe_local_config(state);
@@ -547,6 +542,7 @@ void handle_heartbeat_msg(uart_packet_t *packet, device_t *state) {
     };
     state->boot_mouse_mode[OTHER_ROLE] =
         (packet->data16[HEARTBEAT_OUTPUT_SLOT16] & HEARTBEAT_BOOT_MOUSE_BIT) != 0;
+    channel_peer_board_heartbeat((packet->data16[HEARTBEAT_OUTPUT_SLOT16] & HEARTBEAT_HELPER_BIT) != 0);
 
     /* Remember it, so this board can be asked what its peer is running (#89).
        The checksum comes along because at equal version it is the only thing

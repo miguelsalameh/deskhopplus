@@ -122,6 +122,9 @@ class Recorder : public HelperEffects {
     void tell_news(const std::string &message) override {
         effects.push_back("tell_news: " + message);
     }
+    void show_peer(bool connected) override {
+        effects.push_back(std::string("show_peer: ") + (connected ? "true" : "false"));
+    }
     void withdraw_file_question(uint32_t id) override {
         effects.push_back("withdraw_file_question(" + std::to_string(id) + ")");
     }
@@ -242,18 +245,29 @@ static void a_new_pairing_tells_the_user_paired() {
     }
 }
 
-/* The peer board's pairing is shown here, and no other board message is
-   taken for a notice (#268). */
-static void the_peer_boards_pairing_tells_the_user() {
-    Recorder recorder;
-    CHECK(OutputDispatch(recorder).board_notice(DH_MSG_PEER_PAIRED),
-          "PEER_PAIRED is a notice");
-    CHECK(recorder.did("tell_news: Other computer paired"),
-          "the peer's pairing is shown as Other computer paired");
+/* PEER_HELPER says whether the other computer's helper is connected now, and
+   no other board message is taken for it (#275). */
+static void the_peer_helper_status_is_shown() {
+    const uint8_t yes[] = {1}, no[] = {0};
+    Recorder connected;
+    CHECK(OutputDispatch(connected).peer_status(DH_MSG_PEER_HELPER, yes, sizeof yes),
+          "PEER_HELPER is taken");
+    CHECK(connected.did("show_peer: true"), "a connected peer is shown");
+    Recorder absent;
+    CHECK(OutputDispatch(absent).peer_status(DH_MSG_PEER_HELPER, no, sizeof no),
+          "PEER_HELPER is taken");
+    CHECK(absent.did("show_peer: false"), "a missing peer is shown");
+
+    Recorder malformed;
+    CHECK(OutputDispatch(malformed).peer_status(DH_MSG_PEER_HELPER, yes, 0),
+          "a malformed PEER_HELPER is still taken");
+    for (const std::string &effect : malformed.effects)
+        CHECK(effect.rfind("show_peer", 0) != 0, "and shows nothing");
 
     Recorder other;
-    CHECK(!OutputDispatch(other).board_notice(DH_MSG_ARRIVAL), "ARRIVAL is not a notice");
-    CHECK(other.effects.empty(), "a message that is not a notice shows nothing");
+    CHECK(!OutputDispatch(other).peer_status(DH_MSG_ARRIVAL, nullptr, 0),
+          "ARRIVAL is not a peer status");
+    CHECK(other.effects.empty(), "a message that is not a peer status shows nothing");
 }
 
 /* A key that cannot be written is pairing that will not survive a restart, and
@@ -681,7 +695,7 @@ int main() {
     store_board_key_reaches_the_secret_store();
     a_refused_board_key_is_said_out_loud();
     a_new_pairing_tells_the_user_paired();
-    the_peer_boards_pairing_tells_the_user();
+    the_peer_helper_status_is_shown();
     the_channel_outputs_reach_the_transport();
     a_sent_frame_charges_the_idle_timer();
     a_refused_frame_is_counted_and_said_out_loud();

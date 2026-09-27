@@ -57,6 +57,7 @@ void channel_lifecycle_on_frame(channel_lifecycle *c, const dh_frame_view *frame
         channel_lifecycle_unlock();
         reset_readers(c);
         c->report_used = 0;
+        c->peer_board_told = CHANNEL_PEER_BOARD_UNTOLD;
     }
     if (rc == DH_FRAME_OK && reply_len > 0)
         (void)channel_lifecycle_queue(c, reply, reply_len, now);
@@ -296,15 +297,16 @@ void channel_lifecycle_arrive(channel_lifecycle *c, uint8_t role, uint8_t new_ou
     channel_lifecycle_unlock();
 }
 
-void channel_lifecycle_peer_paired(channel_lifecycle *c) {
+void channel_lifecycle_peer_board_heartbeat(channel_lifecycle *c, bool helper_session) {
     channel_lifecycle_lock();
-    c->peer_paired_owed = c->session.present;
+    c->peer_board_beat = true;
+    c->peer_board_beat_session = helper_session;
     channel_lifecycle_unlock();
 }
 
-/* An owed empty-body message to this board's helper (ARRIVAL, PEER_PAIRED).
-   Left owed while the priority lane is full; dropped with the session, since
-   it was news for that helper only. */
+/* An owed empty-body message to this board's helper (ARRIVAL). Left owed
+   while the priority lane is full; dropped with the session, since it was
+   news for that helper only. */
 static void pump_owed(channel_lifecycle *c, bool *owed_flag, uint8_t type, uint32_t now) {
     channel_lifecycle_lock();
     /* A full lane is waited out, not offered to: each refusal would count in
@@ -314,7 +316,7 @@ static void pump_owed(channel_lifecycle *c, bool *owed_flag, uint8_t type, uint3
     if (!owed)
         return;
     /* The placement path is reused for its priority lane and small frame buffer;
-       neither message is a placement (CONTEXT.md). `empty` is a real pointer
+       ARRIVAL is not a placement (CONTEXT.md). `empty` is a real pointer
        because memcpy from NULL is undefined even for zero bytes. */
     static const uint8_t empty[1];
     const bool done = !c->session.present ||
@@ -382,6 +384,29 @@ static void pump_inbound(channel_lifecycle *c, uint32_t now) {
     }
 }
 
+/* Tell the helper whether the peer board's helper has a session, when that differs
+   from what this session last heard. Waits out a full priority lane, like
+   pump_owed. */
+static void pump_peer_board_session(channel_lifecycle *c, uint32_t now) {
+    channel_lifecycle_lock();
+    if (c->peer_board_beat) {
+        c->peer_board_beat = false;
+        c->peer_board_session = c->peer_board_beat_session;
+        c->peer_board_beat_at = now;
+    }
+    const bool lane_full = dh_outq_priority_full(&c->out);
+    channel_lifecycle_unlock();
+    /* Signed: the stamp is from this clock, never ahead of it (#107). */
+    const bool live = c->peer_board_session && (int32_t)(now - c->peer_board_beat_at) < (int32_t)CHANNEL_PEER_BOARD_SILENT_MS;
+    if (!live)
+        c->peer_board_session = false;
+    if (!c->session.present || lane_full || c->peer_board_told == live)
+        return;
+    const uint8_t body[] = {live};
+    if (channel_lifecycle_emit_placement(c, DH_MSG_PEER_HELPER, body, sizeof body, now))
+        c->peer_board_told = live;
+}
+
 static void pump_query(channel_lifecycle *c, uint32_t now, void *context) {
     channel_lifecycle_lock();
     const channel_query_origin query_origin = c->cursor_query_origin;
@@ -414,14 +439,11 @@ void channel_lifecycle_step(channel_lifecycle *c, uint32_t now, void *context) {
     drain_reports(c, now, context);
     pump_query(c, now, context);
     pump_owed(c, &c->arrival_owed, DH_MSG_ARRIVAL, now);
-    pump_owed(c, &c->peer_paired_owed, DH_MSG_PEER_PAIRED, now);
+    pump_peer_board_session(c, now);
     if (c->registration_unsaved) {
         c->registration_unsaved = false;
-        c->tell_peer_paired_owed = true;
         channel_lifecycle_save_registration(context);
     }
-    if (c->tell_peer_paired_owed && channel_lifecycle_tell_peer_paired(context))
-        c->tell_peer_paired_owed = false;
     pump_inbound(c, now);
     channel_lifecycle_update_config(context, now);
     uint8_t owed[DH_SESSION_REPLY_MAX];

@@ -192,6 +192,7 @@ class Helper : public HelperEffects {
         log(message);
         tray_.balloon(message, false);
     }
+    void show_peer(bool connected) override { tray_.show_peer(connected); }
     void withdraw_file_question(uint32_t id) override { tray_.withdraw_file_question(id); }
     /* Written first, then referenced. The order is the guarantee: a reference
        only ever points at a set that is complete on disk, so a failed write
@@ -430,7 +431,7 @@ bool Helper::start(HINSTANCE instance) {
             dispatch_.emit(clipboard_service_->user_is_here());
             return;
         }
-        if (dispatch_.board_notice(type)) return;
+        if (dispatch_.peer_status(type, body, len)) return;
         if (cursor_placement_->received(type, body, len, now_ms())) {
             /* The cursor has come here, so the user is here and a paste is
                possible. Anything the clipboard was holding quietly is put to

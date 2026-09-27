@@ -79,6 +79,10 @@
 #define HEARTBEAT_OUTPUT_SLOT16   1 /* data16[1] — the sender's active output     */
 #define HEARTBEAT_CHECKSUM_SLOT32 1 /* data32[1] — the sender's firmware CRC32    */
 #define HEARTBEAT_BOOT_MOUSE_BIT  0x8000u /* data16[1] — sender's boot mouse mode */
+#define HEARTBEAT_HELPER_BIT      0x4000u /* data16[1] — sender's helper has a session (#275) */
+
+_Static_assert((HEARTBEAT_HELPER_BIT & HEARTBEAT_BOOT_MOUSE_BIT) == 0 && HEARTBEAT_HELPER_BIT > 1u,
+               "heartbeat: the flags must not overlap each other or the active output (0 or 1)");
 
 _Static_assert(HEARTBEAT_CHECKSUM_SLOT32 * sizeof(uint32_t)
                    >= (HEARTBEAT_OUTPUT_SLOT16 + 1) * sizeof(uint16_t),

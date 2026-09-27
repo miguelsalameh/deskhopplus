@@ -73,12 +73,12 @@ extern "C" {
 #endif
 
 /*
- * 5 as of #268: a new board-to-helper message, PEER_PAIRED (0x24). A gate, as
- * v4's ARRIVAL was: a v4 peer is refused with version_incompatible rather than
- * sent a type it would drop the session over. See docs/protocol.md, "v5 is v4
- * plus PEER_PAIRED". tools/gen-frame-vectors.py mirrors it.
+ * 6 as of #275: 0x24 is PEER_HELPER, a one-byte status, where v5 had the
+ * empty PEER_PAIRED event. A gate, as v4 and v5 were: a v5 helper would read
+ * the byte as a malformed PEER_PAIRED. See docs/protocol.md, "v6 is v5 with
+ * PEER_HELPER". tools/gen-frame-vectors.py mirrors it.
  */
-#define DH_PROTO_VERSION 5u
+#define DH_PROTO_VERSION 6u
 
 /*
  * Two channels (#63, ADR-0002): the count is negotiated in the hello
