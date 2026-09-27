@@ -262,11 +262,11 @@ void Tray::promote() {
     }
 }
 
-void Tray::balloon(const std::string &message) {
+void Tray::balloon(const std::string &message, bool warning) {
     if (!icon_shown_ || !window_) return;
     NOTIFYICONDATAW data = base(window_);
     data.uFlags = NIF_INFO;
-    data.dwInfoFlags = NIIF_WARNING;
+    data.dwInfoFlags = warning ? NIIF_WARNING : NIIF_INFO;
     copy_into(data.szInfoTitle, sizeof(data.szInfoTitle) / sizeof(wchar_t), L"DeskHopPlus");
     copy_into(data.szInfo, sizeof(data.szInfo) / sizeof(wchar_t), widen(message));
     Shell_NotifyIconW(NIM_MODIFY, &data);

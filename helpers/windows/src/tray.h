@@ -126,8 +126,10 @@ class Tray {
 
     /* Something the user did produced nothing, and only they can act on why —
        which is the bar this file sets for interrupting anyone. Public because
-       the copy side, not just a state change, now has such a thing to say. */
-    void balloon(const std::string &message);
+       the copy side, not just a state change, now has such a thing to say.
+       The one exception is `warning` false: the answer to a pair chord press
+       ("Paired", #268), shown once with the info icon. */
+    void balloon(const std::string &message, bool warning = true);
 
   private:
     void add_icon();

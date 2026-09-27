@@ -73,13 +73,12 @@ extern "C" {
 #endif
 
 /*
- * 4 as of #250: a new board-to-helper message, ARRIVAL (0x23). The hello
- * layout is unchanged, so unlike v3 this bump is a gate — a v3 peer is refused
- * with version_incompatible rather than sent a type it would drop the session
- * over. See docs/protocol.md, "v4 is v3 plus ARRIVAL".
- * tools/gen-frame-vectors.py mirrors it.
+ * 5 as of #268: a new board-to-helper message, PEER_PAIRED (0x24). A gate, as
+ * v4's ARRIVAL was: a v4 peer is refused with version_incompatible rather than
+ * sent a type it would drop the session over. See docs/protocol.md, "v5 is v4
+ * plus PEER_PAIRED". tools/gen-frame-vectors.py mirrors it.
  */
-#define DH_PROTO_VERSION 4u
+#define DH_PROTO_VERSION 5u
 
 /*
  * Two channels (#63, ADR-0002): the count is negotiated in the hello

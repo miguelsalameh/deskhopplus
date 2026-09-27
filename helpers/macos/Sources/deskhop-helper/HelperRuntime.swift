@@ -154,6 +154,7 @@ final class HelperRuntime: HelperEffects {
                 self.dispatch.emit(self.clipboard.userIsHere())
                 return
             }
+            if self.dispatch.boardNotice(type: type) { return }
             if self.cursorPlacement.received(type: type, body: body) {
                 /* The cursor has come here, so the user is here and a paste is
                    possible. Anything the clipboard was holding quietly is put
@@ -463,6 +464,7 @@ final class HelperRuntime: HelperEffects {
     func note(_ message: String) { Self.note(message) }
 
     func tellUser(_ message: String) { menuBar.show(notice: message) }
+    func tellNews(_ message: String) { menuBar.show(news: message) }
 
     /* The one effect with a condition of its own: the device may have come
        back by itself while the backoff was running, and re-acquiring channels

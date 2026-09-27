@@ -1,4 +1,4 @@
-# deskhopplus channel protocol — v4
+# deskhopplus channel protocol — v5
 
 The single source of truth for bytes on the helper↔firmware channel. Any change here must
 update `test-vectors/frames.txt` and the shared C core (`src/core/`) in the same change.
@@ -14,9 +14,14 @@ board will act on.
 **Old pairings do not migrate.** A migration path would have to accept the old bearer token,
 which is the thing being removed. Recovery is one chord press, by design.
 
+> **v5 is v4 plus PEER_PAIRED** ([#268](https://github.com/myn/deskhopplus/issues/268),
+> [ADR-0014](adr/0014-pair-chord-opens-both-boards.md)): one new board→helper type,
+> `0x24 PEER_PAIRED`. No frame layout and no report shape changes; `DH_PROTO_VERSION` is `5`. A
+> gate, for the same reason as v4: a v4 helper would drop the session on the new type.
+>
 > **v4 is v3 plus ARRIVAL** ([#250](https://github.com/myn/deskhopplus/issues/250)): one new
 > board→helper type, `0x23 ARRIVAL`. No frame layout and no report shape changes;
-> `DH_PROTO_VERSION` is `4`. **Unlike v3, this bump is a gate.** The hello arrives intact, so a
+> `DH_PROTO_VERSION` was `4`. **Unlike v3, this bump is a gate.** The hello arrives intact, so a
 > mismatched pair gets `HELLO_REFUSED(version_incompatible)` rather than a reconnect loop — which
 > is the point: a v3 helper drops the session on a type it does not know, so a v4 board must not
 > keep one. Firmware and both helpers move together, as before.
@@ -598,6 +603,7 @@ types `0x08`–`0x0F`, which have no prefix and whose body starts at offset 4 of
 | 0x21 | POS_QUERY | d→h | `k_b2h` | `query_id:u8` (`0` denotes the post-placement refresh) |
 | 0x22 | POS_RESPONSE | h→d | `k_h2b` | `query_id:u8` `chain_index:u8` `x:u16` `y:u16` (the query ID is echoed; coordinates are 0–65535 normalized within the current monitor) |
 | 0x23 | ARRIVAL | d→h | `k_b2h` | Empty body. This board's computer has just become the active output, by any route — a mapped crossing, an unmapped one, or the output hotkey. Sent by the board whose role is the new active output, once per switch, and only while its helper is live. The helper treats it as the user arriving: a held file question is put now. A mapped crossing also sends `PLACE`; the two are independent, and the helper's arrival handling is idempotent. Authenticated, not sealed. |
+| 0x24 | PEER_PAIRED | d→h | `k_b2h` | Empty body. The peer board has just registered a helper; the peer tells this board over the inter-board link (`PEER_PAIRED_MSG`), and this board sends it once, only while its helper is live. The helper shows "Other computer paired" — an event, not a status line. The helper that paired learns it from its own `PAIR_GRANT` and shows "Paired". There is no failure notice: a window left unclaimed on an already-paired board is normal. Proves *a* helper paired over there, not *which* (ADR-0014). Authenticated, not sealed. |
 | 0x30 | CLIP_OFFER | h↔h | per hop | `id:u32` `seal_id:u32` `seal_counter:u64` `ciphertext:bytes` `gcm_tag:16`. Sealed plaintext: `kind:u8` (0=utf8-text, 1=png, 2=file-list, 3=bundle) `total_size:u64` `meta_len:u16` `meta:bytes`. AAD is the 16 clear bytes. Kind 3 is text beside its picture, so the pasting application picks (ADR-0013): its payload is a list of parts, each `part_kind:u8 len:u32 bytes`, with `part_kind` reusing the offer kinds (0 = UTF-8 text, 1 = PNG) and its metadata empty. `dh_bundle.h` is the codec; the paste side refuses a part that runs past the payload and skips a part kind it does not know. Kind 2's metadata is a UTF-8 JSON array of `{"name":…,"size":…}` objects **in that key order, with no escapes anywhere in it** — `dh_file_list.h` is the codec, and it cleans every name on the way out so that the two characters JSON would have to escape are already illegal in it. At most 64 files, each name at most 255 bytes, and the whole array must fit one offer. The sizes must sum to `total_size`; a receiver that finds otherwise refuses the transfer rather than slicing the payload at offsets it cannot trust. |
 | 0x31 | CLIP_REQUEST | h↔h | per hop | `id:u32` |
 | 0x32 | CLIP_CHUNK | h↔h | per hop | `id:u32` `seq:u32` `seal_id:u32` `seal_counter:u64` `ciphertext:bytes` `gcm_tag:16`. Sealed plaintext: `crc32:u32` (of `data`, the end-to-end integrity check) `data:bytes`. AAD is the 20 clear bytes. |

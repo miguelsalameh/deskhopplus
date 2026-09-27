@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Derek Reynolds
 
 import DeskhopChannel
+import DHCore
 import Foundation
 
 /*
@@ -82,6 +83,7 @@ private final class Recorder: HelperEffects {
     }
     func note(_ message: String) { effects.append("note: " + message) }
     func tellUser(_ message: String) { effects.append("tellUser: " + message) }
+    func tellNews(_ message: String) { effects.append("tellNews: " + message) }
 
     /* Logs are matched by prefix rather than in full: what is being claimed is
        that the right thing was said, not the exact wording of a sentence that
@@ -148,6 +150,31 @@ private func storeBoardKeyReachesTheKeychain() {
 
     Check.that(recorder.did("storeBoardKey(64)"), effectNamed(by: output))
     Check.that(!recorder.noted("paired, but"), "a key that was stored says nothing about pairing")
+}
+
+/* A stored key is a new pairing, which the user asked for with the chord and
+   is told about once (#268). Even when the key would not save: the board has
+   registered this helper either way. */
+private func aNewPairingTellsTheUserPaired() {
+    for stores in [true, false] {
+        let (recorder, dispatch) = fixture()
+        recorder.storeSucceeds = stores
+        dispatch.apply(.storeBoardKey([UInt8](repeating: 0x11, count: 64)))
+        Check.that(recorder.did("tellNews: Paired"), "a new pairing is shown as Paired")
+    }
+}
+
+/* The peer board's pairing is shown here, and no other board message is taken
+   for a notice (#268). */
+private func thePeerBoardsPairingTellsTheUser() {
+    let (recorder, dispatch) = fixture()
+    Check.that(dispatch.boardNotice(type: UInt8(DH_MSG_PEER_PAIRED.rawValue)), "PEER_PAIRED is a notice")
+    Check.that(recorder.did("tellNews: Other computer paired"),
+               "the peer's pairing is shown as Other computer paired")
+
+    let (other, otherDispatch) = fixture()
+    Check.that(!otherDispatch.boardNotice(type: UInt8(DH_MSG_ARRIVAL.rawValue)), "ARRIVAL is not a notice")
+    Check.that(other.effects.isEmpty, "a message that is not a notice shows nothing")
 }
 
 /* A key that cannot be written is pairing that will not survive a restart, and
@@ -421,6 +448,8 @@ let outputDispatchTests: [(String, () throws -> Void)] = [
     ("a cursor response charges only an accepted send", aCursorResponseChargesOnlyAnAcceptedSend),
     ("storeBoardKey reaches the Keychain", storeBoardKeyReachesTheKeychain),
     ("a refused board key is said out loud", aRefusedBoardKeyIsSaidOutLoud),
+    ("a new pairing tells the user Paired", aNewPairingTellsTheUserPaired),
+    ("the peer board's pairing tells the user", thePeerBoardsPairingTellsTheUser),
     ("the channel outputs reach the transport", theChannelOutputsReachTheTransport),
     ("a sent frame charges the idle timer", aSentFrameChargesTheIdleTimer),
     ("a refused frame is counted and said out loud", aRefusedFrameIsCountedAndSaidOutLoud),

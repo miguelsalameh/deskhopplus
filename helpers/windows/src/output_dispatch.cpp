@@ -30,6 +30,12 @@ bool OutputDispatch::send_payload(uint8_t type, const std::vector<uint8_t> &body
     return send_frame(frame, name + refusal_suffix);
 }
 
+bool OutputDispatch::board_notice(uint8_t type) {
+    if (type != DH_MSG_PEER_PAIRED) return false;
+    effects_.tell_news("Other computer paired");
+    return true;
+}
+
 void OutputDispatch::apply(const Output &output) {
     /* No `default:`, deliberately, in this switch and the one below. An output
        kind added to a service and forgotten here is then a compile error
@@ -40,6 +46,8 @@ void OutputDispatch::apply(const Output &output) {
         if (!effects_.store_board_key(output.bytes))
             effects_.log("paired, but the board key could not be stored — pairing will not "
                          "survive a restart");
+        /* The key comes once per grant, so this is once per registration (#268). */
+        effects_.tell_news("Paired");
         break;
 
     case Output::Kind::OpenChannels:

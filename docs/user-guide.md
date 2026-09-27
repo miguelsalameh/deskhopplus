@@ -27,7 +27,11 @@ one press of the **pair chord**, `Left Ctrl + Right Shift + P`, with the helper 
    **Not paired — press the Pair chord (Left Ctrl + Right Shift + P)**.
 2. Press the pair chord once, on the keyboard. The on-board LED blinks. Both boards open a
    **60-second pairing window** at once, so the keyboard can be on either board.
-3. Each waiting helper pairs by itself. Its menu changes to **Connected and paired**.
+3. Each waiting helper pairs by itself. It shows **Paired** once, and its menu changes to
+   **Connected and paired**. The helper on the other computer shows **Other computer paired**, so
+   you learn it worked without walking over. The notice needs this computer's helper connected at
+   that moment; if both helpers pair at once, it can be missed. The other computer's own menu is
+   the record.
 
 Nothing reboots and no drive appears. The pair chord is fixed, like the chord: a hotkey you
 set on the config page cannot replace it.

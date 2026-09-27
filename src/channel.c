@@ -209,6 +209,10 @@ void channel_open_pairing_window(void) {
     channel.pairing_window_requested = true;
 }
 
+void channel_peer_paired(void) {
+    channel_lifecycle_peer_paired(&channel.lifecycle);
+}
+
 bool channel_helper_present(void) {
     return channel.lifecycle.session.present;
 }
@@ -589,6 +593,11 @@ void channel_lifecycle_save_registration(void *context) {
            sizeof state->config.channel_shared_secret);
     state->config.channel_paired = 1;
     save_config(state);
+}
+
+bool channel_lifecycle_tell_peer_paired(void *context) {
+    uart_packet_t paired = {.type = PEER_PAIRED_MSG};
+    return queue_uart_packet(&paired, context);
 }
 
 bool channel_lifecycle_query_unavailable(void *context, uint8_t query_id) {

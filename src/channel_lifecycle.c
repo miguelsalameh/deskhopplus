@@ -296,25 +296,32 @@ void channel_lifecycle_arrive(channel_lifecycle *c, uint8_t role, uint8_t new_ou
     channel_lifecycle_unlock();
 }
 
-/* The owed arrival, if any. Left owed while the priority lane is full;
-   dropped with the session, since it was news for that helper only. */
-static void pump_arrival(channel_lifecycle *c, uint32_t now) {
+void channel_lifecycle_peer_paired(channel_lifecycle *c) {
+    channel_lifecycle_lock();
+    c->peer_paired_owed = c->session.present;
+    channel_lifecycle_unlock();
+}
+
+/* An owed empty-body message to this board's helper (ARRIVAL, PEER_PAIRED).
+   Left owed while the priority lane is full; dropped with the session, since
+   it was news for that helper only. */
+static void pump_owed(channel_lifecycle *c, bool *owed_flag, uint8_t type, uint32_t now) {
     channel_lifecycle_lock();
     /* A full lane is waited out, not offered to: each refusal would count in
        the drop totals the helper logs, and nothing here is being dropped. */
-    const bool owed = c->arrival_owed && !dh_outq_priority_full(&c->out);
+    const bool owed = *owed_flag && !dh_outq_priority_full(&c->out);
     channel_lifecycle_unlock();
     if (!owed)
         return;
     /* The placement path is reused for its priority lane and small frame buffer;
-       an arrival is not a placement (CONTEXT.md). `empty` is a real pointer
+       neither message is a placement (CONTEXT.md). `empty` is a real pointer
        because memcpy from NULL is undefined even for zero bytes. */
     static const uint8_t empty[1];
     const bool done = !c->session.present ||
-                      channel_lifecycle_emit_placement(c, DH_MSG_ARRIVAL, empty, 0, now);
+                      channel_lifecycle_emit_placement(c, type, empty, 0, now);
     if (done) {
         channel_lifecycle_lock();
-        c->arrival_owed = false;
+        *owed_flag = false;
         channel_lifecycle_unlock();
     }
 }
@@ -406,11 +413,15 @@ static void pump_query(channel_lifecycle *c, uint32_t now, void *context) {
 void channel_lifecycle_step(channel_lifecycle *c, uint32_t now, void *context) {
     drain_reports(c, now, context);
     pump_query(c, now, context);
-    pump_arrival(c, now);
+    pump_owed(c, &c->arrival_owed, DH_MSG_ARRIVAL, now);
+    pump_owed(c, &c->peer_paired_owed, DH_MSG_PEER_PAIRED, now);
     if (c->registration_unsaved) {
         c->registration_unsaved = false;
+        c->tell_peer_paired_owed = true;
         channel_lifecycle_save_registration(context);
     }
+    if (c->tell_peer_paired_owed && channel_lifecycle_tell_peer_paired(context))
+        c->tell_peer_paired_owed = false;
     pump_inbound(c, now);
     channel_lifecycle_update_config(context, now);
     uint8_t owed[DH_SESSION_REPLY_MAX];

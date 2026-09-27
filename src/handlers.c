@@ -329,6 +329,11 @@ void handle_pair_window_msg(uart_packet_t *packet, device_t *state) {
     channel_open_pairing_window();
 }
 
+/* The peer board registered a helper; tell ours, if one is live (#268) */
+void handle_peer_paired_msg(uart_packet_t *packet, device_t *state) {
+    channel_peer_paired();
+}
+
 /* When this message is received, wipe the local flash config */
 void handle_wipe_config_msg(uart_packet_t *packet, device_t *state) {
     _wipe_local_config(state);

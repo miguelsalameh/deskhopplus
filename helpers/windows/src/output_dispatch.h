@@ -86,6 +86,9 @@ class HelperEffects {
     /* Put a message in front of the user. Something they did produced nothing,
        and only they can act on why. */
     virtual void tell_user(const std::string &message) = 0;
+    /* Put good news in front of the user, once: shown like tell_user but not
+       as a complaint ("Paired", #268). */
+    virtual void tell_news(const std::string &message) = 0;
     virtual void withdraw_file_question(uint32_t id) = 0;
     virtual void deliver_files(const FileDelivery &delivery) = 0;
 
@@ -118,6 +121,10 @@ class OutputDispatch {
        accounting. Only clipboard refusals add a message type to the name. */
     bool send_payload(uint8_t type, const std::vector<uint8_t> &body,
                       const std::string &name, const std::string &refusal_suffix = "");
+
+    /* A board message that is only news for the user — today PEER_PAIRED,
+       shown as "Other computer paired" (#268). True when `type` was one. */
+    bool board_notice(uint8_t type);
 
   private:
     bool send_frame(const std::vector<uint8_t> &frame, const std::string &name);

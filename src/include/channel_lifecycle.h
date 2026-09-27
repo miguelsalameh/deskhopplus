@@ -118,6 +118,15 @@ typedef struct {
        with PLACE and POS_QUERY, and a refused arrival would be lost. */
     bool arrival_owed;
 
+    /* A PEER_PAIRED this board owes its helper, set when the peer board
+       registers a helper (#268). Owed and sent exactly as arrival_owed. */
+    bool peer_paired_owed;
+
+    /* This board registered a helper and has not yet told the peer board,
+       whose helper shows "Other computer paired" (#268). Retried while the
+       inter-board link refuses it. */
+    bool tell_peer_paired_owed;
+
 } channel_lifecycle;
 
 /* Hardware adapter: same outbound critical section as transport peek/advance. */
@@ -155,6 +164,12 @@ bool channel_lifecycle_emit_placement(channel_lifecycle *c, uint8_t type,
    helper is live, an ARRIVAL is owed to it and channel_lifecycle_step sends it,
    retrying while the priority lane is full. A switch away cancels it (#250). */
 void channel_lifecycle_arrive(channel_lifecycle *c, uint8_t role, uint8_t new_output);
+/* The peer board registered a helper. When a helper is live here, a
+   PEER_PAIRED is owed to it and sent like an arrival (#268). Either core. */
+void channel_lifecycle_peer_paired(channel_lifecycle *c);
+/* Platform effect: tell the peer board this board registered a helper. False
+   when the link would not take it; it is asked again next pass. */
+bool channel_lifecycle_tell_peer_paired(void *context);
 void channel_lifecycle_barrier(void);
 void channel_lifecycle_save_registration(void *context);
 bool channel_lifecycle_query_unavailable(void *context, uint8_t query_id);

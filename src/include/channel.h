@@ -57,6 +57,10 @@ void channel_receive_report(uint8_t index, const uint8_t *buffer, uint16_t bufsi
  */
 void channel_open_pairing_window(void);
 
+/* The peer board registered a helper: this board's live helper is owed a
+   PEER_PAIRED, and shows "Other computer paired" (#268). Either core. */
+void channel_peer_paired(void);
+
 /* One inter-board packet of a frame being relayed from the peer board. */
 void handle_channel_relay_msg(uart_packet_t *, device_t *);
 

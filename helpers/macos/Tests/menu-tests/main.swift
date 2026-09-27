@@ -73,13 +73,16 @@ check(MenuBar.look(for: .connected, questionWaiting: true) == .attention, "a wai
 check(MenuBar.look(for: .quiet, questionWaiting: true) == .attention, "a question outranks off")
 check(HelperState.versionIncompatible.message!.contains("update the helper"), "incompatible versions name the remedy")
 // The suffix beside the icon, by priority: the question, the receive, a
-// complaint, a send. Empty when nothing is happening.
-check(MenuBar.suffix(question: false, progress: nil, warning: false, sending: false) == "", "an idle title is the icon alone")
-check(MenuBar.suffix(question: true, progress: (25, 100), warning: true, sending: true) == "⬇ files?", "a question outranks everything")
-check(MenuBar.suffix(question: false, progress: (25, 100), warning: true, sending: true) == "⬇ 25%", "a receive shows its percent")
-check(MenuBar.suffix(question: false, progress: (0, 0), warning: false, sending: false) == "", "a zero total is not a receive")
-check(MenuBar.suffix(question: false, progress: nil, warning: true, sending: true) == "⚠", "a complaint outranks a send")
-check(MenuBar.suffix(question: false, progress: nil, warning: false, sending: true) == "⬆", "a send is visible while it runs")
+// complaint, good news, a send. Empty when nothing is happening.
+check(MenuBar.suffix(question: false, progress: nil, warning: false, news: false, sending: false) == "", "an idle title is the icon alone")
+check(MenuBar.suffix(question: true, progress: (25, 100), warning: true, news: false, sending: true) == "⬇ files?", "a question outranks everything")
+check(MenuBar.suffix(question: false, progress: (25, 100), warning: true, news: false, sending: true) == "⬇ 25%", "a receive shows its percent")
+check(MenuBar.suffix(question: false, progress: (0, 0), warning: false, news: false, sending: false) == "", "a zero total is not a receive")
+check(MenuBar.suffix(question: false, progress: nil, warning: true, news: false, sending: true) == "⚠", "a complaint outranks a send")
+check(MenuBar.suffix(question: false, progress: nil, warning: false, news: false, sending: true) == "⬆", "a send is visible while it runs")
+// "Paired" is good news, not a complaint (#268).
+check(MenuBar.suffix(question: false, progress: nil, warning: false, news: true, sending: true) == "✓", "good news outranks a send")
+check(MenuBar.suffix(question: false, progress: nil, warning: true, news: true, sending: false) == "⚠", "a complaint outranks good news")
 menuBar.show(state: .listenerDetected)
 menuBar.menuNeedsUpdate(menu)
 check(menu.items.filter { !$0.isSeparatorItem }.allSatisfy { $0.title.count <= 65 }, "long remedies wrap into readable lines")

@@ -77,6 +77,9 @@ final class MenuBar: NSObject, NSMenuDelegate {
     /// The last thing the user needs to know about, and when it was said.
     private var notice: String?
     private var noticeAt: Date?
+    /// The notice is good news ("Paired", #268), so the title shows a tick,
+    /// not a warning.
+    private var noticeIsNews = false
     static let noticeLifetime: TimeInterval = 300
     private var progress: (received: UInt64, total: UInt64)?
 
@@ -163,7 +166,15 @@ final class MenuBar: NSObject, NSMenuDelegate {
      */
     func show(notice: String) {
         self.notice = notice
+        noticeIsNews = false
         noticeAt = Date()
+        updateTitle()
+    }
+
+    /// Good news, in the same place and for the same lifetime as a notice.
+    func show(news: String) {
+        show(notice: news)
+        noticeIsNews = true
         updateTitle()
     }
 
@@ -281,12 +292,13 @@ final class MenuBar: NSObject, NSMenuDelegate {
     /// complaint, a send. Empty when nothing is happening, which is most of
     /// the time — the icon alone is the whole title then.
     static func suffix(question: Bool, progress: (received: UInt64, total: UInt64)?,
-                       warning: Bool, sending: Bool) -> String {
+                       warning: Bool, news: Bool, sending: Bool) -> String {
         if question { return "⬇ files?" }
         if let progress, progress.total > 0 { return "⬇ \(percent(progress))%" }
         /* In the title, not only in the menu. A message buried behind a click
            is not much better than the silence it replaced. */
         if warning { return "⚠" }
+        if news { return "✓" }
         if sending { return "⬆" }
         return ""
     }
@@ -301,7 +313,8 @@ final class MenuBar: NSObject, NSMenuDelegate {
         guard let button = item?.button else { return }
         button.image = Self.images[Self.look(for: state, questionWaiting: question != nil)]
         let suffix = Self.suffix(question: question != nil, progress: progress,
-                                 warning: notice != nil || placementProblem != nil,
+                                 warning: (notice != nil && !noticeIsNews) || placementProblem != nil,
+                                 news: notice != nil && noticeIsNews,
                                  sending: shownSending)
         button.title = suffix
         button.imagePosition = suffix.isEmpty ? .imageOnly : .imageLeading

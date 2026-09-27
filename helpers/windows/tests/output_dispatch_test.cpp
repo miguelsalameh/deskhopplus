@@ -119,6 +119,9 @@ class Recorder : public HelperEffects {
     void tell_user(const std::string &message) override {
         effects.push_back("tell_user: " + message);
     }
+    void tell_news(const std::string &message) override {
+        effects.push_back("tell_news: " + message);
+    }
     void withdraw_file_question(uint32_t id) override {
         effects.push_back("withdraw_file_question(" + std::to_string(id) + ")");
     }
@@ -222,6 +225,35 @@ static void store_board_key_reaches_the_secret_store() {
 
     CHECK(recorder.did("store_board_key(64)"), effect_named_by(Output::Kind::StoreBoardKey));
     CHECK(!recorder.logged("paired, but"), "a key that was stored says nothing about pairing");
+}
+
+/* A stored key is a new pairing, which the user asked for with the chord and
+   is told about once (#268). Even when the key would not save: the board has
+   registered this helper either way. */
+static void a_new_pairing_tells_the_user_paired() {
+    for (const bool stores : {true, false}) {
+        Recorder recorder;
+        recorder.store_succeeds = stores;
+        Output output;
+        output.kind = Output::Kind::StoreBoardKey;
+        output.bytes = std::vector<uint8_t>(64, 0x11);
+        OutputDispatch(recorder).apply(output);
+        CHECK(recorder.did("tell_news: Paired"), "a new pairing is shown as Paired");
+    }
+}
+
+/* The peer board's pairing is shown here, and no other board message is
+   taken for a notice (#268). */
+static void the_peer_boards_pairing_tells_the_user() {
+    Recorder recorder;
+    CHECK(OutputDispatch(recorder).board_notice(DH_MSG_PEER_PAIRED),
+          "PEER_PAIRED is a notice");
+    CHECK(recorder.did("tell_news: Other computer paired"),
+          "the peer's pairing is shown as Other computer paired");
+
+    Recorder other;
+    CHECK(!OutputDispatch(other).board_notice(DH_MSG_ARRIVAL), "ARRIVAL is not a notice");
+    CHECK(other.effects.empty(), "a message that is not a notice shows nothing");
 }
 
 /* A key that cannot be written is pairing that will not survive a restart, and
@@ -648,6 +680,8 @@ int main() {
     a_cursor_response_charges_only_an_accepted_send();
     store_board_key_reaches_the_secret_store();
     a_refused_board_key_is_said_out_loud();
+    a_new_pairing_tells_the_user_paired();
+    the_peer_boards_pairing_tells_the_user();
     the_channel_outputs_reach_the_transport();
     a_sent_frame_charges_the_idle_timer();
     a_refused_frame_is_counted_and_said_out_loud();

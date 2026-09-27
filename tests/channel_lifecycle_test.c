@@ -22,6 +22,8 @@ static uint32_t observed_now;
 static bool unavailable_accepts;
 static unsigned unavailable_count;
 static uint8_t unavailable_id;
+static bool peer_accepts;
+static unsigned peer_told;
 
 void channel_lifecycle_position(void *context, const uint8_t *body, size_t len) {
     (void)context; (void)body; (void)len;
@@ -42,6 +44,12 @@ bool channel_lifecycle_query_unavailable(void *context, uint8_t query_id) {
     if (!unavailable_accepts) return false;
     unavailable_count++;
     unavailable_id = query_id;
+    return true;
+}
+bool channel_lifecycle_tell_peer_paired(void *context) {
+    (void)context;
+    if (!peer_accepts) return false;
+    peer_told++;
     return true;
 }
 
@@ -125,6 +133,8 @@ static void init(void) {
     packet_count = 0;
     unavailable_accepts = false;
     unavailable_count = 0;
+    peer_accepts = true;
+    peer_told = 0;
     dh_session_init(&c.session, DH_BUILD_RELEASE);
     dh_pair_init(&c.pair);
     dh_pair_set_registration(&c.pair, key_id, secret);
@@ -605,14 +615,16 @@ static void test_sustained_two_channel_chunks_preserve_tags_and_bytes(void) {
     CHECK(c.inbound.dropped == 0);
 }
 
-/* One channel_task pass, then everything it queued: how many were ARRIVAL. */
-static unsigned arrivals_after_step(uint32_t now) {
+/* One channel_task pass, then everything it queued: how many were `type`. */
+static unsigned sent_after_step(uint8_t type, uint32_t now) {
     channel_lifecycle_step(&c, now, NULL);
-    unsigned arrivals = 0;
+    unsigned sent = 0;
     while (drain(sizeof wire) > 0)
-        if (wire[0] == 0x23) ++arrivals;
-    return arrivals;
+        if (wire[0] == type) ++sent;
+    return sent;
 }
+
+static unsigned arrivals_after_step(uint32_t now) { return sent_after_step(DH_MSG_ARRIVAL, now); }
 
 /* An arrival goes to the helper of the board whose computer became active,
    once, and only while that helper is live (#250). */
@@ -657,6 +669,55 @@ static void test_arrival_waits_for_a_busy_priority_lane(void) {
     CHECK(arrivals_after_step(202) == 1);
 }
 
+/* A helper asks to pair inside a window the chord opened. The board's own
+   public key stands in for the helper's: any point on the curve registers. */
+static void pair_a_helper(uint32_t now) {
+    uint8_t private_key[DH_P256_PRIVATE_SIZE] = {0};
+    private_key[0] = 1;
+    CHECK(dh_pair_set_identity(&c.pair, private_key));
+    channel_lifecycle_open_pairing_window(&c, now);
+    dh_pair_request request = {.correlation = 7};
+    memcpy(request.helper_public, dh_pair_public_key(&c.pair), sizeof request.helper_public);
+    uint8_t bytes[DH_FRAME_MAX_SIZE];
+    size_t len = 0;
+    CHECK(dh_pair_request_encode(&request, bytes, sizeof bytes, &len) == DH_FRAME_OK);
+    receive_bytes(bytes, len);
+}
+
+/* A registration is news for the other computer too: the board tells its peer
+   once, and keeps trying while the link refuses (#268). */
+static void test_a_registration_tells_the_peer_once(void) {
+    init();
+    channel_lifecycle_step(&c, 200, NULL);
+    CHECK(peer_told == 0);
+
+    peer_accepts = false;
+    pair_a_helper(201);
+    channel_lifecycle_step(&c, 201, NULL);
+    CHECK(peer_told == 0);
+
+    peer_accepts = true;
+    channel_lifecycle_step(&c, 202, NULL);
+    CHECK(peer_told == 1);
+    channel_lifecycle_step(&c, 203, NULL);
+    CHECK(peer_told == 1);
+}
+
+/* The peer's registration reaches this board's helper once, as PEER_PAIRED,
+   and only while that helper is live: it is an event, not a state (#268). */
+static void test_peer_paired_goes_once_to_a_live_helper(void) {
+    init();
+    CHECK(sent_after_step(DH_MSG_PEER_PAIRED, 200) == 0);
+
+    channel_lifecycle_peer_paired(&c);
+    CHECK(sent_after_step(DH_MSG_PEER_PAIRED, 201) == 1);
+    CHECK(sent_after_step(DH_MSG_PEER_PAIRED, 202) == 0);
+
+    channel_lifecycle_link_lost(&c);
+    channel_lifecycle_peer_paired(&c);
+    CHECK(sent_after_step(DH_MSG_PEER_PAIRED, 203) == 0);
+}
+
 int main(void) {
     test_sustained_two_channel_chunks_preserve_tags_and_bytes();
     test_two_channels_share_one_transfer_credit_window();
@@ -680,6 +741,8 @@ int main(void) {
     test_inbound_pressure_retains_frames_behind_the_counted_loss();
     test_arrival_goes_only_to_the_new_active_outputs_helper();
     test_arrival_waits_for_a_busy_priority_lane();
+    test_a_registration_tells_the_peer_once();
+    test_peer_paired_goes_once_to_a_live_helper();
     puts("channel lifecycle tests passed");
     return 0;
 }

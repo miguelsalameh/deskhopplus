@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Derek Reynolds
 
+import DHCore
 import Foundation
 
 /*
@@ -90,6 +91,10 @@ public protocol HelperEffects: AnyObject {
     /// Put a message in front of the user. Something they did produced
     /// nothing, and only they can act on why.
     func tellUser(_ message: String)
+
+    /// Put good news in front of the user, once: shown like `tellUser` but
+    /// not as a complaint ("Paired", #268).
+    func tellNews(_ message: String)
 }
 
 public final class OutputDispatch {
@@ -123,6 +128,20 @@ public final class OutputDispatch {
         return sendFrame(frame, name: name + refusalSuffix)
     }
 
+    /// A board message that is only news for the user — today PEER_PAIRED,
+    /// shown as "Other computer paired" (#268). True when `type` was one.
+    public func boardNotice(type: UInt8) -> Bool {
+        guard type == UInt8(DH_MSG_PEER_PAIRED.rawValue) else { return false }
+        news("Other computer paired")
+        return true
+    }
+
+    /* Logged as well as shown, like a clipboard `.tellUser`. */
+    private func news(_ message: String) {
+        effects.note(message)
+        effects.tellNews(message)
+    }
+
     /* Neither switch below has a `default:`, deliberately. An output case added
        to a service and forgotten here is then a compile error rather than a
        silent fall-through, so `swift run channel-tests` fails rather than
@@ -138,6 +157,8 @@ public final class OutputDispatch {
                 effects.note("paired, but the board key could not be stored — pairing "
                              + "will not survive a restart")
             }
+            /* The key comes once per grant, so this is once per registration (#268). */
+            news("Paired")
 
         case .openChannels:
             effects.acquireChannels()
