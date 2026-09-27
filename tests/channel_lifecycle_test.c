@@ -235,7 +235,7 @@ static void test_pairing_window_keeps_the_live_session(void) {
     CHECK(drain(sizeof wire) == 0);
 }
 
-static void test_wipe_revokes_session_and_registration_but_preserves_identity(void) {
+static void test_wipe_revokes_session_and_registration_opens_window_and_preserves_identity(void) {
     init();
     uint8_t private_key[DH_P256_PRIVATE_SIZE] = {0};
     private_key[0] = 1;
@@ -243,6 +243,8 @@ static void test_wipe_revokes_session_and_registration_but_preserves_identity(vo
     uint8_t public_key[DH_P256_PUBLIC_SIZE];
     memcpy(public_key, dh_pair_public_key(&c.pair), sizeof public_key);
     channel_lifecycle_config_wiped(&c, 101);
+    /* The window the refused helper re-pairs in (#267). */
+    CHECK(dh_pair_window_open(&c.pair, 102));
     CHECK(!dh_pair_is_registered_key(&c.pair, key_id));
     CHECK(!c.session.present);
     CHECK(memcmp(public_key, dh_pair_public_key(&c.pair), sizeof public_key) == 0);
@@ -667,7 +669,7 @@ int main(void) {
     test_queue_refusal_survives_reconnect();
     test_link_loss_discards_work_but_keeps_registration_and_window();
     test_pairing_window_keeps_the_live_session();
-    test_wipe_revokes_session_and_registration_but_preserves_identity();
+    test_wipe_revokes_session_and_registration_opens_window_and_preserves_identity();
     test_backlog_overflow_drops_a_report_and_keeps_the_session();
     test_malformed_report_ends_session_and_allows_reconnect();
     test_reception_and_liveness_share_the_pass_clock();

@@ -37,7 +37,8 @@ set on the config page cannot replace it.
 
 Each board holds exactly one paired helper. Pairing a second helper to the same board replaces the
 first. The wipe chord (`Right Shift + F12 + D`) clears the pairing on both boards, along with every
-other setting.
+other setting, and then opens a pairing window on both boards. A helper that is running re-pairs by
+itself within the minute.
 
 ### Which helper is a board paired with?
 
@@ -498,6 +499,8 @@ nothing else.
 
 ### The boards
 
-The boards keep their pairings and settings until wiped. To unpair, press `Right Shift + F12 + D`
-on the keyboard plugged into the board. That erases every setting on both boards. To go back to a
+The boards keep their pairings and settings until wiped. To unpair, quit both helpers, then press
+`Right Shift + F12 + D` on the keyboard plugged into the board. That erases every setting on both
+boards. The wipe also opens a pairing window, so a helper still running re-pairs within the
+minute. To go back to a
 stock DeskHop, flash DeskHop's own `.uf2` the same way you flashed this one.

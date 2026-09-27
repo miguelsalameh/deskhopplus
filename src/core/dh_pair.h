@@ -40,7 +40,8 @@
  *     an identity inside the image would give both boards the same identity.
  *   - The **registration** is exactly one helper public key, plus the 32-byte
  *     shared secret from one ECDH against it. It lives in the configuration
- *     and a config wipe clears it, because wiping is how a user unpairs. The
+ *     and a config wipe clears it, because wiping is how a user unpairs (the
+ *     wipe then opens a window, so a helper left running re-pairs). The
  *     identity is not the registration's to take with it: if a wipe took the
  *     identity too, every wipe would make every helper report "this board
  *     changed" — a false alarm on a routine action.

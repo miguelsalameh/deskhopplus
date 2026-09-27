@@ -121,7 +121,8 @@ void screenlock_hotkey_handler(device_t *state, hid_keyboard_report_t *report) {
 }
 
 /* Everything a wipe means on this board: the sector in flash, the copy the
-   firmware runs from, and the pairing secret that was cached out of it (#75).
+   firmware runs from, and the pairing secret that was cached out of it (#75),
+   followed by a pairing window (#267).
    Both wipe paths go through here — the chord below and the peer board's
    message — so a third one cannot arrive and forget half of it. */
 static void _wipe_local_config(device_t *state) {

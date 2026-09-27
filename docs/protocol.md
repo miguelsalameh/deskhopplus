@@ -443,7 +443,8 @@ itself as cleartext.
   waits on an answer that is not coming.
 - **A config wipe unpairs** — it clears the registration, not the board's own identity. If a
   wipe took the identity too, every wipe would make every helper report "this board changed",
-  a false alarm on a routine action.
+  a false alarm on a routine action. It then opens a pairing window on both boards, as the pair
+  chord does (ADR-0014), so the refused helpers re-pair with no extra press.
 
 The board's asymmetric work happens **here and nowhere else**. `src/main.c:26` runs six jobs on
 core 0 in one cooperative loop with no preemption, including the keyboard and mouse queues at

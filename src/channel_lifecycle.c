@@ -255,10 +255,14 @@ static void pump_relay(channel_lifecycle *c) {
     }
 }
 
+/* A wipe unpairs, then opens a window the way the pair chord does, so the
+   refused helper re-pairs with no extra press (ADR-0014). Both boards run
+   this: the peer's wipe arrives as WIPE_CONFIG_MSG. */
 void channel_lifecycle_config_wiped(channel_lifecycle *c, uint32_t now) {
     end_session(c, DH_SESSION_END_UNPAIRED, now);
     dh_pair_clear_registration(&c->pair);
     c->registration_unsaved = false;
+    channel_lifecycle_open_pairing_window(c, now);
 }
 
 /*

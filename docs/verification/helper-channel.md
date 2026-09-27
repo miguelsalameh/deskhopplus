@@ -710,6 +710,12 @@ shasum ~/Library/Application\ Support/deskhopplus/secret
       chord, wait for config mode, chord again. One press plus a 5-minute timeout also works, and
       is what the earlier runs on this sheet actually did
 
+      **Since #267 the wipe also opens a pairing window on both boards**, so a running helper
+      re-pairs within seconds: the steps above now pass only with the helper quit before the
+      wipe. The run for the new behaviour: both helpers running, wipe from board A, and both
+      return to `Connected and paired` within the minute with no press. Wiping from the config
+      page, wait for both before clicking Exit: the window lives in RAM, and Exit reboots.
+
 ## 3. The #66 controls that could reopen #25
 
 Both need the **other board unplugged** so peer firmware propagation cannot interfere, and

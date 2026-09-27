@@ -35,7 +35,8 @@ void channel_link_lost(void);
    session and unpair rather than go on authenticating against a shared secret
    that no longer exists in flash (#75). The board's *identity* is untouched —
    it lives in its own sector, so a wipe unpairs without changing who this board
-   is. Callable from either core; the work itself lands on core 0's next tick. */
+   is. It then opens a pairing window, as the pair chord does, so a running
+   helper re-pairs (#267). Callable from either core; the work itself lands on core 0's next tick. */
 void channel_config_wiped(void);
 
 /* One HID OUT report from the channel interface, verbatim. Copied and nothing
