@@ -122,7 +122,8 @@ extern "C" {
  * a burst contributes one entry and never three, and the two readings answer
  * one fault each instead of the fast one latching the slow one for the rest of
  * the hour. See `stands_alone` for what that costs and why the alternatives
- * are worse. A loop slow enough to reach this reading does hold it up for as
+ * are worse. Sessions the board ends on purpose — a wipe, a mode change — are
+ * left out (#274). A loop slow enough to reach this reading does hold it up for as
  * long as the window, which is the price of measuring something slow and the
  * same property the short window has at its own scale.
  */
@@ -620,6 +621,12 @@ typedef struct {
        board stayed attached. Cleared whenever the device goes away. */
     uint32_t recent_session_losses[DH_HELPER_SESSION_LOSS_LIMIT];
     size_t session_loss_count;
+
+    /* When the device last changed identity (normal <-> config mode). The
+       channel set is still settling for a moment after, and a teardown then
+       is the reboot, not the link (#274). */
+    uint32_t identity_changed_at;
+    bool identity_changed;
 
     /* A state worth reporting only if it is still true when the window ends.
        `deferred_at` is when it was armed, not when it comes due: a deadline

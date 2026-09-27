@@ -245,16 +245,32 @@ static void report_repeated_reconnection(dh_helper *h, uint32_t now_ms, dh_helpe
     set_state(h, o, DH_HELPER_RECONNECTING_REPEATEDLY);
 }
 
+/*
+ * A teardown the board caused on purpose, which says nothing about the link
+ * and so stays out of the long window (#274): a SESSION_END(unpaired) from a
+ * wipe, or a transport failure inside the short window after a config-mode
+ * entry or exit, while the channels of the new identity are still arriving one
+ * at a time. A tag failure, protocol error or silence there still counts. The
+ * short window still sees them all; the mode change already cleared it.
+ */
+static bool ended_on_purpose(const dh_helper *h, dh_helper_note note, int32_t a,
+                             uint32_t now_ms) {
+    if (note == DH_NOTE_SESSION_ENDED && a == DH_SESSION_END_UNPAIRED) return true;
+    return note == DH_NOTE_TRANSPORT_FAILED && h->identity_changed &&
+           !elapsed(now_ms, h->identity_changed_at, DH_HELPER_RECONNECT_WINDOW_MS);
+}
+
 static void drop_connection(dh_helper *h, uint32_t now_ms, dh_helper_outputs *o,
                             dh_helper_note note, int32_t a, int32_t b) {
     /*
      * Every teardown feeds the short window. This one feeds the long window as
      * well: it is a session *this end* gave up on, and nothing has said the
      * device went anywhere — which is the whole of what the long window
-     * measures, and what #107 spent sixteen hours doing invisibly.
+     * measures, and what #107 spent sixteen hours doing invisibly. Unless the
+     * board ended it on purpose: see `ended_on_purpose`.
      */
     const bool alone = stands_alone(h, now_ms);
-    if (record_drop(h, now_ms) && alone)
+    if (record_drop(h, now_ms) && alone && !ended_on_purpose(h, note, a, now_ms))
         push_time(h->recent_session_losses, &h->session_loss_count, DH_HELPER_SESSION_LOSS_LIMIT,
                   now_ms);
 
@@ -462,7 +478,11 @@ void dh_helper_device_appeared(dh_helper *h, dh_device_identity which, uint32_t 
        a flapping link. Windows can retry the retiring HID node several times
        before its removal notification arrives; none of those failures may
        survive the identity change and report a flapping link (#223). */
-    if (mode_changed) h->drop_count = 0;
+    if (mode_changed) {
+        h->drop_count = 0;
+        h->identity_changed = true;
+        h->identity_changed_at = now_ms;
+    }
 
     if (h->config_mode) {
         backoff_reset(h);
@@ -1243,6 +1263,11 @@ void dh_helper_note_send_refused(dh_helper *h) {
 
 void dh_helper_tick(dh_helper *h, uint32_t now_ms, dh_helper_outputs *o) {
     note_started(h, now_ms);
+
+    /* Cleared once past, so a clock wrap cannot reopen the window. */
+    if (h->identity_changed &&
+        elapsed(now_ms, h->identity_changed_at, DH_HELPER_RECONNECT_WINDOW_MS))
+        h->identity_changed = false;
 
     if (h->have_deferred) {
         if (elapsed(now_ms, h->deferred_at, DH_HELPER_SILENCE_MS)) {

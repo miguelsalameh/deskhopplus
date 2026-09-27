@@ -1172,6 +1172,136 @@ static void test_a_disappearance_clears_the_slow_reading(void) {
     }
 }
 
+/* A fresh handshake on `count` channels, answered by the board. */
+static void reconnect(dh_helper *h, uint8_t count, uint32_t now_ms) {
+    republish_the_helper_nonce();
+    dh_helper_outputs_reset(&out);
+    dh_helper_channels_acquired(h, count, now_ms, &out);
+    dh_helper_outputs acquired = out;
+    dh_helper_outputs_reset(&out);
+    answer_all(h, &acquired, now_ms, &out);
+}
+
+/*
+ * A config-mode round trip in the shape the Mac logged it on #274: the normal
+ * channels go, config mode comes up on one, and on the way back the second
+ * normal channel arrives after the hello on the first went out. That late
+ * channel tears down a session the board was already answering.
+ */
+static void a_config_mode_round_trip(dh_helper *h, uint32_t t) {
+    dh_helper_outputs_reset(&out);
+    dh_helper_transport_failed(h, t, &out);
+    dh_helper_transport_failed(h, t + 2, &out);
+    dh_helper_device_disappeared(h, t + 2, &out);
+    dh_helper_device_appeared(h, DH_DEVICE_CONFIG_MODE, t + 700, &out);
+    reconnect(h, 1, t + 700);
+
+    dh_helper_outputs_reset(&out);
+    dh_helper_transport_failed(h, t + 28000, &out);
+    dh_helper_device_disappeared(h, t + 28000, &out);
+    dh_helper_device_appeared(h, DH_DEVICE_NORMAL, t + 28700, &out);
+    republish_the_helper_nonce();
+    dh_helper_channels_acquired(h, 1, t + 28700, &out);
+    dh_helper_transport_failed(h, t + 28734, &out); /* "channel set changed" */
+    reconnect(h, 2, t + 28998);
+}
+
+/* The board ending a session because a wipe revoked this helper. */
+static void a_wipe(dh_helper *h, uint32_t now_ms) {
+    uint8_t body[DH_SESSION_END_LEN] = {DH_SESSION_END_UNPAIRED};
+    uint8_t frame[DH_FRAME_MAX_SIZE];
+    size_t len = 0;
+    CHECK(board_frame(DH_MSG_SESSION_END, body, sizeof body, frame, sizeof frame, &len),
+          "a wipe", "the session end would not encode");
+    dh_helper_outputs_reset(&out);
+    received(h, frame, len, now_ms, &out);
+}
+
+/*
+ * Sessions the board ends on purpose say nothing about the link (#274).
+ *
+ * The #267 sitting: a config-mode round trip, then two wipes, all inside the
+ * long window. Each counted as a lost session, and the third put "Reconnecting
+ * repeatedly" over a healthy, beating session for the next 45 minutes.
+ */
+static void test_deliberate_session_ends_do_not_read_as_a_flapping_link(void) {
+    const char *name = "deliberate session ends do not read as a flapping link";
+    dh_helper h;
+    a_live_session(&h);
+
+    a_config_mode_round_trip(&h, 1000);
+    CHECK(h.state == DH_HELPER_CONNECTED, name, "the round trip did not come back");
+
+    a_wipe(&h, 780000);
+    reconnect(&h, 2, 781000);
+    a_wipe(&h, 864000);
+    reconnect(&h, 2, 865000);
+
+    CHECK(h.state == DH_HELPER_CONNECTED, name,
+          "a round trip and two wipes read as a link that will not hold");
+    CHECK(h.session_loss_count == 0, name, "a deliberate end fed the slow reading");
+    no_overflow(name);
+}
+
+/* And the excuse ends with the mode change: link faults after it still count. */
+static void test_link_faults_after_a_config_mode_round_trip_still_count(void) {
+    const char *name = "link faults after a config-mode round trip still count";
+    dh_helper h;
+    a_live_session(&h);
+
+    a_config_mode_round_trip(&h, 1000);
+    for (unsigned i = 0; i < DH_HELPER_SESSION_LOSS_LIMIT; i++) {
+        const uint32_t t = 100000 + i * 300000;
+        dh_helper_outputs_reset(&out);
+        dh_helper_transport_failed(&h, t, &out);
+        reconnect(&h, 2, t + 1000);
+    }
+    CHECK(h.state == DH_HELPER_RECONNECTING_REPEATEDLY, name,
+          "three lost links inside the window were not reported");
+    no_overflow(name);
+}
+
+/* Only a transport failure is excused after a mode change: a board that goes
+   silent seconds after coming back is a link fault, and still counts. */
+static void test_silence_right_after_a_mode_change_still_counts(void) {
+    const char *name = "silence right after a mode change still counts";
+    dh_helper h;
+    a_live_session(&h);
+
+    dh_helper_outputs_reset(&out);
+    dh_helper_device_appeared(&h, DH_DEVICE_CONFIG_MODE, 1000, &out);
+    reconnect(&h, 1, 1000);
+    dh_helper_outputs_reset(&out);
+    dh_helper_device_appeared(&h, DH_DEVICE_NORMAL, 20000, &out);
+    reconnect(&h, 2, 20000);
+
+    dh_helper_outputs_reset(&out);
+    dh_helper_tick(&h, 20000 + DH_SESSION_ABSENT_MS + 1, &out);
+    CHECK(saw_note(&out, DH_NOTE_DEVICE_SILENT), name, "the silence did not end the session");
+    CHECK(h.session_loss_count == 1, name, "silence after a mode change was excused");
+    no_overflow(name);
+}
+
+/* The excuse closes for good once its window passes: 49.7 days on, the
+   millisecond clock reads the same again and must not reopen it. */
+static void test_a_clock_wrap_does_not_reopen_the_mode_change_excuse(void) {
+    const char *name = "a clock wrap does not reopen the mode-change excuse";
+    dh_helper h;
+    a_live_session(&h);
+
+    a_config_mode_round_trip(&h, 1000); /* the last mode change is at 29700 */
+    dh_helper_outputs_reset(&out);
+    dh_helper_transport_failed(&h, 65000, &out);
+    reconnect(&h, 2, 66000);
+    CHECK(h.session_loss_count == 1, name, "a lost link after the window was excused");
+
+    dh_helper_outputs_reset(&out);
+    dh_helper_tick(&h, 66000, &out);
+    dh_helper_transport_failed(&h, 39700, &out); /* the clock, wrapped */
+    CHECK(h.session_loss_count == 2, name, "a wrapped clock reopened the excuse");
+    no_overflow(name);
+}
+
 /*
  * A session that comes up and then dies does not ask to be paired (#107).
  *
@@ -2892,6 +3022,10 @@ int main(int argc, char **argv) {
     test_a_slow_teardown_loop_reaches_the_state_line();
     test_a_burst_does_not_hold_the_slow_reading();
     test_a_disappearance_clears_the_slow_reading();
+    test_deliberate_session_ends_do_not_read_as_a_flapping_link();
+    test_link_faults_after_a_config_mode_round_trip_still_count();
+    test_silence_right_after_a_mode_change_still_counts();
+    test_a_clock_wrap_does_not_reopen_the_mode_change_excuse();
     test_a_completed_handshake_does_not_ask_to_pair();
     test_pairing_round_trip();
     test_a_helper_with_no_key_asks_instead_of_saying_hello();
