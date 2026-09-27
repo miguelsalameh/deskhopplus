@@ -172,8 +172,10 @@ final class MenuBar: NSObject, NSMenuDelegate {
     }
 
     /// Good news, in the same place and for the same lifetime as a notice.
+    /// It carries its time, so for those minutes it reads as something that
+    /// happened, not as a live status (#275).
     func show(news: String) {
-        show(notice: news)
+        show(notice: Self.newsRow(news, at: Date()))
         noticeIsNews = true
         updateTitle()
     }
@@ -301,6 +303,18 @@ final class MenuBar: NSObject, NSMenuDelegate {
         if news { return "✓" }
         if sending { return "⬆" }
         return ""
+    }
+
+    /// "Paired at 15:06": the event and the local time it happened, in the
+    /// user's own clock style.
+    static func newsRow(_ news: String, at date: Date, timeZone: TimeZone = .current,
+                        locale: Locale = .current) -> String {
+        let clock = DateFormatter()
+        clock.timeZone = timeZone
+        clock.locale = locale
+        clock.dateStyle = .none
+        clock.timeStyle = .short
+        return "\(news) at \(clock.string(from: date))"
     }
 
     /// With an icon-only title, the tooltip is what names the helper.

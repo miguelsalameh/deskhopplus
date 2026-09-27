@@ -83,6 +83,12 @@ check(MenuBar.suffix(question: false, progress: nil, warning: false, news: false
 // "Paired" is good news, not a complaint (#268).
 check(MenuBar.suffix(question: false, progress: nil, warning: false, news: true, sending: true) == "✓", "good news outranks a send")
 check(MenuBar.suffix(question: false, progress: nil, warning: true, news: true, sending: false) == "⚠", "a complaint outranks good news")
+// Good news stays up for minutes, so it reads as an event with its time,
+// not as a live status (#275).
+let at1506 = ISO8601DateFormatter().date(from: "2026-09-27T15:06:00Z")!
+check(MenuBar.newsRow("Other computer paired", at: at1506, timeZone: TimeZone(identifier: "UTC")!,
+                      locale: Locale(identifier: "en_GB")) == "Other computer paired at 15:06",
+      "a news row carries the local time it happened")
 menuBar.show(state: .listenerDetected)
 menuBar.menuNeedsUpdate(menu)
 check(menu.items.filter { !$0.isSeparatorItem }.allSatisfy { $0.title.count <= 65 }, "long remedies wrap into readable lines")
@@ -126,6 +132,10 @@ check(menu.items[2].title.contains("Another program"), "placement status does no
 menuBar.show(placementProblem: nil)
 menuBar.menuNeedsUpdate(menu)
 check(!menu.items.contains { $0.title.contains("Cursor placement unavailable") }, "successful placement clears its warning")
+menuBar.show(news: "Paired")
+menuBar.menuNeedsUpdate(menu)
+check(menu.items.contains { $0.title.hasPrefix("Paired at ") }, "the news row in the menu carries its time (#275)")
+menuBar.clearNotice()
 print("Login actions, failure preservation, and placement checks passed")
 
 // A downloaded .app never moved with Finder runs from a hidden, randomised
