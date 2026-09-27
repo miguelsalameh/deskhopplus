@@ -29,6 +29,14 @@ question and the progress, and is there whenever the helper runs. Its look chang
 and a look never replaces the words (#38).
 _Avoid_: icon, status item, menu-bar item, tray icon (each of those is one platform's half of it)
 
+**Debug logging**:
+The tick on the presence that makes a helper write its log; off by default, and off writes nothing.
+It is a machine-local preference, like start at login, and the deliberate exception to the device
+being the single source of truth for settings: it concerns only this computer's own file, which
+the board has no reason to know about. When it is on and the file has grown past 5 MB, the helper
+empties it at start — the **log trim**.
+_Avoid_: verbose mode, log level, size cap (that is the clipboard payload limit)
+
 **Link**:
 The physical USB attachment between a computer and its board. Losing it takes the connection and
 the session with it; neither of those falling over touches the link. The board-to-board one is
