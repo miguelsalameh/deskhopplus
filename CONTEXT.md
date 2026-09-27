@@ -73,6 +73,18 @@ helper negotiate, and the registration is the durable fact in between — a boar
 while no helper is attached at all.
 _Avoid_: pairing (the gesture), enrolment, trust store
 
+**Pairing window**:
+The one minute in which a board accepts a new registration. The first helper that asks inside it
+is registered and the window closes. Only a physical gesture at the keyboard opens one: the pair
+chord, or a config wipe. Each opens a window on both boards of the pair at once, so no helper
+ever asks the user to move the keyboard.
+_Avoid_: pairing mode, pairing session
+
+**Pair chord**:
+The fixed hotkey (Left Ctrl + Right Shift + P) whose only job is to open a pairing window on both
+boards. It is the proof that a human is present; no helper, button or frame can stand in for it.
+_Avoid_: config chord (enters config mode, a different gesture), pair button
+
 **Correlation value**:
 The fresh random value a helper puts in a hello or a pairing request, which the board echoes in
 its answer. A helper acts only on an answer carrying its own. It is what stops one client's
