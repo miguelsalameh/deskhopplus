@@ -328,6 +328,14 @@ press has something to provision, which is what ADR-0008 promises. Reached with 
 a helper identity regenerated, a home directory restored onto a second Mac, or the board plugged
 into a computer the first one had already registered.
 
+The one case the refusal cannot reach is a helper that holds **no board key** while the board still
+has *its* key id registered — a helper whose stored board key was deleted. A hello keyed on nothing
+names the registered key id, so it reaches the tag check, fails it, and is met with silence and
+counted as a listener. So a helper with no board key sends **no hello at all**
+([#272](https://github.com/myn/deskhopplus/issues/272)): it reports `notPaired` as soon as it holds
+the channel and sends `PAIR_REQUEST` on its retry timer. It learns the board's protocol version from
+the hello that follows the grant.
+
 `DH_MSG_LISTENER_ALERT` rides a session, so a board with no session has no one to tell. It keeps
 counting; the alert is sent on the next session that authenticates, carrying the window it was
 measured over.

@@ -130,7 +130,8 @@ private final class Fixture {
     private var boardRxCounter = dh_auth_counter()
 
     /// `paired: false` is a helper with nothing pinned — the state it is in on
-    /// a first run, or after the board has forgotten it.
+    /// a first run, or after its stored board key was deleted. It says no
+    /// hello (#272).
     init(paired: Bool = true) {
         let helper = keyPair(0x01...0x20)
         let board = keyPair(0x21...0x40)
@@ -300,12 +301,13 @@ private final class Fixture {
     }
 
     /*
-     * The unpaired path as far as a pair request on the wire. The board
-     * refuses the hello because it has no registration for this key id; the
-     * helper clears its pin, says so, and starts asking on the next tick.
+     * The unpaired path as far as a pair request on the wire. A helper with
+     * nothing pinned is there already: it says no hello and asks at once
+     * (#272). A pinned one is told by the board, which has no registration for
+     * its key id, and starts asking on the next tick.
      */
     func becomeUnpaired() throws {
-        send(try helloRefused(.unpaired))
+        if session.state != .notPaired { send(try helloRefused(.unpaired)) }
         _ = advance(0)
     }
 
@@ -365,9 +367,8 @@ private func testAcknowledgedHelloIsASession() throws {
 private func testFailuresAreDistinct() throws {
     let unpaired = Fixture(paired: false)
     unpaired.send(.deviceAppeared(.normal))
-    unpaired.send(.channelsAcquired(count: 1))
-    Check.equal(unpaired.states(unpaired.send(try unpaired.helloRefused(.unpaired))),
-                [.notPaired], "an unpaired board was not reported as unpaired")
+    Check.equal(unpaired.states(unpaired.send(.channelsAcquired(count: 1))),
+                [.notPaired], "a helper with nothing pinned was not reported as unpaired")
     Check.that(unpaired.session.state.promptsPairChord,
                "an unpaired helper must be told which keystroke fixes it")
     Check.that(unpaired.session.negotiated == nil,
@@ -678,7 +679,7 @@ private func testUnpairedHelperSurvivesTheDeviceSayingNothing() throws {
     let f = Fixture(paired: false)
     f.send(.deviceAppeared(.normal))
     f.send(.channelsAcquired(count: 1))
-    f.send(try f.helloRefused(.unpaired))
+    try f.becomeUnpaired()
 
     var beats = 0
     var asks = 0
@@ -805,9 +806,9 @@ private func testMismatchedHelperDoesNotBeat() throws {
     let unpaired = Fixture(paired: false)
     unpaired.send(.deviceAppeared(.normal))
     unpaired.send(.channelsAcquired(count: 1))
-    unpaired.send(try unpaired.helloRefused(.unpaired))
+    try unpaired.becomeUnpaired()
 
-    let types = try unpaired.sentFrames(unpaired.advance(HelperSession.heartbeatInterval))
+    let types = try unpaired.sentFrames(unpaired.advance(HelperSession.pairingRetryInterval))
         .map(\.type)
     Check.that(types.contains(MessageType.pairRequest),
                "an unpaired helper never asked to be paired")
@@ -1027,8 +1028,8 @@ private func testPairingRoundTrip() throws {
 /*
  * What the helper does on the next launch: the pinned key comes off disk and
  * is what the hello is authenticated under, so a paired helper never asks
- * again. The board's own check is the assertion — and the unpaired helper
- * beside it fails that same check, which is what makes it meaningful.
+ * again. The board's own check is the assertion. The unpaired helper beside
+ * it says no hello at all.
  */
 private func testPinnedBoardKeyAuthenticatesTheHello() throws {
     func helloFrom(_ f: Fixture) throws -> Frame {
@@ -1051,24 +1052,13 @@ private func testPinnedBoardKeyAuthenticatesTheHello() throws {
         try AuthFrame.open(frame: pairedHello, key: pairedKey, counter: &counter)
     }
 
+    /* A helper with nothing pinned has no key to say hello under, so it says
+       none: a hello keyed on nothing is one the board meets with silence and
+       counts as a listener (#272). It asks to be paired instead. */
     let fresh = Fixture(paired: false)
-    let freshHello = try helloFrom(fresh)
-    guard let freshKey = try fresh.boardIdentity.helloKey(
-        peer: fresh.helperIdentity.publicKey,
-        helperNonce: Hello.decode(body: unverifiedBody(freshHello)).helperNonce) else {
-        Check.that(false, "the board could not derive a key against a fresh helper's hello")
-        return
-    }
-    var freshCounter = dh_auth_counter()
-    dh_auth_counter_init(&freshCounter)
-    var verified = true
-    do {
-        _ = try AuthFrame.open(frame: freshHello, key: freshKey, counter: &freshCounter)
-    } catch {
-        verified = false
-    }
-    Check.that(!verified,
-               "a helper with nothing pinned produced a hello the board would accept")
+    fresh.send(.deviceAppeared(.normal))
+    Check.equal(try fresh.sentFrames(fresh.send(.channelsAcquired(count: 1))).map(\.type),
+                [MessageType.pairRequest], "a helper with nothing pinned said hello")
 }
 
 /*

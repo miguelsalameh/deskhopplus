@@ -646,8 +646,10 @@ static void test_an_unpaired_helper_is_told_so_and_waits(void) {
     an_unpaired_board();
     reset_entropy();
 
+    /* Holding a key the board does not know: a helper with none says no hello
+       at all (#272), so only a keyed one is ever told. */
     dh_helper h;
-    dh_helper_init(&h, &identity, NULL);
+    dh_helper_init(&h, &identity, helper_public);
     dh_helper_outputs_reset(&out);
     dh_helper_device_appeared(&h, DH_DEVICE_NORMAL, 0, &out);
     dh_helper_channels_acquired(&h, 2, 0, &out);
@@ -1228,18 +1230,18 @@ static void test_pairing_round_trip(void) {
     dh_helper_outputs acquired = out;
     dh_helper_outputs_reset(&out);
     answer_all(&h, &acquired, 0, &out);
-    CHECK(h.state == DH_HELPER_NOT_PAIRED, name, "the board did not say it was unpaired");
+    CHECK(h.state == DH_HELPER_NOT_PAIRED, name, "a helper with no key did not say not paired");
 
     /* The user presses the chord. */
-    dh_pair_open_window(&pairing, 1000);
+    dh_pair_open_window(&pairing, DH_HELPER_PAIRING_RETRY_MS);
 
     dh_helper_outputs_reset(&out);
-    dh_helper_tick(&h, 1000, &out);
+    dh_helper_tick(&h, DH_HELPER_PAIRING_RETRY_MS, &out);
     CHECK(count_of(&out, DH_HELPER_OUT_SEND) == 1, name, "no pairing request went out");
 
     dh_helper_outputs asked = out;
     dh_helper_outputs_reset(&out);
-    answer_all(&h, &asked, 1000, &out);
+    answer_all(&h, &asked, DH_HELPER_PAIRING_RETRY_MS, &out);
 
     const dh_helper_output *stored = first_of(&out, DH_HELPER_OUT_STORE_BOARD_KEY);
     CHECK(stored != NULL, name, "the board key was not handed over for storage");
@@ -1251,9 +1253,91 @@ static void test_pairing_round_trip(void) {
     /* The hello that followed the grant, answered. */
     dh_helper_outputs paired = out;
     dh_helper_outputs_reset(&out);
-    answer_all(&h, &paired, 1000, &out);
+    answer_all(&h, &paired, DH_HELPER_PAIRING_RETRY_MS, &out);
     CHECK(h.state == DH_HELPER_CONNECTED, name, "pairing did not end in a session");
     no_overflow(name);
+}
+
+/*
+ * No board key, on a board that still has this helper registered (#272). A
+ * hello keyed on nothing names the registered key id, so the board answers it
+ * with silence and counts it as a listener. So no hello goes out at all: the
+ * helper knows it is not paired, asks on a timer, and pairs on the chord with
+ * no alarm behind it.
+ */
+static void test_a_helper_with_no_key_asks_instead_of_saying_hello(void) {
+    const char *name = "a helper with no key asks instead of saying hello";
+    an_identity();
+    a_paired_board();
+    reset_entropy();
+
+    dh_helper h;
+    dh_helper_init(&h, &identity, NULL);
+    dh_helper_outputs_reset(&out);
+    dh_helper_device_appeared(&h, DH_DEVICE_NORMAL, 0, &out);
+    dh_helper_channels_acquired(&h, 2, 0, &out);
+    CHECK(h.state == DH_HELPER_NOT_PAIRED, name, "a helper with no key did not say not paired");
+    CHECK(count_of(&out, DH_HELPER_OUT_SEND) == 1 && h.pairing_requested, name,
+          "the only frame out was not a pair request");
+
+    dh_helper_outputs step = out;
+    dh_helper_outputs_reset(&out);
+    answer_all(&h, &step, 0, &out);
+
+    size_t asked = 0;
+    for (uint32_t t = 100; t <= 3 * DH_HELPER_PAIRING_RETRY_MS; t += 100) {
+        dh_helper_outputs_reset(&out);
+        pump(&h, t, &out);
+        asked += count_of(&out, DH_HELPER_OUT_SEND);
+        CHECK(h.state == DH_HELPER_NOT_PAIRED, name, "the helper left not paired unasked");
+        no_overflow(name);
+    }
+    CHECK(asked == 3, name, "the pair request did not repeat on its timer");
+
+    /* The chord, and the next request answered by a grant, then its hello. */
+    const uint32_t chord = 4 * DH_HELPER_PAIRING_RETRY_MS;
+    dh_pair_open_window(&pairing, chord);
+    dh_helper_outputs_reset(&out);
+    dh_helper_tick(&h, chord, &out);
+    step = out;
+    dh_helper_outputs_reset(&out);
+    answer_all(&h, &step, chord, &out);
+    CHECK(saw_note(&out, DH_NOTE_PAIRED_BY_DEVICE), name, "the chord did not pair it");
+    step = out;
+    dh_helper_outputs_reset(&out);
+    answer_all(&h, &step, chord, &out);
+
+    bool alarmed = saw_state(&out, DH_HELPER_LISTENER_DETECTED);
+    for (uint32_t t = chord + 100; t <= chord + 3 * DH_LISTENER_WINDOW_MS; t += 100) {
+        dh_helper_outputs_reset(&out);
+        pump(&h, t, &out);
+        alarmed |= saw_state(&out, DH_HELPER_LISTENER_DETECTED);
+        no_overflow(name);
+    }
+    CHECK(h.state == DH_HELPER_CONNECTED, name, "pairing did not end in a session");
+    CHECK(!alarmed, name, "pairing a helper with no key raised the listener alarm");
+}
+
+/*
+ * A helper that holds a key and meets silence keeps the #117 fallback: once
+ * the rate trips on unanswered hellos, it asks to be paired.
+ */
+static void test_a_helper_with_a_key_that_meets_silence_asks_to_pair(void) {
+    const char *name = "a helper with a key that meets silence asks to pair";
+    dh_helper h;
+    a_helper_with_the_hello_sent(&h);
+
+    bool asked = false;
+    for (uint32_t t = DH_HELPER_HELLO_TIMEOUT_MS; t <= 5 * DH_HELPER_HELLO_TIMEOUT_MS;
+         t += DH_HELPER_HELLO_TIMEOUT_MS) {
+        dh_helper_outputs_reset(&out);
+        dh_helper_tick(&h, t, &out);
+        dh_helper_channels_acquired(&h, 2, t, &out);
+        asked |= saw_note(&out, DH_NOTE_ASKING_TO_BE_PAIRED);
+        no_overflow(name);
+    }
+    CHECK(h.state == DH_HELPER_RECONNECTING_REPEATEDLY, name, "silence did not trip the rate");
+    CHECK(asked, name, "a keyed helper meeting silence never asked to be paired");
 }
 
 /*
@@ -1992,12 +2076,12 @@ static void test_a_grant_nobody_asked_for_is_ignored(void) {
     dh_helper_outputs_reset(&out);
     answer_all(&h, &acquired, 0, &out);
 
-    dh_pair_open_window(&pairing, 1000);
+    dh_pair_open_window(&pairing, DH_HELPER_PAIRING_RETRY_MS);
     dh_helper_outputs_reset(&out);
-    dh_helper_tick(&h, 1000, &out);
+    dh_helper_tick(&h, DH_HELPER_PAIRING_RETRY_MS, &out);
     dh_helper_outputs asked = out;
     dh_helper_outputs_reset(&out);
-    answer_all(&h, &asked, 1000, &out);
+    answer_all(&h, &asked, DH_HELPER_PAIRING_RETRY_MS, &out);
 
     /* The grant, kept aside before the hello that follows it overwrites it. */
     uint8_t grant[DH_SESSION_REPLY_MAX];
@@ -2007,7 +2091,7 @@ static void test_a_grant_nobody_asked_for_is_ignored(void) {
 
     dh_helper_outputs paired = out;
     dh_helper_outputs_reset(&out);
-    answer_all(&h, &paired, 1000, &out);
+    answer_all(&h, &paired, DH_HELPER_PAIRING_RETRY_MS, &out);
     CHECK(h.state == DH_HELPER_CONNECTED, name, "pairing did not end in a session");
 
     /* The same grant again, 2 s into the session it produced. */
@@ -2400,10 +2484,10 @@ static void test_a_grant_answering_someone_elses_request_is_dropped(void) {
     dh_helper_outputs acquired = out;
     dh_helper_outputs_reset(&out);
     answer_all(&h, &acquired, 0, &out);
-    CHECK(h.state == DH_HELPER_NOT_PAIRED, name, "the board did not say it was unpaired");
+    CHECK(h.state == DH_HELPER_NOT_PAIRED, name, "a helper with no key did not say not paired");
 
     dh_helper_outputs_reset(&out);
-    dh_helper_tick(&h, 1000, &out);
+    dh_helper_tick(&h, DH_HELPER_PAIRING_RETRY_MS, &out);
     CHECK(count_of(&out, DH_HELPER_OUT_SEND) == 1, name, "no pairing request went out");
 
     dh_pair_grant grant = {.correlation = h.pair_correlation ^ 1u};
@@ -2415,7 +2499,7 @@ static void test_a_grant_answering_someone_elses_request_is_dropped(void) {
           "the grant would not encode");
 
     dh_helper_outputs_reset(&out);
-    received(&h, frame, len, 1000, &out);
+    received(&h, frame, len, DH_HELPER_PAIRING_RETRY_MS, &out);
     CHECK(saw_note(&out, DH_NOTE_IGNORED_WRONG_CORRELATION), name, "the mismatch was not noted");
     CHECK(count_of(&out, DH_HELPER_OUT_STORE_BOARD_KEY) == 0, name,
           "a key nobody asked for was pinned as the board's");
@@ -2431,7 +2515,7 @@ static void test_a_grant_answering_someone_elses_request_is_dropped(void) {
           "the genuine grant would not encode");
 
     dh_helper_outputs_reset(&out);
-    received(&h, frame, len, 1000, &out);
+    received(&h, frame, len, DH_HELPER_PAIRING_RETRY_MS, &out);
     CHECK(first_of(&out, DH_HELPER_OUT_STORE_BOARD_KEY) != NULL, name,
           "the board's own grant was refused along with the forged one");
     CHECK(count_of(&out, DH_HELPER_OUT_SEND) == 1, name, "no fresh hello after being paired");
@@ -2810,6 +2894,8 @@ int main(int argc, char **argv) {
     test_a_disappearance_clears_the_slow_reading();
     test_a_completed_handshake_does_not_ask_to_pair();
     test_pairing_round_trip();
+    test_a_helper_with_no_key_asks_instead_of_saying_hello();
+    test_a_helper_with_a_key_that_meets_silence_asks_to_pair();
     test_a_board_whose_key_changed_is_not_accepted();
     test_an_answer_to_someone_elses_question_is_dropped();
     test_the_listener_alert_expires_like_a_rate();

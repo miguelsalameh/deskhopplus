@@ -321,27 +321,18 @@ static bool build_hello(dh_helper *h, uint8_t *out, size_t cap, size_t *out_len,
     h->have_nonce = true;
     h->hello_correlation = fresh_correlation(h);
 
+    /* Only ever called holding a key: a helper without one asks to be paired
+       instead (#272). */
     uint8_t k_hello[DH_SESSION_KEY_SIZE];
-    if (h->have_board_key) {
-        uint8_t shared[DH_P256_SHARED_SIZE];
-        if (!h->identity->ecdh(h->identity->ctx, h->board_public_key, shared)) {
-            /* The pinned key is not a point on the curve. Its own note: a
-               refusal to encode would say the frame was the problem. */
-            put_note(o, DH_NOTE_KEY_DERIVATION_FAILED, 0, 0);
-            return false;
-        }
-        dh_auth_derive_hello_key(shared, nonce, k_hello);
-        memset(shared, 0, sizeof shared);
-    } else {
-        /*
-         * Never paired, so there is no shared secret to key on. The board
-         * checks its registration *before* it checks the tag, so a hello keyed
-         * on nothing is refused with HELLO_REFUSED(unpaired) — which is the
-         * answer this helper needs — rather than met with silence.
-         */
-        const uint8_t none[DH_P256_SHARED_SIZE] = {0};
-        dh_auth_derive_hello_key(none, nonce, k_hello);
+    uint8_t shared[DH_P256_SHARED_SIZE];
+    if (!h->identity->ecdh(h->identity->ctx, h->board_public_key, shared)) {
+        /* The pinned key is not a point on the curve. Its own note: a
+           refusal to encode would say the frame was the problem. */
+        put_note(o, DH_NOTE_KEY_DERIVATION_FAILED, 0, 0);
+        return false;
     }
+    dh_auth_derive_hello_key(shared, nonce, k_hello);
+    memset(shared, 0, sizeof shared);
 
     dh_hello hello = {
         .proto_version = DH_PROTO_VERSION,
@@ -502,6 +493,31 @@ void dh_helper_channels_acquired(dh_helper *h, uint8_t count, uint32_t now_ms,
     note_started(h, now_ms);
 
     h->holding_channels = true;
+
+    /*
+     * No board key: this helper knows it is not paired, so it says no hello.
+     * A hello keyed on nothing names this helper's key id, and a board that
+     * still has that id registered fails its tag and answers with silence —
+     * which read as "reconnecting repeatedly" and counted as a listener on the
+     * board (#272). Straight to the state HELLO_REFUSED(unpaired) reaches: ask
+     * to be paired now, and the tick asks again every DH_HELPER_PAIRING_RETRY_MS.
+     *
+     * The cost: with no hello, a no-key helper does not learn the board's
+     * protocol version until the hello after the grant.
+     */
+    if (!h->have_board_key) {
+        backoff_reset(h);
+        h->have_deferred = false;
+        h->phase = DH_HELPER_PHASE_LIVE;
+        h->last_device_frame_at = now_ms;
+        set_state(h, o, DH_HELPER_NOT_PAIRED);
+        uint8_t request[DH_HELPER_FRAME_MAX];
+        size_t request_len = 0;
+        if (build_pair_request(h, now_ms, request, sizeof request, &request_len))
+            put_bytes(o, DH_HELPER_OUT_SEND, request, request_len);
+        return;
+    }
+
     h->phase = DH_HELPER_PHASE_AWAITING_ACK;
     h->hello_sent_at = now_ms;
     /* Charged when built, unlike the beat (#107): hello_sent_at above times
@@ -564,7 +580,8 @@ void dh_helper_channels_acquired(dh_helper *h, uint8_t count, uint32_t now_ms,
      *
      * Gating on holding no board key was tried first and is wrong: the case
      * above is a *paired* helper whose own identity changed, so it still holds
-     * the pin while the board no longer knows it.
+     * the pin while the board no longer knows it. A helper with no key never
+     * gets here: it asks above, without a hello (#272).
      */
     if (h->state == DH_HELPER_RECONNECTING_REPEATEDLY && h->hello_went_unanswered &&
         build_pair_request(h, now_ms, frame, sizeof frame, &len)) {
