@@ -242,3 +242,15 @@ The picture of both computers' monitors on the config page. Every fact the board
 axis, border direction, monitor count and segments — is derived from where the boxes sit; the
 picture holds nothing of its own. **Advanced** is the same settings shown one field at a time.
 _Avoid_: arrangement, screen setup, map, grid (the grid is what the layout snaps to)
+
+### The boards
+
+**Status LED**:
+The green LED on each board, lit on the board whose computer is the active output. It can be set
+to go dark after a time, and config mode always blinks it.
+_Avoid_: status light, indicator (the keyboard's caps-lock light can also act as one), power light
+
+**Config chord**:
+The fixed hotkey (Left Ctrl + Right Shift + C + O) that always opens config mode, whatever the
+hotkey table says. The table's own config-mode row is a second, settable way in.
+_Avoid_: recovery chord, config hotkey (that is the table row)
