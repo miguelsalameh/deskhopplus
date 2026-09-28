@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -47,6 +48,7 @@
 #include "clip_service.h"
 #include "clipboard.h"
 #include "cursor_placement.h"
+#include "debug_logging.h"
 #include "dh_p256.h"
 #include "file_store.h"
 #include "helper_session.h"
@@ -235,12 +237,17 @@ class Helper : public HelperEffects {
     uint32_t now_ms() const { return static_cast<uint32_t>(GetTickCount64()); }
 
     Tray::Callbacks tray_callbacks();
+    std::wstring log_path() const { return secrets_.directory() + L"\\helper.log"; }
+    void open_log(const wchar_t *mode);
+    void set_debug_logging(bool on);
 
     static Helper *instance_;
 
     HWND window_{nullptr};
     UINT taskbar_created_{0};
     HANDLE single_instance_{nullptr};
+    /* Off by default (#271): off writes nothing and leaves helper.log alone. */
+    bool debug_logging_{false};
     FILE *log_file_{nullptr};
 
     SecretStore secrets_;
@@ -294,6 +301,7 @@ void Helper::log(const std::string &message) {
     /* A WIN32-subsystem process has no console, so the log is a file beside
        the helper's other state plus the debugger's stream — both readable on
        a machine where nothing may be installed to read them. */
+    if (!debug_logging_) return;
     const std::string line = "[" + std::to_string(now_ms()) + "ms] " + message + "\n";
     if (log_file_) {
         std::fputs(line.c_str(), log_file_);
@@ -302,14 +310,7 @@ void Helper::log(const std::string &message) {
     OutputDebugStringA(line.c_str());
 }
 
-bool Helper::start(HINSTANCE instance) {
-    instance_ = this;
-
-    single_instance_ = CreateMutexW(nullptr, TRUE, kInstanceMutex);
-    if (!single_instance_ || GetLastError() == ERROR_ALREADY_EXISTS) return false;
-
-    const std::wstring log_path = secrets_.directory() + L"\\helper.log";
-    SHCreateDirectoryExW(nullptr, secrets_.directory().c_str(), nullptr);
+void Helper::open_log(const wchar_t *mode) {
     /*
      * _wfsopen and not _wfopen_s: the secure variant opens a file
      * non-shareable, which locked this log against every reader while the
@@ -318,7 +319,45 @@ bool Helper::start(HINSTANCE instance) {
      * helper is quit answers the question only after destroying its subject.
      * _SH_DENYWR keeps this process the only writer and lets anything read.
      */
-    log_file_ = _wfsopen(log_path.c_str(), L"a", _SH_DENYWR);
+    log_file_ = _wfsopen(log_path().c_str(), mode, _SH_DENYWR);
+}
+
+/* The Debug logging tick. Takes effect at once: on opens helper.log for
+   append (no trim, that is a start-time rule), off closes it and keeps it. */
+void Helper::set_debug_logging(bool on) {
+    const bool saved = debug_logging::set(secrets_.directory(), on);
+    if (on) {
+        if (!log_file_) open_log(L"a");
+        debug_logging_ = true;
+    }
+    /* Written while the log is still open, so a failed untick is recorded
+       too: the next start would otherwise come back on with no reason given. */
+    if (!saved) log("could not save the Debug logging choice; it lasts until the helper quits");
+    if (!on) {
+        if (log_file_) std::fclose(log_file_);
+        log_file_ = nullptr;
+        debug_logging_ = false;
+    }
+}
+
+bool Helper::start(HINSTANCE instance) {
+    instance_ = this;
+
+    single_instance_ = CreateMutexW(nullptr, TRUE, kInstanceMutex);
+    if (!single_instance_ || GetLastError() == ERROR_ALREADY_EXISTS) return false;
+
+    SHCreateDirectoryExW(nullptr, secrets_.directory().c_str(), nullptr);
+    /* Read before the first log line, so every line obeys it. The log trim
+       runs here and only here: a file left on for days is emptied once it is
+       over 5 MB, and never while the helper runs. */
+    debug_logging_ = debug_logging::is_on(secrets_.directory());
+    std::error_code no_log;
+    const std::uintmax_t size = std::filesystem::file_size(log_path(), no_log);
+    switch (debug_logging::at_start(debug_logging_, no_log ? 0 : size)) {
+    case debug_logging::LogStart::DoNotOpen: break;
+    case debug_logging::LogStart::Empty: open_log(L"w"); break;
+    case debug_logging::LogStart::Append: open_log(L"a"); break;
+    }
 
     /*
      * Apartment-threaded, for the shell. The startup-folder rung of the
@@ -724,6 +763,8 @@ Tray::Callbacks Helper::tray_callbacks() {
         [this] { return clipboard_service_->awaiting_send(); },
         [this] { dispatch_.emit(clipboard_service_->abort_send()); },
         [this](const std::string &m) { log(m); },
+        [this] { return debug_logging_; },
+        [this] { set_debug_logging(!debug_logging_); },
     };
 }
 

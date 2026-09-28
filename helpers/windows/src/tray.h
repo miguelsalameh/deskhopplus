@@ -79,6 +79,9 @@ class Tray {
         std::function<void()> abort_send;
         /* Diagnostics, never shown to the user. */
         std::function<void(const std::string &)> log;
+        /* The Debug logging tick (#271), beside Start at logon. */
+        std::function<bool()> debug_logging_enabled;
+        std::function<void()> toggle_debug_logging;
     };
 
     ~Tray();

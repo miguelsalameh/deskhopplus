@@ -42,6 +42,8 @@ powershell -ExecutionPolicy Bypass -File tools\windows-checks\Confirm-HidExclusi
 - [ ] During the 10 MB runs, both of these stay near zero (a handful at the tail
       is the DONE sweep naming a chunk still in flight on the other channel; hundreds
       is the 2026-09-12 fault — chunks reordered across channels and asked for again):
+      Tick **Debug logging** on both helpers first: with it off, both logs stay empty and
+      a count of zero proves nothing.
 
 ```sh
 grep -c "transfer machine refused" /tmp/deskhop-helper.log /Volumes/deskhopplus/helper.log

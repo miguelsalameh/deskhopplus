@@ -103,12 +103,12 @@ Below the state the menu may also show:
 - a transfer in progress, **Receiving 2.1 MB of 8.0 MB — 26%**, with **Cancel this transfer**;
 - **Cancel what is being sent** while this computer is sending;
 - **Start at login** (macOS) or **Start at logon** (Windows);
-- **Debug logging** (macOS), off by default: tick it to make the helper write its log;
+- **Debug logging**, off by default: tick it to make the helper write its log;
 - **Quit DeskHopPlus Helper**.
 
 **Start at login / Start at logon** makes the helper start when you log in. On macOS the change
 takes effect at the next login. On Windows a managed laptop may refuse every method the helper
-tries; the helper log says so (tick **Debug logging** first on macOS), and the helper still works when you start it yourself.
+tries; the helper log says so (tick **Debug logging** first), and the helper still works when you start it yourself.
 
 **Quit** stops the helper until you start it again or log in again. On macOS, double-click the
 helper file to start it again now. On Windows, run the exe again.
@@ -418,7 +418,7 @@ If you did **not** re-flash or swap anything, leave the pair chord alone and fin
 
 ### Where the logs are
 
-On macOS, tick **Debug logging** in the helper's menu first. It is off by default, and off writes
+Tick **Debug logging** in the helper's menu or tray first. It is off by default, and off writes
 no log at all. While it is on, a log over 5 MB is emptied when the helper starts.
 
 - macOS: `/tmp/deskhop-helper.log` when started at login. When started by double-clicking, no

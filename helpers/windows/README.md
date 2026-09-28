@@ -60,7 +60,8 @@ rather than something this file asserts.
 
 The tests cover the autostart ladder, channel discovery, the clipboard path, the seal's
 cipher, the shim's dispatch — which output reaches which effect — and what the presence shows
-for a state (`words_test`: the look and the tooltip, #208). The ladder is the code most
+for a state (`words_test`: the look and the tooltip, #208), and the **Debug logging** setting
+and the log trim (`debug_logging_test`, #271). The ladder is the code most
 likely to be wrong on a managed laptop nobody can reproduce, and it needs no registry to be worth
 checking. The dispatch is the layer a service can emit the right output into and have nothing
 happen ([#152](https://github.com/myn/deskhopplus/issues/152)), which is #93 and #94's shape; it
@@ -106,7 +107,8 @@ a party to this key.
 | `identity` | this helper's P-256 private key, DPAPI-protected |
 | `board_key` | the board's public key, pinned at pairing, DPAPI-protected |
 | `autostart` | which autostart mechanism took, and whether it has been seen to fire |
-| `helper.log` | what the helper has been doing |
+| `debug-logging` | present while **Debug logging** is ticked in the tray |
+| `helper.log` | what the helper has been doing, written only while **Debug logging** is ticked |
 
 **What DPAPI here does and does not protect.** It binds the blobs to this Windows account on this
 machine, so copying them elsewhere yields nothing. It does **not** defend against a process
@@ -125,11 +127,18 @@ more: the helper is an enhancement, never a dependency.
 
 The tick on **Start at logon** means you asked for it. Whether it actually fired is a different
 claim — a policy can leave a run key sitting there while refusing to act on it — and that proof
-is in the log: `autostart confirmed` is written the first time a launch carrying the entry's own
-argument is seen.
+is in the log (tick **Debug logging** first): `autostart confirmed` is written the first time a
+launch carrying the entry's own argument is seen.
 
 The entry names wherever the exe currently is, and is rewritten when that stops matching. A
 portable exe moves, and this is what stops that silently breaking autostart.
+
+## Debug logging
+
+Off by default, and off writes nothing: no `helper.log`, no debugger output. Tick **Debug logging**
+in the tray to write the log; the tick takes effect at once and stays across a restart. Unticking
+it stops the writes and keeps the file. While it is on, a `helper.log` over 5 MB is emptied when
+the helper starts (the log trim). Other programs can read the file while the helper runs.
 
 ## Removing it
 

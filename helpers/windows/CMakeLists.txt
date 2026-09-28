@@ -103,6 +103,14 @@ add_executable(autostart_ladder_test tests/autostart_ladder_test.cpp)
 target_link_libraries(autostart_ladder_test PRIVATE ladder)
 add_test(NAME autostart_ladder COMMAND autostart_ladder_test)
 
+# Debug logging's setting and the log trim (#271), split from Win32 the same way.
+add_executable(debug_logging_test tests/debug_logging_test.cpp)
+target_include_directories(debug_logging_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+if(MSVC)
+  target_compile_options(debug_logging_test PRIVATE /WX)
+endif()
+add_test(NAME debug_logging COMMAND debug_logging_test)
+
 add_executable(clipboard_update_test tests/clipboard_update_test.cpp)
 target_include_directories(clipboard_update_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(MSVC)

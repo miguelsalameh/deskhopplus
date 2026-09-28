@@ -26,6 +26,7 @@ constexpr UINT kIdAbortTransfer = 9;
 constexpr UINT kIdAbortSend = 10;
 constexpr UINT kIdVersion = 11;
 constexpr UINT kIdPeer = 12;
+constexpr UINT kIdDebugLogging = 13;
 
 std::wstring widen(const std::string &text) {
     if (text.empty()) return {};
@@ -372,6 +373,8 @@ void Tray::show_menu() {
 
     const bool enabled = callbacks_.autostart_enabled && callbacks_.autostart_enabled();
     AppendMenuW(menu, MF_STRING | (enabled ? MF_CHECKED : 0u), kIdAutostart, L"Start at logon");
+    const bool logging = callbacks_.debug_logging_enabled && callbacks_.debug_logging_enabled();
+    AppendMenuW(menu, MF_STRING | (logging ? MF_CHECKED : 0u), kIdDebugLogging, L"Debug logging");
 
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, kIdQuit, L"Quit DeskHopPlus Helper");
@@ -395,6 +398,8 @@ void Tray::show_menu() {
     DestroyMenu(menu);
 
     if (chosen == kIdAutostart && callbacks_.toggle_autostart) callbacks_.toggle_autostart();
+    else if (chosen == kIdDebugLogging && callbacks_.toggle_debug_logging)
+        callbacks_.toggle_debug_logging();
     else if (chosen == kIdQuit && callbacks_.quit) callbacks_.quit();
     else if (chosen == kIdAcceptFiles && have_question_) {
         const uint32_t id = question_.id;
