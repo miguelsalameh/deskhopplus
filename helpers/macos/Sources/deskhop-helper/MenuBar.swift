@@ -62,9 +62,11 @@ final class MenuBar: NSObject, NSMenuDelegate {
     var log: ((String) -> Void)?
 
     private let login: LaunchAtLogin
+    private let debug: DebugLogging
 
-    init(login: LaunchAtLogin = LaunchAtLogin()) {
+    init(login: LaunchAtLogin = LaunchAtLogin(), debug: DebugLogging = DebugLogging()) {
         self.login = login
+        self.debug = debug
         super.init()
     }
 
@@ -459,6 +461,9 @@ final class MenuBar: NSObject, NSMenuDelegate {
         let startup = action("Start at login", #selector(toggleLogin))
         startup.state = login.isEnabled ? .on : .off
         menu.addItem(startup)
+        let logging = action("Debug logging", #selector(toggleDebug))
+        logging.state = debug.isEnabled ? .on : .off
+        menu.addItem(logging)
         menu.addItem(action("Quit DeskHopPlus Helper", #selector(quit)))
     }
 
@@ -508,6 +513,8 @@ final class MenuBar: NSObject, NSMenuDelegate {
                 + "Check the helper files in ~/Library/LaunchAgents and try again.")
         }
     }
+
+    @objc private func toggleDebug() { debug.isEnabled.toggle() }
 
     @objc private func quit() { callbacks?.quit() }
 

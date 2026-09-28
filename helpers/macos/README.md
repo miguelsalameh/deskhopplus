@@ -21,7 +21,7 @@ session.
 | `Sources/DeskhopChannel` | The binding to the shared C core, and what each of its outputs *does* (`OutputDispatch`). No IOKit — all of it runs in the tests. |
 | `Sources/deskhop-helper` | The agent: IOKit transport, run loop, menu bar, received-file store, and the state the user is shown. |
 | `Tests/channel-tests` | The host tests. |
-| `Tests/menu-tests` | Menu words/actions and login registration; run `bash tools/macos-checks/menu-tests.sh`. |
+| `Tests/menu-tests` | Menu words/actions, login registration and debug logging; run `bash tools/macos-checks/menu-tests.sh`. |
 | `LaunchAgent/` | The launchd job that starts it at login and restarts it after a crash. |
 
 Files arriving from the other computer are **offered, not pushed**
@@ -78,7 +78,7 @@ the Keychain behind an interface, so no IOKit or AppKit call is reached from a t
 ./tools/build.sh helper     # release build, tests, and what the agent is running
 swift build                 # the library and the agent, debug
 swift run channel-tests     # the host tests
-swift run deskhop-helper    # run it in the foreground, logging to stderr
+swift run deskhop-helper    # run it in the foreground, logging to stderr once Debug logging is ticked
 ```
 
 Prefer `./tools/build.sh helper` when the agent is installed. A bare `swift build` produces
@@ -149,7 +149,8 @@ rather than assumed — the board counts frames it could not authenticate and re
 An open that does fail anyway — a device unplugged mid-open, or the channel nodes still arriving
 one at a time ([#63](https://github.com/myn/deskhopplus/issues/63)) — is a device this helper
 cannot use. It retries, says nothing at first because a partial acquisition is ordinary, and
-reports *Device not connected* if the failure lasts. The log line carries the real reason.
+reports *Device not connected* if the failure lasts. The log line carries the real reason; tick
+**Debug logging** first, or there is no log line.
 
 Nothing is shown during a brief disappearance. Entering config mode reboots the device under a
 different USB identity for up to five minutes and then reboots back — that is normal operation,
@@ -212,7 +213,7 @@ user guide's [Identity changed](../../docs/user-guide.md#identity-changed-after-
 The user guide's [Which helper is a board paired with?](../../docs/user-guide.md#which-helper-is-a-board-paired-with)
 ([#114](https://github.com/myn/deskhopplus/issues/114)). The key id is SHA-256 of the helper's
 public key, first eight bytes, printed by the config page and by the helper's first log line in
-the same byte order and spelling.
+the same byte order and spelling. Tick **Debug logging** and restart the helper to see that line.
 
 ### The clipboard payload is sealed
 
@@ -285,6 +286,11 @@ still prevent startup. Existing launchd jobs retain their current restart policy
 **Quit DeskHopPlus Helper** boots the job out (`launchctl bootout`) rather than exiting, so it
 stays stopped whatever `KeepAlive` an installed plist carries (#190). A crash is still restarted.
 
+**Debug logging** makes the helper write its log; it is off by default, and off writes nothing
+(#270). The tick takes effect at once and is kept in this Mac's user defaults, so it survives a
+restart. When it is on and the log is over 5 MB at start, the helper empties it (the log trim).
+Turning it off keeps the file as it is.
+
 ## Installing the agent
 
 Packaging, signing and distribution are out of scope for this ticket. To run it as a background
@@ -304,7 +310,8 @@ understands either arrangement — but then anything that clears `.build/` (`./t
 holding a deleted file. `./tools/build.sh clean` warns when your plist points there; the others do
 not, and the next build reports it either way.
 
-Log output goes to `/tmp/deskhop-helper.log`, one line per event, prefixed with the wall clock and
+Tick **Debug logging** in the menu first: with it off, the helper writes nothing. Log output then
+goes to `/tmp/deskhop-helper.log`, one line per event, prefixed with the wall clock and
 the time since the helper started (#103):
 
 ```

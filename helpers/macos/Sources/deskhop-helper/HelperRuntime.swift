@@ -28,7 +28,7 @@ final class HelperRuntime: HelperEffects {
     /* Where files that arrive are written, and the menu bar that asks about
        them, shows how far they have got, and lets the user stop them (#56). */
     private let files = FileStore()
-    private let menuBar = MenuBar()
+    private let menuBar = MenuBar(debug: HelperRuntime.debug)
 
     /*
      * Whether the last thing the session said was that bulk may cross. The
@@ -48,6 +48,9 @@ final class HelperRuntime: HelperEffects {
     private lazy var dispatch = OutputDispatch(effects: self)
 
     init() {
+        /* Before the first line, so a log left on for days is trimmed before
+           this run adds to it (#270). */
+        Self.debug.trimLog()
         /*
          * A blob that will not decode is regenerated inside `loadIdentity`, so
          * reaching this is the machine having no Secure Enclave to generate a
@@ -94,6 +97,9 @@ final class HelperRuntime: HelperEffects {
 
     private static let started = ProcessInfo.processInfo.systemUptime
     private static let stamp = LogStamp()
+    /* Read from the user defaults on first use, which is the first log line
+       at the latest, so "helper started" obeys the tick too (#270). */
+    private static let debug = DebugLogging()
 
     /// The session's tick — fine enough that a heartbeat is never late by much.
     static let tickInterval: TimeInterval = 0.25
@@ -479,8 +485,10 @@ final class HelperRuntime: HelperEffects {
         }
     }
 
+    /// The helper's one log writer; writes nothing unless debug logging is on.
+    /// Checked here too so that an off helper skips formatting the line.
     private static func note(_ message: String) {
-        let line = stamp.line(message, wall: Date(), elapsed: elapsed)
-        FileHandle.standardError.write(Data((line + "\n").utf8))
+        guard debug.isEnabled else { return }
+        debug.write(stamp.line(message, wall: Date(), elapsed: elapsed) + "\n")
     }
 }

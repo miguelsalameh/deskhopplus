@@ -13,6 +13,7 @@ bin="$(swift build --show-bin-path)"
 swiftc -module-cache-path "$bin/ModuleCache" -I "$bin/Modules" -I "$bin/DHCore.build" \
     helpers/macos/Sources/deskhop-helper/MenuBar.swift \
     helpers/macos/Sources/deskhop-helper/LaunchAtLogin.swift \
+    helpers/macos/Sources/deskhop-helper/DebugLogging.swift \
     helpers/icon/main.swift \
     "$bin"/DeskhopChannel.build/*.swift.o "$bin"/DHCore.build/*.o \
     -o "$bin/render-icons"

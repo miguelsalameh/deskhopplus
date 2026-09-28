@@ -177,3 +177,62 @@ let translocatedWords = translocatedMenu.items.map(\.title).joined(separator: " 
 check(translocatedWords.contains("In Finder, move deskhopplus-helper.app to your Applications folder"), "the refusal names the remedy")
 check(!translocatedWords.contains("LaunchAgents"), "the refusal does not send the user to the plist folder")
 print("Translocation refusal checks passed")
+
+// Debug logging (#270): a tick on the presence, off by default, remembered
+// across restarts in this machine's user defaults.
+let suite = "menu-tests.\(UUID().uuidString)"
+defer { UserDefaults().removePersistentDomain(forName: suite) }
+let logFile = directory.appendingPathComponent("helper.log")
+FileManager.default.createFile(atPath: logFile.path, contents: nil)
+let debug = DebugLogging(defaults: UserDefaults(suiteName: suite)!,
+                         sink: try FileHandle(forWritingTo: logFile))
+let debugBar = MenuBar(login: login, debug: debug)
+let debugMenu = NSMenu()
+func debugItem() -> NSMenuItem { debugBar.menuNeedsUpdate(debugMenu); return debugMenu.items.first { $0.title == "Debug logging" }! }
+check(debugItem().state == .off && !debug.isEnabled, "debug logging is off by default")
+let tick = debugItem()
+_ = (tick.target as! NSObject).perform(tick.action!)
+check(debug.isEnabled && debugItem().state == .on, "selecting the tick turns debug logging on at once")
+check(DebugLogging(defaults: UserDefaults(suiteName: suite)!, sink: .nullDevice).isEnabled,
+      "a restarted helper reads back the choice")
+_ = (tick.target as! NSObject).perform(tick.action!)
+check(!debug.isEnabled && debugItem().state == .off, "selecting it again turns debug logging off")
+check(!DebugLogging(defaults: UserDefaults(suiteName: suite)!, sink: .nullDevice).isEnabled,
+      "a restarted helper reads back off")
+print("Debug logging tick checks passed")
+
+// Off writes nothing; on writes the line as given.
+func logSize() -> UInt64 { (try? FileManager.default.attributesOfItem(atPath: logFile.path)[.size] as? UInt64) ?? 0 }
+debug.write("dropped\n")
+check(logSize() == 0, "debug logging off writes nothing")
+debug.isEnabled = true
+debug.write("kept\n")
+check((try? String(contentsOf: logFile)) == "kept\n", "debug logging on writes the line")
+// The log trim: over 5 MB at start with debug logging on empties the file;
+// 5 MB or less, or debug logging off, leaves it alone.
+func fill(_ bytes: UInt64) throws { try Data(count: Int(bytes)).write(to: logFile) }
+func trimmed(_ bytes: UInt64, on: Bool) throws -> UInt64 {
+    try fill(bytes)
+    let handle = try FileHandle(forWritingTo: logFile)
+    defer { try? handle.close() }
+    let trimming = DebugLogging(defaults: UserDefaults(suiteName: suite)!, sink: handle)
+    trimming.isEnabled = on
+    trimming.trimLog()
+    return logSize()
+}
+check((try? trimmed(5 * 1024 * 1024 + 1, on: true)) == 0, "a log over 5 MB is emptied at start")
+check((try? trimmed(5 * 1024 * 1024, on: true)) == 5 * 1024 * 1024, "a log of 5 MB is kept")
+check((try? trimmed(6 * 1024 * 1024, on: false)) == 6 * 1024 * 1024, "debug logging off never touches the log")
+// Under `swift run` stderr is a terminal, not a file: the tick still gates,
+// and there is nothing to trim.
+let pipe = Pipe()
+let foreground = DebugLogging(defaults: UserDefaults(suiteName: suite)!, sink: pipe.fileHandleForWriting)
+foreground.isEnabled = true
+foreground.trimLog()
+foreground.write("line\n")
+foreground.isEnabled = false
+foreground.write("dropped\n")
+try pipe.fileHandleForWriting.close()
+check(String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self) == "line\n",
+      "a stderr that is not a file is gated and never trimmed")
+print("Debug logging gate and trim checks passed")
