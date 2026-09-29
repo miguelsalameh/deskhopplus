@@ -46,6 +46,13 @@ bool dh_hotkey_action_acknowledges(uint8_t action_id) {
            (action_id < DH_HOTKEY_ACTION_COUNT && action_id != DH_HOTKEY_ACTION_OUTPUT_TOGGLE);
 }
 
+bool dh_hotkey_action_releases_all_keys(uint8_t action_id) {
+    return action_id == DH_HOTKEY_ACTION_CONFIG_ENABLE ||
+           action_id == DH_HOTKEY_ACTION_FW_UPGRADE_A ||
+           action_id == DH_HOTKEY_ACTION_FW_UPGRADE_B ||
+           action_id == DH_HOTKEY_ACTION_WIPE_CONFIG;
+}
+
 uint8_t dh_hotkey_action_id(const char *name) {
     if (!name)
         return DH_HOTKEY_ACTION_INVALID;
@@ -187,5 +194,40 @@ dh_keyboard_hotkey_result_t dh_keyboard_hotkey_resolve(
         .action_id = match->action_id,
         .pass_to_os = dh_hotkey_action_passes_to_os(match->action_id),
         .acknowledge = dh_hotkey_action_acknowledges(match->action_id),
+        .releases_all_keys = dh_hotkey_action_releases_all_keys(match->action_id),
+        .chord = *match,
     };
+}
+
+void dh_hotkey_latch_hold(dh_hotkey_latch_t *latch, const dh_hotkey_t *chord) {
+    latch->modifier |= chord->modifier;
+    for (size_t i = 0; i < chord->key_count && i < DH_HOTKEY_KEY_CAPACITY; ++i) {
+        if (contains_key(latch->keys, chord->keys[i]))
+            continue;
+        for (size_t slot = 0; slot < DH_HOTKEY_KEY_CAPACITY; ++slot) {
+            if (latch->keys[slot] == 0) {
+                latch->keys[slot] = chord->keys[i];
+                break;
+            }
+        }
+    }
+}
+
+void dh_hotkey_latch_release(dh_hotkey_latch_t *latch, uint8_t modifier,
+                             const uint8_t keys[DH_HOTKEY_KEY_CAPACITY]) {
+    latch->modifier &= modifier;
+    for (size_t i = 0; i < DH_HOTKEY_KEY_CAPACITY; ++i)
+        if (!contains_key(keys, latch->keys[i]))
+            latch->keys[i] = 0;
+}
+
+void dh_hotkey_latch_mask(const dh_hotkey_latch_t *latch, uint8_t *modifier,
+                          uint8_t keys[DH_HOTKEY_KEY_CAPACITY]) {
+    *modifier &= (uint8_t)~latch->modifier;
+    size_t kept = 0;
+    for (size_t i = 0; i < DH_HOTKEY_KEY_CAPACITY; ++i)
+        if (keys[i] != 0 && !contains_key(latch->keys, keys[i]))
+            keys[kept++] = keys[i];
+    while (kept < DH_HOTKEY_KEY_CAPACITY)
+        keys[kept++] = 0;
 }

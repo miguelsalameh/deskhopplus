@@ -56,6 +56,8 @@ void handle_consumer_control_msg(uart_packet_t *, device_t *);
 void handle_system_control_msg(uart_packet_t *, device_t *);
 void handle_flash_led_msg(uart_packet_t *, device_t *);
 void handle_fw_upgrade_msg(uart_packet_t *, device_t *);
+void request_bootsel(device_t *);
+#define BOOTSEL_GRACE_US (50u * 1000u) // Time for a key-up report to leave before BOOTSEL (#273)
 void handle_toggle_gaming_msg(uart_packet_t *, device_t *);
 void handle_heartbeat_msg(uart_packet_t *, device_t *);
 void handle_keyboard_uart_msg(uart_packet_t *, device_t *);

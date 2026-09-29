@@ -45,6 +45,9 @@ static const hotkey_action_t hotkey_actions[DH_HOTKEY_ACTION_COUNT] = {
 
 static hotkey_combo_t hotkeys[DH_HOTKEY_ACTION_COUNT];
 
+/* Chord keys held back from the OS after a hotkey that does not pass (#273). */
+static dh_hotkey_latch_t hotkey_latch;
+
 /* ============================================================ *
  * Detect if any hotkeys were pressed
  * ============================================================ */
@@ -123,7 +126,8 @@ void release_all_keys(device_t *state) {
 }
 
 
-void combine_local_kbd_states(device_t *state, hid_keyboard_report_t *combined_report) {
+/* The keys all local keyboards hold, as the fingers hold them */
+static void combine_held_local_kbd_states(device_t *state, hid_keyboard_report_t *combined_report) {
     memset(combined_report, 0, sizeof(hid_keyboard_report_t));
 
     /* Combine all local keyboards up to max_kbd_idx */
@@ -131,6 +135,13 @@ void combine_local_kbd_states(device_t *state, hid_keyboard_report_t *combined_r
         combined_report->modifier |= state->local_kbd_states[i].modifier;
         add_keys(combined_report, &state->local_kbd_states[i]);
     }
+}
+
+/* The keys all local keyboards hold, less any latched chord keys. Every
+   report bound for an OS is built from this, so none can leak a chord (#273). */
+void combine_local_kbd_states(device_t *state, hid_keyboard_report_t *combined_report) {
+    combine_held_local_kbd_states(state, combined_report);
+    dh_hotkey_latch_mask(&hotkey_latch, &combined_report->modifier, combined_report->keycode);
 }
 
 /* Combine all keyboard states into a single report */
@@ -200,19 +211,20 @@ bool queue_remote_keyboard_report(const hid_keyboard_report_t *report,
 }
 
 /* If keys need to go locally, queue packet to kbd queue, else send them through UART */
-void send_key(hid_keyboard_report_t *report, device_t *state) {
-    /* Create a combined report from all device states */
-    hid_keyboard_report_t combined_report;
-    combine_kbd_states(state, &combined_report);
-
+static void send_to_output(hid_keyboard_report_t *report, device_t *state) {
     if (CURRENT_BOARD_IS_ACTIVE_OUTPUT) {
-        /* Queue the combined report */
-        output_keyboard_report(&combined_report, DH_KEYBOARD_PHYSICAL, state);
+        output_keyboard_report(report, DH_KEYBOARD_PHYSICAL, state);
         state->last_activity[BOARD_ROLE] = time_us_64();
     } else {
-        /* Send the combined report to ensure all keys are included */
-        (void)queue_remote_keyboard_report(&combined_report, DH_KEYBOARD_PHYSICAL);
+        (void)queue_remote_keyboard_report(report, DH_KEYBOARD_PHYSICAL);
     }
+}
+
+/* Send the combined state of all keyboards */
+void send_key(hid_keyboard_report_t *report, device_t *state) {
+    hid_keyboard_report_t combined_report;
+    combine_kbd_states(state, &combined_report);
+    send_to_output(&combined_report, state);
 }
 
 /* Decide if consumer control reports go local or to the other board */
@@ -256,8 +268,27 @@ void process_keyboard_report(uint8_t *raw_report, int length, uint8_t itf, hid_i
     /* Update the keyboard state for this device */
     update_kbd_state(state, &new_report, itf);
 
+    /* Let go of latched chord keys the fingers have released */
+    hid_keyboard_report_t held;
+    combine_held_local_kbd_states(state, &held);
+    dh_hotkey_latch_release(&hotkey_latch, held.modifier, held.keycode);
+
     /* Check if any hotkey was pressed */
     hotkey = check_all_hotkeys(&new_report);
+
+    /* A chord that does not pass is held back from the OS until each key is
+       released. The filtered report goes out before the action runs: it is
+       the key-up for any chord key the OS saw before the chord completed.
+       An action that reboots or wipes sends all keys up instead (#273). */
+    if (hotkey.matched && !hotkey.pass_to_os) {
+        dh_hotkey_latch_hold(&hotkey_latch, &hotkey.chord);
+        if (hotkey.releases_all_keys) {
+            hid_keyboard_report_t all_up = {0};
+            send_to_output(&all_up, state);
+        } else {
+            send_key(&new_report, state);
+        }
+    }
 
     /* ... and take appropriate action */
     if (hotkey.matched) {

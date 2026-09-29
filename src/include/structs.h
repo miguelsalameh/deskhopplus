@@ -173,6 +173,8 @@ typedef struct {
     uint32_t _channel_relay_refused;
     bool dev_build;                  // True when channel authentication is compiled out (#44)
     bool reboot_requested;           // If set, stop updating watchdog
+    bool bootsel_requested;          // If set, enter BOOTSEL once BOOTSEL_GRACE_US has passed (#273)
+    uint32_t bootsel_requested_at;   // When BOOTSEL was asked for, time_us_32()
     config_exit_t config_exit;       // How config mode gives the drive back before the reboot (#229)
     uint64_t config_mode_timer;      // Counts how long are we to remain in config mode
 

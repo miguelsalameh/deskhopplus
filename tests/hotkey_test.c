@@ -229,6 +229,101 @@ static int default_hotkeys_are_reachable_without_right_ctrl_and_preserve_existin
     return 0;
 }
 
+/* Runs one report through the latch as the keyboard does, release then mask;
+   true if it reaches the OS as expected. */
+static bool filtered_to(dh_hotkey_latch_t *latch, uint8_t modifier, uint8_t k0, uint8_t k1,
+                        uint8_t want_modifier, uint8_t want_key) {
+    uint8_t keys[DH_HOTKEY_KEY_CAPACITY] = {k0, k1};
+    dh_hotkey_latch_release(latch, modifier, keys);
+    dh_hotkey_latch_mask(latch, &modifier, keys);
+    return modifier == want_modifier && keys[0] == want_key && keys[1] == 0;
+}
+
+/* Left Ctrl + Right Shift + P, latched on its match, then released in each
+   order. Nothing reaches the OS until every chord key is up (#273). */
+static int latched_pair_chord_leaks_nothing_in_any_release_order(void) {
+    const uint8_t pair[DH_HOTKEY_KEY_CAPACITY] = {0x13};
+    dh_keyboard_hotkey_result_t match = dh_keyboard_hotkey_resolve(NULL, 0, 0x21, pair);
+    ASSERT_TRUE(match.matched && !match.pass_to_os && !match.releases_all_keys);
+
+    /* Left Ctrl first, then Right Shift. */
+    dh_hotkey_latch_t latch = {0};
+    dh_hotkey_latch_hold(&latch, &match.chord);
+    ASSERT_TRUE(filtered_to(&latch, 0x21, 0x13, 0, 0, 0));
+    ASSERT_TRUE(filtered_to(&latch, 0x20, 0x13, 0, 0, 0));
+    ASSERT_TRUE(filtered_to(&latch, 0x00, 0x13, 0, 0, 0));
+    ASSERT_TRUE(filtered_to(&latch, 0x00, 0, 0, 0, 0));
+
+    /* Right Shift first. */
+    latch = (dh_hotkey_latch_t){0};
+    dh_hotkey_latch_hold(&latch, &match.chord);
+    ASSERT_TRUE(filtered_to(&latch, 0x01, 0x13, 0, 0, 0));
+    ASSERT_TRUE(filtered_to(&latch, 0x00, 0x13, 0, 0, 0));
+
+    /* P first: the modifiers stay held back until they go up. */
+    latch = (dh_hotkey_latch_t){0};
+    dh_hotkey_latch_hold(&latch, &match.chord);
+    ASSERT_TRUE(filtered_to(&latch, 0x21, 0, 0, 0, 0));
+    ASSERT_TRUE(filtered_to(&latch, 0x01, 0, 0, 0, 0));
+    ASSERT_TRUE(filtered_to(&latch, 0x00, 0, 0, 0, 0));
+
+    /* Released keys pass again. */
+    ASSERT_TRUE(filtered_to(&latch, 0x01, 0x13, 0, 0x01, 0x13));
+    return 0;
+}
+
+/* A key the latch does not hold passes, and a released chord key is let go. */
+static int keys_outside_the_chord_pass_while_it_is_latched(void) {
+    const uint8_t pair[DH_HOTKEY_KEY_CAPACITY] = {0x13};
+    dh_keyboard_hotkey_result_t match = dh_keyboard_hotkey_resolve(NULL, 0, 0x21, pair);
+    dh_hotkey_latch_t latch = {0};
+    dh_hotkey_latch_hold(&latch, &match.chord);
+
+    ASSERT_TRUE(filtered_to(&latch, 0x23, 0x13, 0x04, 0x02, 0x04));
+    ASSERT_TRUE(filtered_to(&latch, 0x21, 0x04, 0, 0, 0x04));
+    /* P went up above, so pressing it again under the held modifiers passes. */
+    ASSERT_TRUE(filtered_to(&latch, 0x21, 0x13, 0, 0, 0x13));
+    return 0;
+}
+
+/* Left Ctrl, then P, then Right Shift: the OS saw Ctrl + P go down before the
+   chord completed. The matching report itself, filtered, is the key-up (#273). */
+static int latched_chord_releases_keys_the_os_already_saw(void) {
+    const uint8_t pair[DH_HOTKEY_KEY_CAPACITY] = {0x13};
+    dh_keyboard_hotkey_result_t match = dh_keyboard_hotkey_resolve(NULL, 0, 0x21, pair);
+    dh_hotkey_latch_t latch = {0};
+    dh_hotkey_latch_hold(&latch, &match.chord);
+    ASSERT_TRUE(filtered_to(&latch, 0x21, 0x13, 0, 0, 0));
+    return 0;
+}
+
+/* Left Shift + Right Shift + A reboots, so the keyboard sends all keys up
+   before it, not the filtered report: A never auto-repeats (#273). */
+static int bootsel_chord_releases_all_keys(void) {
+    const dh_hotkey_t table[DH_HOTKEY_ACTION_COUNT] = DH_HOTKEY_DEFAULTS;
+    dh_hotkey_t hotkeys[DH_HOTKEY_ACTION_COUNT];
+    for (size_t i = 0; i < DH_HOTKEY_ACTION_COUNT; ++i)
+        hotkeys[i] = table[i];
+    dh_hotkey_prepare(hotkeys, DH_HOTKEY_ACTION_COUNT);
+
+    const uint8_t a[DH_HOTKEY_KEY_CAPACITY] = {0x04};
+    dh_keyboard_hotkey_result_t match =
+        dh_keyboard_hotkey_resolve(hotkeys, DH_HOTKEY_ACTION_COUNT, 0x22, a);
+    ASSERT_TRUE(match.matched && match.action_id == DH_HOTKEY_ACTION_FW_UPGRADE_A);
+    ASSERT_TRUE(!match.pass_to_os && match.releases_all_keys);
+    return 0;
+}
+
+static int only_actions_that_reboot_or_wipe_release_all_keys(void) {
+    ASSERT_TRUE(dh_hotkey_action_releases_all_keys(DH_HOTKEY_ACTION_CONFIG_ENABLE));
+    ASSERT_TRUE(dh_hotkey_action_releases_all_keys(DH_HOTKEY_ACTION_FW_UPGRADE_A));
+    ASSERT_TRUE(dh_hotkey_action_releases_all_keys(DH_HOTKEY_ACTION_FW_UPGRADE_B));
+    ASSERT_TRUE(dh_hotkey_action_releases_all_keys(DH_HOTKEY_ACTION_WIPE_CONFIG));
+    ASSERT_TRUE(!dh_hotkey_action_releases_all_keys(DH_HOTKEY_ACTION_PAIR));
+    ASSERT_TRUE(!dh_hotkey_action_releases_all_keys(DH_HOTKEY_ACTION_OUTPUT_TOGGLE));
+    return 0;
+}
+
 int main(void) {
     if (more_specific_overlapping_chord_wins())
         return 1;
@@ -251,6 +346,17 @@ int main(void) {
     if (action_properties_and_complete_table_are_resolved_at_the_keyboard_seam())
         return 1;
     if (default_hotkeys_are_reachable_without_right_ctrl_and_preserve_existing_chords())
+        return 1;
+
+    if (latched_pair_chord_leaks_nothing_in_any_release_order())
+        return 1;
+    if (keys_outside_the_chord_pass_while_it_is_latched())
+        return 1;
+    if (latched_chord_releases_keys_the_os_already_saw())
+        return 1;
+    if (bootsel_chord_releases_all_keys())
+        return 1;
+    if (only_actions_that_reboot_or_wipe_release_all_keys())
         return 1;
 
     printf("hotkey_test: PASS\n");

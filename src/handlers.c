@@ -64,7 +64,7 @@ void screen_border_hotkey_handler(device_t *state, hid_keyboard_report_t *report
    B (#124). Reading BOARD_ROLE is what makes the letters name the board. */
 void _fw_upgrade_board(uint8_t named_role) {
     if (BOARD_ROLE == named_role)
-        reset_usb_boot(1 << PICO_DEFAULT_LED_PIN, 0);
+        request_bootsel(&global_state);
     else
         (void)send_value(ENABLE, FIRMWARE_UPGRADE_MSG);
 };
@@ -280,7 +280,19 @@ void handle_cursor_place_msg(uart_packet_t *packet, device_t *state) {
 
 /* On firmware upgrade message, reboot into the BOOTSEL fw upgrade mode */
 void handle_fw_upgrade_msg(uart_packet_t *packet, device_t *state) {
-    reset_usb_boot(1 << PICO_DEFAULT_LED_PIN, 0);
+    request_bootsel(state);
+}
+
+/* Enters BOOTSEL after a short grace, so the all-keys-up report the hotkey
+   sent ahead of it reaches the host first. Rebooting at once left the key
+   down on the OS, and it auto-repeated until the device went away (#273).
+   kick_watchdog_task does the reset. */
+void request_bootsel(device_t *state) {
+    if (state->bootsel_requested)
+        return; /* a repeat of the chord must not push the reset back */
+    state->bootsel_requested_at = time_us_32();
+    __compiler_memory_barrier();
+    state->bootsel_requested = true;
 }
 
 /* Comply with request to turn mouse zoom mode on/off  */

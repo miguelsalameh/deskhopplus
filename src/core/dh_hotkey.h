@@ -39,12 +39,17 @@ bool dh_hotkey_binding_from_usages(dh_hotkey_t *binding, uint8_t action_id,
 bool dh_hotkey_table_is_valid(const dh_hotkey_t *hotkeys, size_t count);
 bool dh_hotkey_action_passes_to_os(uint8_t action_id);
 bool dh_hotkey_action_acknowledges(uint8_t action_id);
+/* The action reboots the board or its peer, or wipes config: the OS must get
+   an all-keys-up report before it runs (#273). */
+bool dh_hotkey_action_releases_all_keys(uint8_t action_id);
 
 typedef struct {
     bool matched;
     uint8_t action_id;
     bool pass_to_os;
     bool acknowledge;
+    bool releases_all_keys;
+    dh_hotkey_t chord; /* the binding that matched */
 } dh_keyboard_hotkey_result_t;
 
 dh_keyboard_hotkey_result_t dh_keyboard_hotkey_resolve(
@@ -67,3 +72,20 @@ const dh_hotkey_t *dh_hotkey_match(const dh_hotkey_t *hotkeys,
 const dh_hotkey_t *dh_hotkey_match_with_fixed(
     const dh_hotkey_t *hotkeys, size_t count, uint8_t modifier,
     const uint8_t keys[DH_HOTKEY_KEY_CAPACITY]);
+
+/* Keys of a matched chord that the OS must not see until each is released,
+   so the release order of a chord cannot type its keys (#273). */
+typedef struct {
+    uint8_t modifier;
+    uint8_t keys[DH_HOTKEY_KEY_CAPACITY];
+} dh_hotkey_latch_t;
+
+/* Adds a matched chord's keys to the latch. */
+void dh_hotkey_latch_hold(dh_hotkey_latch_t *latch, const dh_hotkey_t *chord);
+/* Lets go of latched keys the keyboards no longer hold. */
+void dh_hotkey_latch_release(dh_hotkey_latch_t *latch, uint8_t modifier,
+                             const uint8_t keys[DH_HOTKEY_KEY_CAPACITY]);
+/* Removes latched keys from a report bound for the OS. Keys stay packed at
+   the front. Reads the latch only, so any path that builds a report can call it. */
+void dh_hotkey_latch_mask(const dh_hotkey_latch_t *latch, uint8_t *modifier,
+                          uint8_t keys[DH_HOTKEY_KEY_CAPACITY]);

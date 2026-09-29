@@ -38,6 +38,10 @@ void kick_watchdog_task(device_t *state) {
     if (config_exit_reboot_now(&state->config_exit, current_time))
         state->reboot_requested = true;
 
+    if (state->bootsel_requested &&
+        (uint32_t)(current_time - state->bootsel_requested_at) >= BOOTSEL_GRACE_US)
+        reset_usb_boot(1 << PICO_DEFAULT_LED_PIN, 0);
+
     /* If a reboot is requested, we'll stop updating watchdog */
     if (state->reboot_requested) {
         watchdog_hw->scratch[2] = MAGIC_WORD_REBOOT;
