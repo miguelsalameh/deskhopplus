@@ -138,6 +138,9 @@ add_test(NAME webconfig_cursor_trace_test COMMAND ${NODE_EXECUTABLE}
 add_test(NAME webconfig_timer_test COMMAND ${NODE_EXECUTABLE}
          ${CMAKE_CURRENT_SOURCE_DIR}/webconfig_timer_test.js
          ${CMAKE_CURRENT_SOURCE_DIR}/../webconfig/config-unpacked.htm)
+add_test(NAME webconfig_status_led_test COMMAND ${NODE_EXECUTABLE}
+         ${CMAKE_CURRENT_SOURCE_DIR}/webconfig_status_led_test.js
+         ${CMAKE_CURRENT_SOURCE_DIR}/../webconfig/config-unpacked.htm)
 # The packed page's design budget (#225, PRODUCT.md): 40 960 of the 59 392
 # bytes the config disk can hold, so future fields have room. The disk's own
 # hard limit is checked by disk/capacity.py at build time.
@@ -258,6 +261,12 @@ set(FW ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 add_executable(config_test config_test.c ${FW}/config_store.c ${CORE}/dh_crc32.c)
 target_include_directories(config_test PRIVATE ${CORE} ${FW}/include)
 add_test(NAME config_test COMMAND config_test)
+
+# When the Status LED goes dark on its own (#283): a pure decision in the
+# core, plus the config fields it reads, so an old config's zeros are checked.
+add_executable(status_led_test status_led_test.c)
+target_include_directories(status_led_test PRIVATE ${CORE} ${FW}/include)
+add_test(NAME status_led_test COMMAND status_led_test)
 
 # How a config Read All walks the field map (#156). Firmware domain and split
 # out for the same reason as the two either side of it: the arithmetic lived

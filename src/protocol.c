@@ -124,6 +124,13 @@ const field_map_t api_field_map[] = {
        stored zero for every reader. */
     { 100, false, UINT8, 1, offsetof(device_t, config.clip_cap_mb) },
 
+    /* When the Status LED goes dark on its own (#283): DH_STATUS_LED_* and a
+       time in seconds. Written to both boards by the page, like the clipboard
+       fields: only the board whose computer is active has its LED lit, so one
+       shared setting does what a per-board one would. */
+    { 101, false, UINT8,  1, offsetof(device_t, config.led_off_mode) },
+    { 102, false, UINT16, 2, offsetof(device_t, config.led_off_sec) },
+
     /*
      * What this board has dropped on the helper channel, since boot.
      *

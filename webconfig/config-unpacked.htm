@@ -2140,6 +2140,21 @@ pre {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       <h3 class="sub">Mouse</h3>
       <div class="group">
 
@@ -2344,14 +2359,112 @@ pre {
 
 
 
+
+      </div>
+      <h3 class="sub">Status LED</h3>
+      <div class="group">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <div class="row">
+
+<label for="f101">Turn off</label>
+
+      <select class="api" data-type="uint8" data-key="101" id="f101" onchange="redrawLayout()" required>
+      <option disabled selected value></option>
+
+      <option value="0">Never</option>
+
+      <option value="1">When idle</option>
+
+      <option value="2">After a switch</option>
+
+      </select>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <div class="row">
+
+<label for="f102">After</label>
+
+      <select class="api" data-type="uint16" data-key="102" id="f102" onchange="redrawLayout()" required>
+      <option disabled selected value></option>
+
+      <option value="5">5 seconds</option>
+
+      <option value="10">10 seconds</option>
+
+      <option value="30">30 seconds</option>
+
+      <option value="60">1 minute</option>
+
+      <option value="300">5 minutes</option>
+
+      <option value="900">15 minutes</option>
+
+      <option value="3600">1 hour</option>
+
+      </select>
+    </div>
+
+
+
+
+
   </div>
 
 
+        <p class="hint">Any key or mouse move turns it back on. Config mode always blinks.</p>
       </section>
 
       <section data-section="hotkeys" aria-labelledby="hotkeys-title" hidden>
         <h2 id="hotkeys-title">Hotkeys</h2>
         <p class="hint">Key names joined with +, for example lctrl+rshift+c+o.</p>
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2833,6 +2946,15 @@ pre {
 
       <section data-section="clipboard" aria-labelledby="clipboard-title" hidden>
         <h2 id="clipboard-title">Clipboard</h2>
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3683,6 +3805,11 @@ function getValue(element) {
 function setValue(element, value) {
   element.setAttribute('fetched-value', value);
 
+  /* A stored value the list lacks (a hand-built config) is shown as its
+     number, not as a blank that Save would then overwrite (#283). */
+  if (element.tagName === 'SELECT' && ![...element.options].some(o => o.value == value))
+    element.add(new Option(String(value), value));
+
   if (element.type === 'checkbox')
     element.checked = value;
   else
@@ -4491,10 +4618,18 @@ function refreshUnsaved() {
   document.querySelectorAll('#sidebar button').forEach(b => b.toggleAttribute('data-unsaved', sections.has(b.dataset.section)));
 }
 
+// Status LED: After means nothing while Turn off is Never (#283).
+function refreshStatusLed() {
+  const mode = document.querySelector('[data-key="101"]');
+  const after = document.querySelector('[data-key="102"]');
+  if (mode && after) after.disabled = !Number(mode.value);
+}
+
 // What every edit, report and toolbar action refreshes.
 function refresh() {
   refreshUnsaved();
   refreshTitles();
+  refreshStatusLed();
 }
 
 document.getElementById('main').addEventListener('input', event => {

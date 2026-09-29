@@ -107,6 +107,7 @@ typedef struct {
     uint8_t keyboard_leds_desired[NUM_SCREENS];  // Desired state of keyboard LEDs (index 0 = A, index 1 = B)
     uint8_t keyboard_leds_actual[NUM_SCREENS];   // Actual state of keyboard LEDs
     uint64_t last_activity[NUM_SCREENS]; // Timestamp of the last input activity (-||-)
+    uint64_t last_switch_time;           // When the active output last changed, on either board (#283)
     uint32_t core1_last_loop_pass;       // Timestamp of last core1 loop execution
     uint8_t active_output;               // Currently selected output (0 = A, 1 = B)
     uint8_t board_role;                  // Which board are we running on? (0 = A, 1 = B, etc.)
@@ -186,6 +187,7 @@ typedef struct {
     bool mouse_zoom;         // True when "mouse zoom" is enabled
     bool switch_lock;        // True when device is prevented from switching
     bool onboard_led_state;  // True when LED is ON
+    bool led_dark;           // True while the Status LED is set to go dark (#283)
     bool relative_mouse;     // True when relative mouse mode is used
     bool gaming_mode;        // True when gaming mode is on (relative passthru + lock)
     bool boot_mouse_mode[NUM_SCREENS]; // Computer-facing boot mouse protocol, one bit per board

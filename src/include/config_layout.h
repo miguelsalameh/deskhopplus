@@ -141,12 +141,28 @@ typedef struct {
      */
     uint8_t clip_cap_mb;
 
-    /* Two words, so the struct ends exactly on the checksum. #46's 17 bytes
-       rounded config_t up to 160 and left four bytes of padding *behind* the
-       checksum, which is what broke persistence (#74); absorbing them here
-       keeps the tail intentional rather than whatever alignment happens to
-       leave over. */
-    uint32_t _reserved[2];
+    /*
+     * When the Status LED goes dark on its own (#283): DH_STATUS_LED_* and a
+     * time in seconds, read by dh_status_led_dark. Both boards hold the same
+     * pair; the page writes it to both.
+     *
+     * These took the first word of _reserved, which every configuration
+     * already written holds as zero — and zero is Never, so an old config
+     * keeps the LED lit and no CURRENT_CONFIG_VERSION bump is owed.
+     * Under Never, load_config turns a stored zero time into
+     * DH_STATUS_LED_SEC_DEFAULT, in memory only, so the page shows a time
+     * from its list.
+     */
+    uint8_t led_off_mode;
+    uint8_t _led_pad; /* named so it is zeroed and sealed, not indeterminate */
+    uint16_t led_off_sec;
+
+    /* The rest of the words that make the struct end exactly on the checksum.
+       #46's 17 bytes rounded config_t up to 160 and left four bytes of padding
+       *behind* the checksum, which is what broke persistence (#74); absorbing
+       them here keeps the tail intentional rather than whatever alignment
+       happens to leave over. */
+    uint32_t _reserved;
 
     // Keep checksum at the end of the struct
     uint32_t checksum;
@@ -178,11 +194,12 @@ _Static_assert(CONFIG_FLASH_BYTES <= CONFIG_FLASH_SECTOR_SIZE,
  * The clipboard toggles came out of padding that was already there, so the
  * layout is unchanged and no stored configuration stops validating (#52). That
  * claim is only true while those three bytes still sit between `channel_paired`
- * and `_reserved` — a fourth field here would push `_reserved` along, change
- * every offset after it, and silently invalidate every board's stored config
- * without the version bump that is supposed to announce exactly that.
+ * and the Status LED fields (once the first `_reserved` word) — a fourth field
+ * here would push them along, change every offset after it, and silently
+ * invalidate every board's stored config without the version bump that is
+ * supposed to announce exactly that.
  */
-_Static_assert(offsetof(config_t, _reserved) == offsetof(config_t, channel_paired) + 4,
+_Static_assert(offsetof(config_t, led_off_mode) == offsetof(config_t, channel_paired) + 4,
                "config_t: the clipboard toggles must fit the padding, not extend the struct");
 
 /* The size cap took the padding byte the toggles left behind, so the same
@@ -191,3 +208,13 @@ _Static_assert(offsetof(config_t, _reserved) == offsetof(config_t, channel_paire
    them a future field had displaced. */
 _Static_assert(offsetof(config_t, clip_cap_mb) == offsetof(config_t, clip_block_b_to_a) + 1,
                "config_t: the clipboard size cap must fit the padding, not extend the struct");
+
+/* The Status LED fields took the first reserved word, so they sit where it
+   sat and the checksum does not move (#283). A field added ahead of them
+   would push them past the bytes old configs hold as zero. */
+_Static_assert(offsetof(config_t, led_off_mode) == offsetof(config_t, clip_cap_mb) + 1,
+               "config_t: the Status LED fields must take the first reserved word");
+_Static_assert(offsetof(config_t, led_off_sec) == offsetof(config_t, led_off_mode) + 2,
+               "config_t: led_off_sec must stay aligned inside the first reserved word");
+_Static_assert(offsetof(config_t, checksum) == offsetof(config_t, led_off_mode) + 8,
+               "config_t: the Status LED fields must not extend the struct");

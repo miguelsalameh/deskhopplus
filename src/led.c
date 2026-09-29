@@ -7,9 +7,11 @@
  * the Free Software Foundation, version 3.
  *
  * See the file LICENSE for the full license text.
+ * Modified by Derek Reynolds, 2026, for deskhopplus.
  */
 
 #include "main.h"
+#include "core/dh_status_led.h"
 
 /* ==================================================== *
  * ========== Update pico and keyboard LEDs  ========== *
@@ -31,10 +33,15 @@ void set_keyboard_leds(uint8_t requested_led_state, device_t *state) {
     }
 }
 
-void restore_leds(device_t *state) {
-    /* Light up on-board LED if current board is active output */
-    state->onboard_led_state = (state->active_output == BOARD_ROLE);
+/* The on-board Status LED only: lit when this board is the active output and
+   the Status LED is not set to go dark (#283). */
+static void restore_status_led(device_t *state) {
+    state->onboard_led_state = (state->active_output == BOARD_ROLE) && !state->led_dark;
     gpio_put(GPIO_LED_PIN, state->onboard_led_state);
+}
+
+void restore_leds(device_t *state) {
+    restore_status_led(state);
 
     /* Light up appropriate keyboard leds (if it's connected locally) */
     if (state->keyboard_connected) {
@@ -64,6 +71,21 @@ void led_sync_task(device_t *state) {
         if (state->keyboard_leds_actual[BOARD_ROLE] != desired_leds)
             set_keyboard_leds(desired_leds, state);
     }
+}
+
+/* Decides whether the Status LED goes dark (#283). Mid-blink it leaves the pin
+   alone: led_blinking_task ends in restore_leds, which picks the flag up. The
+   keyboard LEDs are not touched. */
+void status_led_task(device_t *state) {
+    bool dark = dh_status_led_dark(state->config.led_off_mode, state->config.led_off_sec,
+                                   time_us_64(), state->last_activity[BOARD_ROLE],
+                                   state->last_switch_time, state->config_mode_active);
+    if (dark == state->led_dark)
+        return;
+
+    state->led_dark = dark;
+    if (state->blinks_left == 0)
+        restore_status_led(state);
 }
 
 void led_blinking_task(device_t *state) {

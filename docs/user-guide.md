@@ -292,6 +292,23 @@ never trapped while you set this up.
 If your monitors are the same size and aligned, `Right Shift + F12 + Y` still works as on a stock
 DeskHop: park the mouse where the smaller monitor's edge is and press it.
 
+### Status LED
+
+The LED on each board is lit while that board's computer has the keyboard and mouse. **Keyboard &
+Mouse** has a **Status LED** group that can turn it off on its own, for a desk in a bedroom:
+
+- **Turn off**: **Never** (the default), **When idle** or **After a switch**.
+- **After**: 5 seconds, 10 seconds, 30 seconds, 1 minute, 5 minutes, 15 minutes or 1 hour. It is
+  greyed out while Turn off is Never. The default is 1 minute.
+
+**When idle** turns the LED off once the computer has had no key press or mouse move for that
+time. A switch to that computer counts as a move, so a hotkey switch onto a computer idle since
+morning lights the LED. **After a switch** turns it off that long after each switch, even while
+you type. Any key or mouse move turns it back on. Config mode always blinks. The one-off blinks
+(a keyboard or mouse plugged in, a hotkey acknowledged) still show, and the LED goes off again after.
+
+Save sends one setting to both boards. The keyboard's Caps Lock light is not part of this.
+
 ### Cmd and Ctrl swap
 
 Each output has **Swap Ctrl and Cmd**, under **Key mapping**. When on, Ctrl and Cmd (the Windows key) change places

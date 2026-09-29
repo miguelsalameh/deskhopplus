@@ -81,10 +81,18 @@ function refreshUnsaved() {
   document.querySelectorAll('#sidebar button').forEach(b => b.toggleAttribute('data-unsaved', sections.has(b.dataset.section)));
 }
 
+// Status LED: After means nothing while Turn off is Never (#283).
+function refreshStatusLed() {
+  const mode = document.querySelector('[data-key="101"]');
+  const after = document.querySelector('[data-key="102"]');
+  if (mode && after) after.disabled = !Number(mode.value);
+}
+
 // What every edit, report and toolbar action refreshes.
 function refresh() {
   refreshUnsaved();
   refreshTitles();
+  refreshStatusLed();
 }
 
 document.getElementById('main').addEventListener('input', event => {

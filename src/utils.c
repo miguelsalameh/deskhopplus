@@ -12,6 +12,7 @@
 
 #include "main.h"
 #include "core/dh_session.h"
+#include "core/dh_status_led.h"
 
 /* ================================================== *
  * ==============  Checksum Functions  ============== *
@@ -140,6 +141,13 @@ void load_config(device_t *state) {
      */
     if (running_config->clip_cap_mb == 0)
         running_config->clip_cap_mb = dh_clip_cap_mb(0);
+
+    /* The same for the Status LED time (#283): an old config holds zero, which
+       the page's list of times does not offer. Only under Never, where the
+       time does nothing: a hand-set mode with zero seconds means never and is
+       shown as it is stored. */
+    if (running_config->led_off_mode == DH_STATUS_LED_NEVER && running_config->led_off_sec == 0)
+        running_config->led_off_sec = DH_STATUS_LED_SEC_DEFAULT;
 
     prepare_hotkeys(running_config->hotkeys);
 }

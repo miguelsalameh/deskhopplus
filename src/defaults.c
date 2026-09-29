@@ -12,6 +12,7 @@
 #include "main.h"
 #include "core/dh_hotkey_defaults.h"
 #include "core/dh_session.h"
+#include "core/dh_status_led.h"
 
 /* Default configuration */
 const config_t default_config = {
@@ -21,6 +22,9 @@ const config_t default_config = {
        force. Zero would mean the same thing (dh_clip_cap_mb), but only to a
        reader who knows that (#56). */
     .clip_cap_mb = DH_CLIP_CAP_MB_DEFAULT,
+    /* Never, with the page's default time behind it (#283). */
+    .led_off_mode = DH_STATUS_LED_NEVER,
+    .led_off_sec = DH_STATUS_LED_SEC_DEFAULT,
     .output[OUTPUT_A] =
         {
             .number = OUTPUT_A,

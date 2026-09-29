@@ -250,6 +250,7 @@ void handle_mouse_abs_uart_msg(uart_packet_t *packet, device_t *state) {
 /* Function handles request to switch output  */
 void handle_output_select_msg(uart_packet_t *packet, device_t *state) {
     state->active_output = packet->data[0];
+    state->last_switch_time = time_us_64(); // Lights the Status LED again (#283)
     state->output_arrival_guard = DH_DIRECTION_NONE;
     state->output_arrival_reverse = 0;
     if (state->tud_connected)
@@ -585,6 +586,7 @@ void handle_heartbeat_msg(uart_packet_t *packet, device_t *state) {
    tell this board's helper the user arrived if its computer is now active (#250). */
 void set_active_output(device_t *state, uint8_t new_output) {
     state->active_output = new_output;
+    state->last_switch_time = time_us_64(); // Lights the Status LED again (#283)
     state->output_arrival_guard = DH_DIRECTION_NONE;
     state->output_arrival_reverse = 0;
     restore_leds(state);

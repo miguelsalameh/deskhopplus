@@ -99,17 +99,17 @@ static void test_every_payload_byte_is_covered(void) {
     }
 }
 
-/* The reserved words exist precisely to absorb padding that would otherwise
-   sit behind the checksum (#46/#74). They are the last thing the CRC covers,
-   so they are the first thing a short range drops. */
+/* The reserved word exists precisely to absorb padding that would otherwise
+   sit behind the checksum (#46/#74). It is the last thing the CRC covers, so
+   it is the first thing a short range drops. */
 static void test_the_reserved_tail_is_covered(void) {
     config_t cfg = a_populated_config();
-    cfg._reserved[1] ^= 0xFFFFFFFFu;
+    cfg._reserved ^= 0xFFFFFFFFu;
     CHECK(!config_is_valid(&cfg), "tail",
           "the last word before the checksum is outside the checksum");
 
     config_t other = a_populated_config();
-    other._reserved[0] ^= 0x1u;
+    other._reserved ^= 0x1u;
     CHECK(!config_is_valid(&other), "tail", "a single bit in the reserved tail went unnoticed");
 }
 

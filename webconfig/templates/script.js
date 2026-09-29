@@ -135,6 +135,11 @@ function getValue(element) {
 function setValue(element, value) {
   element.setAttribute('fetched-value', value);
 
+  /* A stored value the list lacks (a hand-built config) is shown as its
+     number, not as a blank that Save would then overwrite (#283). */
+  if (element.tagName === 'SELECT' && ![...element.options].some(o => o.value == value))
+    element.add(new Option(String(value), value));
+
   if (element.type === 'checkbox')
     element.checked = value;
   else
