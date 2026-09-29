@@ -505,7 +505,7 @@ typedef enum {
     /* Normal mode. The channel exists only here. */
     DH_DEVICE_NORMAL = 0,
     /*
-     * Config mode reboots the device under a different USB identity for up to
+     * Config mode reboots the device with a different interface set for up to
      * five minutes. Seeing it tells the helper exactly what happened, which is
      * why it is a state of its own and not "the device is gone".
      */

@@ -26,7 +26,7 @@ import Foundation
 
 public enum DeviceIdentity: Equatable {
     case normal
-    /* Config mode reboots the device under a different USB identity. Seeing
+    /* Config mode reboots the device with a different interface set. Seeing
        it tells the helper exactly what happened, which is why it is a state
        of its own and not "the device is gone". */
     case configMode

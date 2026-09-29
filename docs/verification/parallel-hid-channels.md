@@ -25,8 +25,8 @@ These checks require hardware; build and host-test results do not establish them
       zero-access open while the exclusive handle is held.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools\windows-checks\Confirm-HidExclusivity.ps1 -Check A,E -VendorId 0x1209 -ProductId 0xC000 -Usage 0x20
-powershell -ExecutionPolicy Bypass -File tools\windows-checks\Confirm-HidExclusivity.ps1 -Check A,E -VendorId 0x1209 -ProductId 0xC000 -Usage 0x21
+powershell -ExecutionPolicy Bypass -File tools\windows-checks\Confirm-HidExclusivity.ps1 -Check A,E -VendorId 0x1209 -ProductId 0xD35C -Usage 0x20
+powershell -ExecutionPolicy Bypass -File tools\windows-checks\Confirm-HidExclusivity.ps1 -Check A,E -VendorId 0x1209 -ProductId 0xD35C -Usage 0x21
 ```
 
 - [ ] Hold either Windows collection in another process, start the helper, and

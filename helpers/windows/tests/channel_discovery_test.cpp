@@ -18,16 +18,19 @@ static int failures = 0;
     } while (0)
 
 int main() {
+    /* One USB identity for both modes (#20): the usage alone says which. */
     CHECK(classify_collection(kVendorId, kProductId, kUsagePage, kUsage) ==
           Collection::NormalChannel);
     CHECK(classify_collection(kVendorId, kProductId, kUsagePage, kUsage + 1) ==
           Collection::NormalChannel);
-    CHECK(classify_collection(kConfigVendorId, kConfigProductId, kUsagePage, 0x10) ==
+    CHECK(classify_collection(kVendorId, kProductId, kUsagePage, kConfigApiUsage) ==
           Collection::ConfigApi);
-    CHECK(classify_collection(kConfigVendorId, kConfigProductId, kUsagePage, kUsage) ==
+    CHECK(classify_collection(kVendorId, kProductId, kUsagePage, kConfigUsage) ==
           Collection::ConfigChannel);
-    CHECK(classify_collection(kConfigVendorId, kConfigProductId, kUsagePage, kUsage + 1) ==
+    CHECK(classify_collection(kVendorId, kProductId, kUsagePage, kUsage + 2) ==
           Collection::None);
+    CHECK(classify_collection(kVendorId, kProductId, 0x01, kUsage) == Collection::None);
+    CHECK(classify_collection(kVendorId, kProductId + 1, kUsagePage, kUsage) == Collection::None);
 
     /* The API can appear first: presence is config mode, then the helper
        channel's arrival asks the session to acquire it. */

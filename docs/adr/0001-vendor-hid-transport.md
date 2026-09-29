@@ -139,8 +139,9 @@ a transport discriminator, and it is the real residual risk on either transport.
   BIOS/UEFI tolerance question that carries. **CDC would have required the same change** — neither
   transport is present in the normal-mode descriptor today.
 - Helpers still locate the device by identifier + serial, never by port name or device path.
-- Config mode still reboots under a different USB identity. Each reboot ends the old session and
-  the helper opens the channel offered by the new identity.
+- Config mode still reboots under a different interface set. Each reboot ends the old session and
+  the helper opens the channel offered by the new set. (Until #20 config mode also had its own USB
+  identity; both modes now share `1209:D35C` and the helpers tell them apart by usage.)
 - The framing, priority discipline and chunking design in #37 are transport-agnostic and carry over.
 
 ### Changed elsewhere

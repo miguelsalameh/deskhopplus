@@ -85,7 +85,7 @@ Baseline on stock firmware for comparison: two nodes, both flagged, and the scri
 
 ```
 powershell -ExecutionPolicy Bypass -File tools\windows-checks\Confirm-HidExclusivity.ps1 `
-    -Check A,E -VendorId 0x1209 -ProductId 0xC000 -Usage 0x20
+    -Check A,E -VendorId 0x1209 -ProductId 0xD35C -Usage 0x20
 ```
 
 (The parameters are named in full because a PowerShell parameter binds a variable of the same
@@ -98,7 +98,7 @@ being measured.
 prefers a vendor collection supporting feature reports — and the channel deliberately has
 none, so the heuristic would skip it, measure some unrelated vendor device on the laptop, and
 report a pass that says nothing about this device. With them, a run that cannot find the
-channel fails visibly instead. Confirm the `TARGET:` line names VID `0x1209` / PID `0xC000`
+channel fails visibly instead. Confirm the `TARGET:` line names VID `0x1209` / PID `0xD35C`
 before recording anything below.
 
 - [ ] The device appears in Device Manager with no driver installation and no unknown device

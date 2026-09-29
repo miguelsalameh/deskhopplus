@@ -310,7 +310,7 @@ if let fh = FileHandle(forReadingAtPath: logPath) {
 
 let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
 IOHIDManagerSetDeviceMatching(manager, [
-    kIOHIDVendorIDKey: 0x1209, kIOHIDProductIDKey: 0xC000,
+    kIOHIDVendorIDKey: 0x1209, kIOHIDProductIDKey: 0xD35C,
     kIOHIDDeviceUsagePageKey: 0xFF00, kIOHIDDeviceUsageKey: 0x20,
 ] as CFDictionary)
 IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))

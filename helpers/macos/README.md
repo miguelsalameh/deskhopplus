@@ -152,8 +152,8 @@ cannot use. It retries, says nothing at first because a partial acquisition is o
 reports *Device not connected* if the failure lasts. The log line carries the real reason; tick
 **Debug logging** first, or there is no log line.
 
-Nothing is shown during a brief disappearance. Entering config mode reboots the device under a
-different USB identity for up to five minutes and then reboots back — that is normal operation,
+Nothing is shown during a brief disappearance. Entering config mode reboots the device with a
+different interface set for up to five minutes and then reboots back — that is normal operation,
 not an error, and it is reported distinctly from the device being absent.
 
 **A rate is a state too.** Every one of those silences is correctly judged too brief to report, so

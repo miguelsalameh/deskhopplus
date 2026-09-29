@@ -65,22 +65,31 @@ bold=$'\033[1m'; red=$'\033[31m'; green=$'\033[32m'; yellow=$'\033[33m'; off=$'\
 # the whole registry takes ~2 s to produce and parse, which is a poor
 # instrument for a run measured against a 330 s deadline.
 #
-#   0x1209/0xc000  DeskHop Switch, running firmware
-#   0x2e8a/0x107c  config mode, with the UF2 disk
+#   0x1209/0xd35c  "DeskHopPlus", running firmware
+#   0x1209/0xd35c  "DeskHopPlus Config", config mode, with the UF2 disk
 #   0x2e8a/0x0003  RPI-RP2, the ROM bootloader
+#
+# Both firmware modes share one USB identity (#20), so the product name
+# tells them apart.
 #
 # ROM beats config beats normal: if the board has landed in ROM that is the
 # answer, whatever a ghost mount is still holding open.
 state() {
     ioreg -p IOUSB -l -w 0 2>/dev/null | awk '
-        /\+-o /                        { if (v && p) ids[v ":" p] = 1; v=""; p="" }
-        /"idVendor" *= *[0-9]+/        { v=$3 }
-        /"idProduct" *= *[0-9]+/       { p=$3 }
+        function flush() {
+            if (v == 11914 && p == 3) ids["rom"] = 1
+            if (v == 4617 && p == 54108) ids[n ~ /Config/ ? "config" : "normal"] = 1
+            v = ""; p = ""; n = ""
+        }
+        /\+-o /                   { flush() }
+        /"idVendor" *= *[0-9]+/    { v=$3 }
+        /"idProduct" *= *[0-9]+/   { p=$3 }
+        /"USB Product Name" *= */  { n=$0 }
         END {
-            if (v && p) ids[v ":" p] = 1
-            if ("11914:3"     in ids) { print "rom";    exit }
-            if ("11914:4220"  in ids) { print "config"; exit }
-            if ("4617:49152"  in ids) { print "normal"; exit }
+            flush()
+            if ("rom"    in ids) { print "rom";    exit }
+            if ("config" in ids) { print "config"; exit }
+            if ("normal" in ids) { print "normal"; exit }
             print "none"
         }'
 }

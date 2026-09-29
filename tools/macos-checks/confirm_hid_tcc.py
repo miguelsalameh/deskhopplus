@@ -25,7 +25,7 @@ The keyboard and mouse nodes being flagged is expected and harmless -- nothing
 opens them. Only the channel node's answer decides the acceptance criterion.
 
 Usage:
-    python3 tools/macos-checks/confirm_hid_tcc.py [--vid 0x1209] [--pid 0xc000]
+    python3 tools/macos-checks/confirm_hid_tcc.py [--vid 0x1209] [--pid 0xd35c]
 
 Exit status is 0 only when the channel node is present and unflagged.
 """
@@ -35,10 +35,10 @@ import plistlib
 import subprocess
 import sys
 
-# Normal mode identifiers. Config mode reboots under a different identity and
-# has no channel interface, so it is not what this script looks for.
+# The board's identifiers, shared by both modes since #20. The script looks at
+# normal mode; config mode's channel sits at usage 0x30, not 0x20.
 DEFAULT_VID = 0x1209
-DEFAULT_PID = 0xC000
+DEFAULT_PID = 0xD35C
 
 VENDOR_PAGE_MIN = 0xFF00
 CHANNEL_USAGE = 0x20  # TUD_HID_REPORT_DESC_CHANNEL

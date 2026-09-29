@@ -155,7 +155,7 @@ void set_local_boot_mouse_mode(bool boot);
 // Vendor Config Descriptor Template
 #define TUD_HID_REPORT_DESC_VENDOR_CTRL(...) \
   HID_USAGE_PAGE_N ( HID_USAGE_PAGE_VENDOR, 2 )             ,\
-  HID_USAGE      ( 0x10 )                                   ,\
+  HID_USAGE      ( DH_CHANNEL_CONFIG_API_USAGE )            ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION )             ,\
     /* Report ID if any */\
     __VA_ARGS__ \

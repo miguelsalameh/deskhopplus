@@ -18,19 +18,14 @@
 // Device Descriptors
 //--------------------------------------------------------------------+
 
-                                        // https://github.com/raspberrypi/usb-pid
-tusb_desc_device_t const desc_device_config = DEVICE_DESCRIPTOR(DH_CHANNEL_CONFIG_VENDOR_ID, DH_CHANNEL_CONFIG_PRODUCT_ID);
-
-                                        // https://pid.codes/1209/C000/
+// https://pid.codes/1209/D35C/ - both modes. Config mode differs by its
+// interfaces and product string, not by its USB identity.
 tusb_desc_device_t const desc_device = DEVICE_DESCRIPTOR(DH_CHANNEL_VENDOR_ID, DH_CHANNEL_PRODUCT_ID);
 
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
 uint8_t const *tud_descriptor_device_cb(void) {
-    if (global_state.config_mode_active)
-        return (uint8_t const *)&desc_device_config;
-    else
-        return (uint8_t const *)&desc_device;
+    return (uint8_t const *)&desc_device;
 }
 
 //--------------------------------------------------------------------+
@@ -53,6 +48,9 @@ uint8_t const desc_hid_report_vendor[] = {TUD_HID_REPORT_DESC_VENDOR_CTRL(HID_RE
    CHANNEL_REPORT_SIZE packet carried opaquely. */
 uint8_t const desc_hid_report_channel[] = {TUD_HID_REPORT_DESC_CHANNEL(DH_CHANNEL_USAGE)};
 uint8_t const desc_hid_report_channel_1[] = {TUD_HID_REPORT_DESC_CHANNEL(DH_CHANNEL_USAGE + 1)};
+/* Config mode's one channel has its own usage: it is how a helper tells the
+   two modes apart under one USB identity. */
+uint8_t const desc_hid_report_channel_config[] = {TUD_HID_REPORT_DESC_CHANNEL(DH_CHANNEL_CONFIG_USAGE)};
 
 
 // Invoked when received GET HID REPORT DESCRIPTOR
@@ -69,7 +67,7 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance) {
             return global_state.config_mode_active ? desc_hid_report_vendor
                                                    : desc_hid_report_channel;
         case ITF_NUM_HID_CHANNEL_1:
-            return global_state.config_mode_active ? desc_hid_report_channel
+            return global_state.config_mode_active ? desc_hid_report_channel_config
                                                    : desc_hid_report_channel_1;
         default:
             return desc_hid_report;
@@ -150,11 +148,11 @@ bool tud_keyboard_report(const hid_keyboard_report_t *report) {
 // array of pointer to string descriptors
 char const *string_desc_arr[] = {
     (const char[]){0x09, 0x04}, // 0: is supported language is English (0x0409)
-    "Hrvoje Cavrak",            // 1: Manufacturer
+    "Derek Reynolds",           // 1: Manufacturer
 #ifdef DH_DEV_NO_AUTH
-    "DeskHop Switch (dev)",     // 2: Product, marked: channel authentication is compiled out
+    "DeskHopPlus (dev)",        // 2: Product, marked: channel authentication is compiled out
 #else
-    "DeskHop Switch",           // 2: Product
+    "DeskHopPlus",              // 2: Product
 #endif
     "0",                        // 3: Serials, should use chip ID
     "DeskHop Helper",           // 4: Mouse Helper Interface
@@ -165,6 +163,13 @@ char const *string_desc_arr[] = {
     "DeskHop Debug",            // 8: Debug Interface
 #endif
 };
+
+/* Config mode shares the USB identity, so its product string names it. */
+#ifdef DH_DEV_NO_AUTH
+#define CONFIG_MODE_PRODUCT "DeskHopPlus Config (dev)"
+#else
+#define CONFIG_MODE_PRODUCT "DeskHopPlus Config"
+#endif
 
 // String Descriptor Index
 enum {
@@ -207,6 +212,8 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
             return NULL;
 
         const char *str = (index == STRID_SERIAL) ? serial_number : string_desc_arr[index];
+        if (index == STRID_PRODUCT && global_state.config_mode_active)
+            str = CONFIG_MODE_PRODUCT;
 
         // Cap at max char
         chr_count = strlen(str);
@@ -355,7 +362,7 @@ uint8_t const desc_configuration_config[] = {
        not an HID instance. Keep WebHID config on instance 2 and the disk. */
     TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_HID_CONFIG_CHANNEL,
                              STRID_CHANNEL, HID_ITF_PROTOCOL_NONE,
-                             sizeof(desc_hid_report_channel),
+                             sizeof(desc_hid_report_channel_config),
                              EPNUM_CONFIG_CHANNEL_OUT, EPNUM_CONFIG_CHANNEL_IN,
                              CHANNEL_REPORT_SIZE, 1),
 #ifdef DH_DEBUG

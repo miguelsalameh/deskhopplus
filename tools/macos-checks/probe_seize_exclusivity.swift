@@ -8,7 +8,7 @@ import Foundation
 import IOKit
 import IOKit.hid
 
-let vendorID = 0x1209, productID = 0xC000, usagePage = 0xFF00, usage = 0x20
+let vendorID = 0x1209, productID = 0xD35C, usagePage = 0xFF00, usage = 0x20
 let seconds = CommandLine.arguments.count > 1 ? Double(CommandLine.arguments[1])! : 8
 
 let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))

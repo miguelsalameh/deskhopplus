@@ -153,11 +153,11 @@ on 2026-08-12, for what was really a dropped packet.
 
 **The LED is still not a mode indicator during an upgrade.** In config mode the once-a-second
 config blink now runs at the same time as the per-block `toggle_led` of a UF2 drop, and the two
-overlap for the few seconds a drop takes. **Use the USB identity** — `0x2e8a/0x107c` is config
-mode, `0x1209/0xc000` is normal:
+overlap for the few seconds a drop takes. **Use the USB product name** — both modes are
+`0x1209/0xd35c` since #20; "DeskHopPlus Config" is config mode, "DeskHopPlus" is normal:
 
 ```sh
-system_profiler SPUSBDataType | grep -A4 "DeskHop Switch" | grep -E "Product ID|Vendor ID"
+system_profiler SPUSBDataType | grep -E "^ *DeskHopPlus"
 ```
 
 ### Reading a running version without the DESKHOP volume
@@ -852,7 +852,7 @@ By hand it is:
 2. `sudo mount -t msdos /dev/diskN /Volumes/DESKHOP` at ~`T`+10 s — confirm the node, it moves
 3. At `T`+280 s, `dd if=build/deskhop.uf2 of=/Volumes/DESKHOP/part.uf2 bs=512 count=16`
 4. Immediately `sudo umount -f /Volumes/DESKHOP`
-5. Watch `ioreg` for `0x2e8a/0x107c` → `0x1209/0xc000`
+5. Watch `ioreg` for "DeskHopPlus Config" → "DeskHopPlus" (both `0x1209/0xd35c` since #20; before it, `0x2e8a/0x107c` → `0x1209/0xc000`)
 
 Those 16 blocks are blocks 0-15 of the running image, `0x10000000`-`0x10000f00` — exactly one
 4096-byte sector. Block 0 starts the sector so `write_flash_page` erases it once, and the following

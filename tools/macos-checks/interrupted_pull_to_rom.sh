@@ -51,18 +51,25 @@ SAVED="${DH_SAVED:-$HOME/deskhop-rom-$(date +%Y%m%d-%H%M%S).uf2}"
 bold=$'\033[1m'; red=$'\033[31m'; green=$'\033[32m'; yellow=$'\033[33m'; off=$'\033[0m'
 
 # Shares its reasoning with config_timeout_with_stall.sh: pair idVendor with
-# idProduct inside each device block, and use `-p IOUSB` rather than the
-# whole-registry plist, which costs ~2 s a sample.
+# idProduct (and, for this board, the product name) inside each device
+# block, and use `-p IOUSB` rather than the whole-registry plist, which costs
+# ~2 s a sample.
 state() {
     ioreg -p IOUSB -l -w 0 2>/dev/null | awk '
-        /\+-o /                  { if (v && p) ids[v ":" p] = 1; v=""; p="" }
-        /"idVendor" *= *[0-9]+/  { v=$3 }
-        /"idProduct" *= *[0-9]+/ { p=$3 }
+        function flush() {
+            if (v == 11914 && p == 3) ids["rom"] = 1
+            if (v == 4617 && p == 54108) ids[n ~ /Config/ ? "config" : "normal"] = 1
+            v = ""; p = ""; n = ""
+        }
+        /\+-o /                   { flush() }
+        /"idVendor" *= *[0-9]+/    { v=$3 }
+        /"idProduct" *= *[0-9]+/   { p=$3 }
+        /"USB Product Name" *= */  { n=$0 }
         END {
-            if (v && p) ids[v ":" p] = 1
-            if ("11914:3"    in ids) { print "rom";    exit }
-            if ("11914:4220" in ids) { print "config"; exit }
-            if ("4617:49152" in ids) { print "normal"; exit }
+            flush()
+            if ("rom"    in ids) { print "rom";    exit }
+            if ("config" in ids) { print "config"; exit }
+            if ("normal" in ids) { print "normal"; exit }
             print "none"
         }'
 }

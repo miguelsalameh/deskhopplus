@@ -458,7 +458,7 @@ void dh_helper_device_appeared(dh_helper *h, dh_device_identity which, uint32_t 
     note_started(h, now_ms);
     /*
      * Keyed on *any* identity appearing, not on the normal one. Config mode
-     * reboots the device under a different identity, and a helper started
+     * reboots the device with a different interface set, and a helper started
      * during that window would otherwise leave the never-attached fallback
      * armed and decay to "device not connected" five seconds in — #73, fixed
      * in 61e9127 and carried down here rather than re-derived, in one place

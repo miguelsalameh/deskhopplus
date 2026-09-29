@@ -216,13 +216,15 @@ std::vector<HidTransport::Found> HidTransport::sweep(size_t &config_api_nodes) c
         if (!borrowed) CloseHandle(probe);
         if (!described) continue;
 
-        switch (classify_collection(attrs.VendorID, attrs.ProductID, caps.UsagePage, caps.Usage)) {
+        const Collection kind =
+            classify_collection(attrs.VendorID, attrs.ProductID, caps.UsagePage, caps.Usage);
+        switch (kind) {
         case Collection::ConfigApi:
             ++config_api_nodes;
             break;
         case Collection::NormalChannel:
         case Collection::ConfigChannel: {
-            const Mode mode = attrs.VendorID == kConfigVendorId ? Mode::Config : Mode::Normal;
+            const Mode mode = kind == Collection::ConfigChannel ? Mode::Config : Mode::Normal;
             found.push_back(Found{detail->DevicePath, serial, caps.InputReportByteLength,
                                   caps.OutputReportByteLength,
                                   mode == Mode::Config ? uint8_t{0}

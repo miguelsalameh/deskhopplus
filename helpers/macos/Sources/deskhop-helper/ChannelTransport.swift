@@ -25,14 +25,16 @@ final class ChannelTransport {
     private final class Channel {
         let device: IOHIDDevice
         let index: UInt8
+        let mode: DeviceIdentity
         weak var transport: ChannelTransport?
         /* IOKit writes input reports into this buffer for the lifetime of the
            callback registration, so it outlives every call. */
         let buffer: UnsafeMutablePointer<UInt8>
         var opened = false
 
-        init(device: IOHIDDevice, index: UInt8, transport: ChannelTransport) {
+        init(device: IOHIDDevice, index: UInt8, mode: DeviceIdentity, transport: ChannelTransport) {
             self.index = index
+            self.mode = mode
             self.transport = transport
             self.device = device
             self.buffer = .allocate(capacity: ChannelIdentity.reportSize)
@@ -62,28 +64,18 @@ final class ChannelTransport {
 
     func start() {
         /*
-         * Match narrowly: the vendor usage page and the channel's own usage,
-         * plus the identifier. Broad matching would open a keyboard and
+         * Match narrowly: the identifier and the vendor usage page, which
+         * holds only the helper channels and, in config mode, the config API
+         * (seen for presence). Broad matching would open a keyboard and
          * trigger an Input Monitoring prompt — the mistake behind most public
          * claims that HID access requires one (ADR-0001).
-         *
-         * The config-mode identity also matches its config API (usage 0x10)
-         * for presence, and its separate helper channel (usage 0x20).
          */
-        let normal: [String: Any] = [
+        let matching: [String: Any] = [
             kIOHIDVendorIDKey: ChannelIdentity.vendorID,
             kIOHIDProductIDKey: ChannelIdentity.productID,
             kIOHIDDeviceUsagePageKey: ChannelIdentity.usagePage,
-            kIOHIDDeviceUsageKey: ChannelIdentity.usage,
         ]
-        let configMode: [String: Any] = [
-            kIOHIDVendorIDKey: ChannelIdentity.configVendorID,
-            kIOHIDProductIDKey: ChannelIdentity.configProductID,
-            kIOHIDDeviceUsagePageKey: ChannelIdentity.usagePage,
-        ]
-        var secondary = normal
-        secondary[kIOHIDDeviceUsageKey] = ChannelIdentity.usage + 1
-        IOHIDManagerSetDeviceMatchingMultiple(manager, [normal, secondary, configMode] as CFArray)
+        IOHIDManagerSetDeviceMatching(manager, matching as CFDictionary)
 
         let context = Unmanaged.passUnretained(self).toOpaque()
         IOHIDManagerRegisterDeviceMatchingCallback(manager, { context, _, _, device in
@@ -113,7 +105,15 @@ final class ChannelTransport {
     }
 
     private func matched(_ device: IOHIDDevice) {
-        let mode = identity(of: device)
+        /* `DeviceUsage` is a *matching* key only; as a property it reads nil
+           on every macOS tested, which silently dropped every channel (#176).
+           The value lives under `PrimaryUsage`. */
+        guard let kind = ChannelIdentity.collection(
+            usage: property(device, kIOHIDPrimaryUsageKey) as? Int) else {
+            log?("ignoring a vendor collection with usage \(String(describing: property(device, kIOHIDPrimaryUsageKey)))")
+            return
+        }
+        let mode = kind.mode
         let deviceSerial = property(device, kIOHIDSerialNumberKey) as? String
         if let known = serial, let deviceSerial, known != deviceSerial {
             /* Behaviour with more than one device attached is out of scope
@@ -122,7 +122,7 @@ final class ChannelTransport {
             log?("ignoring a second device with serial \(deviceSerial); holding \(known)")
             return
         }
-        if let first = channels.first, identity(of: first.device) != mode {
+        if let first = channels.first, first.mode != mode {
             release()
             channels.removeAll()
             serial = nil
@@ -133,33 +133,29 @@ final class ChannelTransport {
             configModeNodes.append(device)
         }
 
-        /* `DeviceUsage` is a *matching* key only; as a property it reads nil
-           on every macOS tested, which silently dropped every channel (#176).
-           The value lives under `PrimaryUsage`. */
-        guard !channels.contains(where: { $0.device == device }),
-              let usage = property(device, kIOHIDPrimaryUsageKey) as? Int,
-              (mode == .configMode ? usage == ChannelIdentity.usage
-                                   : (ChannelIdentity.usage...ChannelIdentity.usage + 1).contains(usage)) else {
-            if mode == .configMode { onEvent?(.deviceAppeared(.configMode)) }
+        let index: UInt8
+        switch kind {
+        case .normalChannel(let n): index = n
+        case .configChannel: index = 0
+        case .configApi:
+            onEvent?(.deviceAppeared(.configMode))
             return
         }
+        guard !channels.contains(where: { $0.device == device }) else { return }
         if isHoldingChannels {
             release()
             onEvent?(.transportFailed("channel set changed"))
         }
-        channels.append(Channel(device: device,
-                                index: mode == .configMode ? 0 : UInt8(usage - ChannelIdentity.usage),
-                                transport: self))
+        channels.append(Channel(device: device, index: index, mode: mode, transport: self))
         channels.sort { $0.index < $1.index }
         log?("channel found on serial \(serial ?? "(none exposed)"): \(channels.count) so far")
-        onEvent?(.deviceAppeared(mode == .configMode ? .configMode : .normal))
+        onEvent?(.deviceAppeared(mode))
     }
 
     private func removed(_ device: IOHIDDevice) {
-        if identity(of: device) == .configMode {
-            guard configModeNodes.contains(device) else { return }
-            configModeNodes.removeAll { $0 == device }
-        }
+        /* Read nothing off a device that is going away: what this helper
+           recorded when it matched says what the device was. */
+        configModeNodes.removeAll { $0 == device }
 
         guard channels.contains(where: { $0.device == device }) else {
             if configModeNodes.isEmpty && channels.isEmpty { onEvent?(.deviceDisappeared) }
@@ -178,13 +174,6 @@ final class ChannelTransport {
             serial = nil
             onEvent?(.deviceDisappeared)
         }
-    }
-
-    private enum Identity { case normal, configMode }
-
-    private func identity(of device: IOHIDDevice) -> Identity {
-        let vendor = property(device, kIOHIDVendorIDKey) as? Int
-        return vendor == ChannelIdentity.configVendorID ? .configMode : .normal
     }
 
     private func property(_ device: IOHIDDevice, _ key: String) -> Any? {

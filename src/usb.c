@@ -59,8 +59,8 @@ void tud_umount_cb(void) {
     discard_queued_host_reports();
     set_local_boot_mouse_mode(false);
 
-    /* The channel went with it. Config mode reboots the device under a
-       different USB identity, so this is also the ordinary path in and out of
+    /* The channel went with it. Config mode reboots the device with a
+       different interface set, so this is also the ordinary path in and out of
        it — the helper reconnects and says hello again.
 
        channel_link_lost and not channel_init, which would take an open

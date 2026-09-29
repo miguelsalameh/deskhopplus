@@ -6,8 +6,9 @@
  * How the helper finds the device — by USB identifier, serial and usage page,
  * never by a device interface path. Paths are not stable across reconnects on
  * either platform, and the interface disappearing and returning is normal
- * operation here: entering config mode reboots the device under a *different*
- * USB identity for up to five minutes, then reboots back (ADR-0001).
+ * operation here: entering config mode reboots the device with a *different*
+ * interface set for up to five minutes, then reboots back (ADR-0001). Both
+ * modes share one USB identity; the usage says which mode a collection is.
  *
  * The USB identity comes from the shared core, as it does for the firmware
  * and ChannelIdentity.swift. Every negotiated value comes off the device's
@@ -22,13 +23,9 @@
 
 namespace deskhop {
 
-/* Normal mode: pid.codes/1209/C000. */
+/* pid.codes/1209/D35C, in both modes. */
 inline constexpr uint16_t kVendorId = DH_CHANNEL_VENDOR_ID;
 inline constexpr uint16_t kProductId = DH_CHANNEL_PRODUCT_ID;
-
-/* Config mode has separate config API and helper channel collections. */
-inline constexpr uint16_t kConfigVendorId = DH_CHANNEL_CONFIG_VENDOR_ID;
-inline constexpr uint16_t kConfigProductId = DH_CHANNEL_CONFIG_PRODUCT_ID;
 
 /*
  * Match on the vendor page and the channel's own usage, nothing wider. Broad
@@ -37,20 +34,21 @@ inline constexpr uint16_t kConfigProductId = DH_CHANNEL_CONFIG_PRODUCT_ID;
  */
 inline constexpr uint16_t kUsagePage = DH_CHANNEL_USAGE_PAGE;
 inline constexpr uint16_t kUsage = DH_CHANNEL_USAGE;
+/* Config mode has separate config API and helper channel collections. */
+inline constexpr uint16_t kConfigApiUsage = DH_CHANNEL_CONFIG_API_USAGE;
+inline constexpr uint16_t kConfigUsage = DH_CHANNEL_CONFIG_USAGE;
 
 enum class Collection { None, NormalChannel, ConfigApi, ConfigChannel };
 enum class Mode { None, Normal, Config };
 
 inline Collection classify_collection(uint16_t vendor, uint16_t product, uint16_t page,
                                       uint16_t usage) {
-    if (page != kUsagePage) return Collection::None;
-    if (vendor == kVendorId && product == kProductId && usage >= kUsage &&
-        usage < kUsage + DH_SESSION_CHANNEL_COUNT)
+    if (vendor != kVendorId || product != kProductId || page != kUsagePage)
+        return Collection::None;
+    if (usage >= kUsage && usage < kUsage + DH_SESSION_CHANNEL_COUNT)
         return Collection::NormalChannel;
-    if (vendor == kConfigVendorId && product == kConfigProductId) {
-        if (usage == 0x10) return Collection::ConfigApi;
-        if (usage == kUsage) return Collection::ConfigChannel;
-    }
+    if (usage == kConfigApiUsage) return Collection::ConfigApi;
+    if (usage == kConfigUsage) return Collection::ConfigChannel;
     return Collection::None;
 }
 
