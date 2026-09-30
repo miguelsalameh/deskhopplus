@@ -30,8 +30,9 @@ What it tells us:
   sleep timeout **do**.
 - **Exit.** `PBT_APMRESUMEAUTOMATIC` arrives when DAM releases desktop apps,
   that is, when the screen comes back on. Microsoft does not guarantee when it
-  arrives relative to the actual exit. Maintenance wakes during standby do not
-  release desktop apps, so they send no resume.
+  arrives relative to the actual exit. **Wrong on Derek's PC:** a maintenance
+  wake right after entry also sends it, with the screen still off (see
+  Hardware results).
 - **Time to act.** The helper can send one HID report inside the handler. On
   S3, Microsoft gives about 2 s per app. Under DAM, the timeout is global and
   lasts "a few seconds". One interrupt OUT report needs about 1 ms.
@@ -51,19 +52,41 @@ off selective suspend for HID devices by default. **[INFERENCE]** The board's
 HID interfaces stay in D0, so the board sees no bus suspend. That matches what
 Derek saw on 2026-09-29.
 
-**Probe.** A separate throwaway probe is not needed. Real apps confirm the API
-works (see the table below). Put the registration and a debug-log line into the
-helper as the first step of #293. Then run #292's five cases once, with Debug
-logging on. That run must confirm on Derek's PC:
+## Hardware results (2026-09-30)
 
-1. `PBT_APMSUSPEND` arrives for Start > Sleep, the power button, and an idle
-   sleep timeout. Log its delay after the screen goes off.
-2. It does **not** arrive for a display-off timeout alone.
-3. The "asleep" report sent inside the handler reaches the board (board log),
-   so DAM does not freeze the helper before the write ends.
-4. `PBT_APMRESUMEAUTOMATIC` arrives on a key wake and on a mouse wake.
-5. The board still sees no USB suspend, also after a long sleep (more than
-   10 minutes, in DRIPS).
+Run on Derek's PC with the #293 logging build (63358c953), Debug logging on.
+Helper log times were matched to wall clock through cursor crossings in the
+Mac helper log, and checked against `powercfg /sleepstudy`. Full data is on
+[#292](https://github.com/myn/deskhopplus/issues/292).
+
+- **Start > Sleep sends `PBT_APMSUSPEND`**, every time (4 of 4). The
+  registration logged no error.
+- **The "asleep" report gets out.** The beat sent inside the handler logged
+  `sent in 0 ms` every time. The helper is frozen after that: on each real
+  standby the board ended the session with a liveness timeout.
+- **Display-off alone sends nothing.** Two display-off timeouts (4 min and
+  14 min, sleep study "Video Idle Timeout", no Sleep session) logged no
+  `PBT_APMSUSPEND`.
+- **A maintenance wake sends `PBT_APMRESUMEAUTOMATIC` with the screen dark.**
+  This corrects §1.1 and the Answer above. On this PC, every Start > Sleep
+  exits standby within 1 s ("PDC Task Client: Maintenance Scheduler"), sends
+  the resume, keeps the screen off, and re-enters standby about 40 s later
+  with a second `PBT_APMSUSPEND`. So the helper must not report "awake" on
+  `PBT_APMRESUMEAUTOMATIC`. It must wait for a sign of the user (screen on,
+  or `PBT_APMRESUMESUSPEND`). Which of these fires on a Modern Standby user
+  wake is not logged yet; #293 must log it before relying on it.
+- **Key and mouse wakes send `PBT_APMRESUMEAUTOMATIC`.**
+- **No USB suspend, also after more than 10 min in standby.** The Mac did not
+  sleep, so the board did not see a suspend.
+- **The power button and idle sleep do not sleep this PC.** Two USB audio
+  devices hold a SYSTEM power request ("An audio stream is currently in
+  use"), which blocks idle sleep. The physical button's action is hidden by
+  the managed power plan. Neither sent a signal, which is correct: the PC was
+  not asleep.
+- After the >10 min standby, board B stopped sending to Windows (a held key
+  flooded the login box). Tracked in
+  [#295](https://github.com/myn/deskhopplus/issues/295); not caused by the
+  signal.
 
 ---
 
@@ -110,8 +133,9 @@ logging on. That run must confirm on Derek's PC:
     higher (the helper) are *suspended*. Session 0 services are *throttled*,
     and get no notification.
 - On resume, `PBT_APMRESUMEAUTOMATIC` is "sent every time the system resumes".
-  `PBT_APMRESUMESUSPEND` follows only for a wake from user input. Use
-  `PBT_APMRESUMEAUTOMATIC`.
+  `PBT_APMRESUMESUSPEND` follows only for a wake from user input. The hardware
+  run shows `PBT_APMRESUMEAUTOMATIC` also fires on a maintenance wake, so it
+  does not mean the user is back.
   ([WM_POWERBROADCAST](https://learn.microsoft.com/en-us/windows/win32/power/wm-powerbroadcast))
 - Pointer only (forum): a Microsoft Q&A thread on Windows 10 2004 recommends
   `RegisterSuspendResumeNotification` after Modern Standby became the default
@@ -140,7 +164,9 @@ From [Prepare software for modern standby](https://learn.microsoft.com/en-us/win
   7. **Resiliency**: DRIPS, with brief wakes.
 - "Windows prevents desktop applications from running during any part of
   modern standby after completing the DAM phase." So maintenance wakes during
-  *Sleep* do not run the helper, and do not send a false "awake".
+  *Sleep* should not run the helper. **Not so on Derek's PC:** the maintenance
+  exit right after entry ends the *Sleep* session and sends a resume (see
+  Hardware results).
 
 **[INFERENCE]** The DAM message separates sleep from display-off. On a
 display-off timeout, the system waits in No-CS for the sleep timeout. DAM does
