@@ -250,6 +250,15 @@ The green LED on each board, lit on the board whose computer is the active outpu
 to go dark after a time, and config mode always blinks it.
 _Avoid_: status light, indicator (the keyboard's caps-lock light can also act as one), power light
 
+**Sleep sync**:
+The setting that makes both computers sleep and wake together; off by default. Only the active
+output's computer going to sleep puts the other to sleep, so an idle computer you are not using
+sleeps alone. A key press or mouse move while the active output's computer is asleep wakes both;
+a computer that wakes by itself (lid, power button, a timer) wakes alone. "Sleep" is system sleep:
+a screen that only goes dark or locks is not sleep. A shutdown the board cannot tell from sleep
+counts as sleep.
+_Avoid_: power sync, sleep mirroring, standby (Windows' word for one kind of sleep)
+
 **Config chord**:
 The fixed hotkey (Left Ctrl + Right Shift + C + O) that always opens config mode, whatever the
 hotkey table says. The table's own config-mode row is a second, settable way in.
