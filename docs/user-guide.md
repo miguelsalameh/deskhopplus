@@ -316,6 +316,9 @@ the computer you use goes to sleep, the other computer goes to sleep too, and it
 
 - Only the computer that has the keyboard and mouse starts this. It must stay asleep for 5 seconds
   first, so a short USB power-saving blip does nothing.
+- A Mac turns its screen off first, then can stay in a half-awake state (DarkWake) for up to about
+  30 seconds before it really sleeps. The 5 seconds start only then. So the other computer can go
+  to sleep 20 to 35 seconds after the Mac screen goes dark.
 - The other board then presses the System Sleep key on its computer. It does not press it if that
   computer is already asleep.
 - A computer you are not using that goes to sleep from idle sleeps alone. Its idle timer only counts
