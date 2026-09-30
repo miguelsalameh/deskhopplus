@@ -180,7 +180,7 @@ static void relay_to_peer(channel_lifecycle *c, const dh_frame_view *frame, cons
 
 static void on_frame(channel_lifecycle *c, const dh_frame_view *frame, uint32_t now,
                      void *context) {
-    if (dh_msg_is_bulk(frame->hdr.type) ||
+    if (dh_msg_is_bulk(frame->hdr.type) || frame->hdr.type == DH_MSG_HOST_SLEEP ||
         (frame->hdr.type >= DH_MSG_PLACE && frame->hdr.type <= DH_MSG_POS_RESPONSE)) {
         const uint8_t *body = NULL;
         size_t body_len = 0;
@@ -190,6 +190,8 @@ static void on_frame(channel_lifecycle *c, const dh_frame_view *frame, uint32_t 
             relay_to_peer(c, frame, body, body_len);
         else if (frame->hdr.type == DH_MSG_POS_RESPONSE)
             channel_lifecycle_position(context, body, body_len);
+        else if (frame->hdr.type == DH_MSG_HOST_SLEEP && body_len == 1)
+            channel_lifecycle_host_sleep(context, body[0] != 0);
         return;
     }
     channel_lifecycle_on_frame(c, frame, now);

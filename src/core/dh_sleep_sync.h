@@ -9,9 +9,11 @@
  * pointer when its computer is not suspended (#291). A wake that finds
  * the peer still going to sleep is kept until its computer suspends (#289).
  *
- * "Asleep" is the USB host suspending the device (tud_suspended). A Modern
- * Standby PC can sleep without one, so it never sends sleep, and its peer
- * wakes it with a nudge (#291). The sender
+ * "Asleep" is the USB host suspending the device (tud_suspended), or the
+ * helper saying its computer sleeps (#293). A Modern Standby PC sleeps
+ * without a USB suspend, so without a helper it never sends sleep; its peer
+ * wakes it with a nudge (#291). The helper's word reaches
+ * dh_sleep_sync_helper_says from channel_task (channel.c). The sender
  * asks dh_sleep_sync_step on every pass of sleep_sync_task (tasks.c), and
  * dh_sleep_sync_wake from wake_on_input (tasks.c); the receiver asks
  * dh_sleep_sync_obey_sleep and dh_sleep_sync_peer_wake in
@@ -44,10 +46,27 @@ typedef struct {
                   or input ended it */
     uint64_t asleep_since_us;
     bool woken; /* input in this sleep sent wake; written by dh_sleep_sync_wake on core 0 */
+    bool helper_asleep; /* the helper said its computer sleeps (#293); core 0 writes it */
 } dh_sleep_sync_t;
 
+/* The helper says its computer went to sleep or woke (#293). A Modern
+   Standby PC sleeps with no USB suspend, so its helper tells the board
+   instead. The helper is frozen while the PC sleeps and the board ends its
+   session, so a session end leaves this alone. Input clears it
+   (dh_sleep_sync_wake), so a helper killed before it said awake cannot
+   leave it set. */
+static inline void dh_sleep_sync_helper_says(dh_sleep_sync_t *s, bool asleep) {
+    s->helper_asleep = asleep;
+}
+
+/* This board's computer counts as asleep: USB suspended, or its helper said
+   so. */
+static inline bool dh_sleep_sync_asleep(const dh_sleep_sync_t *s, bool suspended) {
+    return suspended || s->helper_asleep;
+}
+
 /* True once per sleep, on the pass that should send sleep to the peer: the
-   setting is on, and this board's computer has been suspended for
+   setting is on, and this board's computer has been asleep (dh_sleep_sync_asleep) for
    DH_SLEEP_SYNC_WAIT_US while it was the active output all along. A sleep
    during which this board was ever not active never counts, so a switch onto
    a computer asleep from idle does not sleep the one just left. Nor does a
@@ -56,7 +75,7 @@ typedef struct {
    recent. */
 static inline bool dh_sleep_sync_step(dh_sleep_sync_t *s, bool on, bool active, bool suspended,
                                       uint64_t now_us) {
-    if (!suspended) {
+    if (!dh_sleep_sync_asleep(s, suspended)) {
         s->asleep = false;
         return false;
     }
@@ -77,17 +96,19 @@ static inline bool dh_sleep_sync_step(dh_sleep_sync_t *s, bool on, bool active, 
 
 /* True when the peer's sleep should press System Sleep here: the setting is
    on, this board is not the active output, and its computer is awake. */
-static inline bool dh_sleep_sync_obey_sleep(bool on, bool active, bool suspended) {
-    return on && !active && !suspended;
+static inline bool dh_sleep_sync_obey_sleep(bool on, bool active, bool asleep) {
+    return on && !active && !asleep;
 }
 
 /* Called when input reaches this board's computer. True once per sleep, when
    wake should go to the peer: the setting is on, this board is the active
    output, and its computer is asleep. A call while awake clears it for the
    next sleep. A computer that wakes by itself sees no input here, so it
-   wakes alone. */
+   wakes alone. Input also ends a sleep the helper reported (#293). */
 static inline bool dh_sleep_sync_wake(dh_sleep_sync_t *s, bool on, bool active, bool suspended) {
-    if (!suspended) {
+    const bool asleep = dh_sleep_sync_asleep(s, suspended);
+    s->helper_asleep = false;
+    if (!asleep) {
         s->woken = false;
         return false;
     }

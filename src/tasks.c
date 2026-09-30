@@ -263,12 +263,8 @@ void heartbeat_output_task(device_t *state) {
 }
 
 
-/* Sleep sync state: sleep_sync_task (core 1) and wake_on_input (core 0) each
-   write their own fields (#288). */
-static dh_sleep_sync_t sync;
-
 /* Sleep sync (#287): tells the peer once this board's computer, as the
-   active output, has been suspended long enough; dh_sleep_sync_step decides.
+   active output, has been asleep long enough; dh_sleep_sync_step decides.
    A full UART queue leaves it unsent, to be tried again next pass. As the
    receiver, it wakes this computer for a wake kept while it was still going
    to sleep, trying on each suspended pass until the window ends (#289). */
@@ -276,10 +272,10 @@ void sleep_sync_task(device_t *state) {
     uint64_t now = time_us_64();
     bool suspended = tud_suspended();
 
-    if (dh_sleep_sync_step(&sync, state->config.sleep_sync, CURRENT_BOARD_IS_ACTIVE_OUTPUT,
+    if (dh_sleep_sync_step(&state->sleep_sync, state->config.sleep_sync, CURRENT_BOARD_IS_ACTIVE_OUTPUT,
                            suspended, now)
         && !send_value(DH_SLEEP_SYNC_SLEEP, SLEEP_SYNC_MSG))
-        sync.sent = false;
+        state->sleep_sync.sent = false;
 
     if (dh_sleep_sync_peer_step(&state->sleep_sync_peer, suspended, now))
         tud_remote_wakeup();
@@ -295,10 +291,10 @@ void wake_on_input(device_t *state) {
     if (suspended)
         tud_remote_wakeup();
 
-    if (dh_sleep_sync_wake(&sync, state->config.sleep_sync, CURRENT_BOARD_IS_ACTIVE_OUTPUT,
+    if (dh_sleep_sync_wake(&state->sleep_sync, state->config.sleep_sync, CURRENT_BOARD_IS_ACTIVE_OUTPUT,
                            suspended)
         && !send_value(DH_SLEEP_SYNC_WAKE, SLEEP_SYNC_MSG))
-        sync.woken = false;
+        state->sleep_sync.woken = false;
 }
 
 /* Process other outgoing hid report messages. */

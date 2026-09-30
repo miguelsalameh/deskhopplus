@@ -73,12 +73,12 @@ extern "C" {
 #endif
 
 /*
- * 6 as of #275: 0x24 is PEER_HELPER, a one-byte status, where v5 had the
- * empty PEER_PAIRED event. A gate, as v4 and v5 were: a v5 helper would read
- * the byte as a malformed PEER_PAIRED. See docs/protocol.md, "v6 is v5 with
- * PEER_HELPER". tools/gen-frame-vectors.py mirrors it.
+ * 7 as of #293: a new helper-to-board message, HOST_SLEEP (0x11). A gate, as
+ * v4 to v6 were: a v6 board would end the session on the unknown type. See
+ * docs/protocol.md, "v7 is v6 plus HOST_SLEEP". tools/gen-frame-vectors.py
+ * mirrors it.
  */
-#define DH_PROTO_VERSION 6u
+#define DH_PROTO_VERSION 7u
 
 /*
  * Two channels (#63, ADR-0002): the count is negotiated in the hello

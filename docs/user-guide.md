@@ -326,7 +326,8 @@ the computer you use goes to sleep, the other computer goes to sleep too, and it
   sleep.
 - "Sleep" is system sleep. A screen that only goes dark or locks does not count. The board cannot
   tell a shutdown from sleep, so shutting down the computer you use can also sleep the other one.
-- Nothing happens if the other board is unplugged. No helper is needed.
+- Nothing happens if the other board is unplugged. No helper is needed, except on a Windows PC
+  with Modern Standby (below).
 
 **Waking.** With Sleep sync On, a key press or mouse move while the computer you use is asleep wakes
 both computers.
@@ -345,7 +346,12 @@ S3 sleep. To check, run `powercfg /a`. If it lists "Standby (S0 Low Power Idle)"
 Modern Standby. The board cannot see when such a PC goes to sleep, so:
 
 - The other computer sleeping still sleeps this PC.
-- This PC sleeping does not sleep the other computer yet (#293).
+- This PC sleeping sleeps the other computer only if the helper runs on this PC. The helper tells
+  the board when Windows goes to sleep, about 1 second after the screen goes dark. The 5-second
+  wait follows. Without the helper, this PC sleeping does not sleep the other computer.
+- A screen that goes dark on a timeout is not sleep, and the helper does not report it.
+- Windows can wake for a moment by itself right after it goes to sleep, with the screen dark. The
+  other computer stays asleep: only a wake by you counts.
 - A key press while the other computer is asleep still wakes this PC. The board sees the PC as
   awake, so it moves the pointer 1 pixel out and 1 pixel back. Real input wakes Modern Standby. The
   pointer ends where it started, so on a PC that is already awake you see nothing.

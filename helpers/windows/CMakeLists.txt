@@ -111,6 +111,15 @@ if(MSVC)
 endif()
 add_test(NAME debug_logging COMMAND debug_logging_test)
 
+# What the helper tells its board about this PC's sleep (#293), split from
+# WM_POWERBROADCAST the same way.
+add_executable(host_sleep_test tests/host_sleep_test.cpp)
+target_include_directories(host_sleep_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+if(MSVC)
+  target_compile_options(host_sleep_test PRIVATE /WX)
+endif()
+add_test(NAME host_sleep COMMAND host_sleep_test)
+
 add_executable(clipboard_update_test tests/clipboard_update_test.cpp)
 target_include_directories(clipboard_update_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(MSVC)

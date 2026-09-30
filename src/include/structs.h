@@ -208,6 +208,12 @@ typedef struct {
     uint16_t output_arrival_reverse;
     uint8_t next_cursor_query_id;
 
+    /* Sleep sync's sender side (#287): sleep_sync_task (core 1) and
+       wake_on_input (core 0) each write their own fields. helper_asleep
+       is set by channel_task and cleared by wake_on_input, both core 0
+       (#293). */
+    dh_sleep_sync_t sleep_sync;
+
     /* Sleep sync's receiver side: a wake kept while this computer was still
        going to sleep (#289). Core 1 only. */
     dh_sleep_sync_peer_t sleep_sync_peer;

@@ -26,6 +26,10 @@ static uint8_t unavailable_id;
 void channel_lifecycle_position(void *context, const uint8_t *body, size_t len) {
     (void)context; (void)body; (void)len;
 }
+static int host_sleep_said = -1; /* -1: the hook was not called */
+void channel_lifecycle_host_sleep(void *context, bool asleep) {
+    (void)context; host_sleep_said = asleep;
+}
 void channel_lifecycle_update_config(void *context, uint32_t now) {
     (void)context; observed_now = now;
 }
@@ -731,6 +735,42 @@ static void test_each_session_is_told_the_peer_status(void) {
     CHECK(strcmp(peer_helper_after_step(203), "1") == 0);
 }
 
+static void helper_says(uint64_t counter, const uint8_t *body, size_t len, bool tamper) {
+    uint8_t bytes[DH_SESSION_REPLY_MAX], h2b[DH_SESSION_KEY_SIZE], b2h[DH_SESSION_KEY_SIZE];
+    size_t out = 0;
+    dh_auth_derive_session_keys(secret, helper_nonce, board_nonce, h2b, b2h);
+    CHECK(dh_auth_frame(DH_MSG_HOST_SLEEP, 0, h2b, counter, body, len, bytes, sizeof bytes,
+                        &out) == DH_FRAME_OK);
+    if (tamper) bytes[out - 1] ^= 1;
+    receive_bytes(bytes, out);
+    channel_lifecycle_step(&c, 300, NULL);
+}
+
+/* The helper's word on its computer's sleep reaches Sleep sync (#293), and
+   only when it is the helper's: a one-byte body under the session key. */
+static void test_the_helpers_host_sleep_reaches_sleep_sync(void) {
+    init();
+    host_sleep_said = -1;
+    helper_says(0, (const uint8_t[]){1}, 1, false);
+    CHECK(host_sleep_said == 1);
+    helper_says(1, (const uint8_t[]){0}, 1, false);
+    CHECK(host_sleep_said == 0);
+
+    host_sleep_said = -1;
+    helper_says(2, (const uint8_t[]){1, 0}, 2, false);
+    CHECK(host_sleep_said == -1);
+    helper_says(3, (const uint8_t[]){1}, 1, true);
+    CHECK(host_sleep_said == -1);
+
+    /* The helper freezes while the PC sleeps and the board ends its session:
+       that end must not read as awake. */
+    helper_says(4, (const uint8_t[]){1}, 1, false);
+    channel_lifecycle_step(&c, 300 + DH_SESSION_ABSENT_MS + 1000, NULL);
+    CHECK(!c.session.present);
+    channel_lifecycle_link_lost(&c);
+    CHECK(host_sleep_said == 1);
+}
+
 int main(void) {
     test_sustained_two_channel_chunks_preserve_tags_and_bytes();
     test_two_channels_share_one_transfer_credit_window();
@@ -756,6 +796,7 @@ int main(void) {
     test_arrival_waits_for_a_busy_priority_lane();
     test_peer_helper_status_follows_the_peer_heartbeat();
     test_each_session_is_told_the_peer_status();
+    test_the_helpers_host_sleep_reaches_sleep_sync();
     puts("channel lifecycle tests passed");
     return 0;
 }

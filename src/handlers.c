@@ -391,7 +391,7 @@ void handle_sleep_sync_msg(uart_packet_t *packet, device_t *state) {
     if (packet->data[0] != DH_SLEEP_SYNC_SLEEP)
         return;
     if (!dh_sleep_sync_obey_sleep(state->config.sleep_sync, CURRENT_BOARD_IS_ACTIVE_OUTPUT,
-                                  tud_suspended()))
+                                  dh_sleep_sync_asleep(&state->sleep_sync, tud_suspended())))
         return;
 
     uint8_t press = SYSTEM_CONTROL_SLEEP, release = 0;

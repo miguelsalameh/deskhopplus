@@ -14,9 +14,14 @@ board will act on.
 **Old pairings do not migrate.** A migration path would have to accept the old bearer token,
 which is the thing being removed. Recovery is one chord press, by design.
 
+> **v7 is v6 plus HOST_SLEEP** ([#293](https://github.com/myn/deskhopplus/issues/293),
+> [ADR-0015](adr/0015-helper-reports-host-sleep.md)): one new helper→board type, `0x11
+> HOST_SLEEP`. No frame layout and no report shape changes; `DH_PROTO_VERSION` is `7`. A gate, for
+> the same reason as v4: a v6 board would drop the session on the new type.
+>
 > **v6 is v5 with PEER_HELPER** ([#275](https://github.com/myn/deskhopplus/issues/275)):
 > `0x24` is now `PEER_HELPER`, with a one-byte body, where v5 had the empty `PEER_PAIRED` event.
-> No frame layout and no report shape changes; `DH_PROTO_VERSION` is `6`. A gate, for the same
+> No frame layout and no report shape changes; `DH_PROTO_VERSION` was `6`. A gate, for the same
 > reason as v4 and v5: a v5 helper would take the byte for a malformed `PEER_PAIRED`.
 >
 > **v5 is v4 plus PEER_PAIRED** ([#268](https://github.com/myn/deskhopplus/issues/268),
@@ -612,6 +617,7 @@ types `0x08`–`0x0F`, which have no prefix and whose body starts at offset 4 of
 | 0x0A | PAIR_REFUSED | d→h | — | `correlation:u64` (echoed) `reason:u8` (0=no_window, 1=already_registered — the single-shot window closed on someone else). |
 | 0x0B | HELLO_REFUSED | d→h | — | `correlation:u64` (echoed) `proto_version:u16` (the board's own) `status:u8` (1=**reserved**, never sent — it was v1's `auth_failed`; 2=version_incompatible; 3=unpaired). |
 | 0x10 | DEVICE_DROPS | d→h | `k_b2h` | Nine `u32` totals, since the board booted, in this order: `reports` (reports the USB callback could not hand to the channel task) `inbound` (frames from the peer board the channel task had not drained) `outq` (frames the outbound queue to this helper refused, **all bands**) `unsent` (frames this board could not hand on, to its helper or to the peer board — the sum of `outq` and `relay_q`, not a third seam) `orphans` (peer data packets with no start to attach to) `truncated` (peer frames abandoned because packets went missing) `relay_q` (frames the relay's own outbound queue refused) `outq_priority` (of `outq`, those the single-frame priority band turned away) `outq_bad_header` (of `outq`, those whose header did not parse — version skew, not congestion) `frames_in` `reports_in` `frames_refused` (**not drops** — the inbound chain, so a loss can be located rather than inferred: reports the USB callback delivered, frames taken and authenticated, and frames that reached authentication and failed it. `frames_in` moves on the same line that refreshes the liveness deadline, so the two can never disagree; #107). 48 bytes, which is exactly what the board's reply buffer can carry — a thirteenth field needs `DH_SESSION_REPLY_MAX` raised first. The bulk figure is `outq − outq_priority − outq_bad_header`, derived rather than sent so the frame stays inside the board's reply buffer. Sent once per session and again whenever a total moves — see Reporting what the device has dropped. |
+| 0x11 | HOST_SLEEP | h→d | `k_h2b` | `asleep:u8` (1 = this computer is going to sleep, 0 = the user woke it). The Windows helper sends it on `PBT_APMSUSPEND` and `PBT_APMRESUMESUSPEND`, and again at the start of every session. The board counts asleep like a USB suspend for Sleep sync; the state survives a session end, and any keyboard or mouse report to the computer clears it (ADR-0015). Any other length is ignored. |
 | 0x20 | PLACE | d→h | `k_b2h` | `chain_index:u8` `chain_direction:u8` (the configured direction in which indices increase) `border_direction:u8` (which side of the target output is entered) `entry_pos:u16` (0–65535 normalized within the target monitor). Fire-and-forget; no reply path. Authenticated, **not** sealed — coordinates cross in the clear. |
 | 0x21 | POS_QUERY | d→h | `k_b2h` | `query_id:u8` (`0` denotes the post-placement refresh) |
 | 0x22 | POS_RESPONSE | h→d | `k_h2b` | `query_id:u8` `chain_index:u8` `x:u16` `y:u16` (the query ID is echoed; coordinates are 0–65535 normalized within the current monitor) |

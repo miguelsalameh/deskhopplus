@@ -53,6 +53,7 @@
 #include "file_store.h"
 #include "helper_session.h"
 #include "hid_transport.h"
+#include "host_sleep.h"
 #include "output_dispatch.h"
 #include "seal_aead.h"
 #include "secret_store.h"
@@ -223,6 +224,8 @@ class Helper : public HelperEffects {
     LRESULT handle(UINT message, WPARAM w, LPARAM l);
 
     void feed(const std::vector<Output> &outputs);
+    /* Tell the board this PC sleeps (1) or is awake (0) (#293). */
+    void send_host_sleep(uint8_t asleep);
     void tick(uint32_t now, bool nested);
     std::optional<std::vector<uint8_t>> request_lazy_image(uint32_t id, uint64_t total);
     void abandon_prefetched_image();
@@ -284,6 +287,8 @@ class Helper : public HelperEffects {
      * event, so the transition is worked out here.
      */
     bool bulk_was_allowed_{false};
+    /* This PC's sleep, as the board is told it (#293). */
+    HostSleep host_sleep_;
     bool waiting_for_image_{false};
     /* What the tray last showed, so the tick only touches it when the transfer
        has actually moved. */
@@ -704,6 +709,17 @@ void Helper::tick(uint32_t now, bool nested) {
     in_tick_ = false;
 }
 
+static_assert(HostSleep::kSuspend == PBT_APMSUSPEND, "host_sleep.h restates PBT_APMSUSPEND");
+static_assert(HostSleep::kResumeSuspend == PBT_APMRESUMESUSPEND,
+              "host_sleep.h restates PBT_APMRESUMESUSPEND");
+
+void Helper::send_host_sleep(uint8_t asleep) {
+    const std::string name = asleep ? "the asleep report" : "the awake report";
+    const uint32_t started = now_ms();
+    if (dispatch_.send_payload(DH_MSG_HOST_SLEEP, {asleep}, name))
+        log(name + " sent in " + std::to_string(now_ms() - started) + " ms");
+}
+
 void Helper::feed(const std::vector<Output> &outputs) {
     dispatch_.apply(outputs);
 
@@ -723,6 +739,7 @@ void Helper::feed(const std::vector<Output> &outputs) {
      */
     const bool live = session_->can_send_bulk();
     if (bulk_was_allowed_ && !live) dispatch_.emit(clipboard_service_->session_ended());
+    if (!bulk_was_allowed_ && live) send_host_sleep(host_sleep_.session_started());
     if (const auto presence = words::session_edge_presence(session_->state(),
                                                            transport_.mode() == Mode::Config,
                                                            bulk_was_allowed_, live))
@@ -864,23 +881,17 @@ LRESULT Helper::handle(UINT message, WPARAM w, LPARAM l) {
     case WM_POWERBROADCAST:
         /*
          * Windows going into and out of sleep, Modern Standby included (#293).
-         * This step only logs, so hardware runs can check the signals before
-         * the board is told anything. The beat stands in for the future
-         * "asleep" report: DAM freezes this process "a few seconds" after the
-         * broadcast, and the log shows whether one write still ends inside
-         * that window, and how long it took.
+         * HostSleep decides what the board hears. The asleep report goes out
+         * inside this handler: DAM freezes this process "a few seconds" after
+         * the broadcast, and one write took 0 ms on #292's runs. The awake
+         * report usually finds no session, since the board ended it while the
+         * PC slept; feed() sends it again when the next session starts.
          *
-         * PBT_APMRESUMEAUTOMATIC also fires on a maintenance wake with the
-         * screen dark (#292 hardware results), so it cannot mean "awake".
-         * PBT_APMRESUMESUSPEND and the screen state are logged to find which
-         * one marks a user wake.
+         * The screen state is logged only, as the fall-back signal should
+         * PBT_APMRESUMESUSPEND ever prove wrong (#293).
          */
         if (w == PBT_APMSUSPEND) {
             log("Windows is going to sleep (PBT_APMSUSPEND)");
-            const uint32_t started = now_ms();
-            const bool sent = dispatch_.send_payload(DH_MSG_HEARTBEAT, {}, "a sleep-time beat");
-            log(std::string("sleep-time beat ") + (sent ? "sent" : "not sent") + " in " +
-                std::to_string(now_ms() - started) + " ms");
         } else if (w == PBT_APMRESUMEAUTOMATIC) {
             log("Windows woke up (PBT_APMRESUMEAUTOMATIC)");
         } else if (w == PBT_APMRESUMESUSPEND) {
@@ -896,6 +907,8 @@ LRESULT Helper::handle(UINT message, WPARAM w, LPARAM l) {
                     " (GUID_CONSOLE_DISPLAY_STATE " + std::to_string(state) + ")");
             }
         }
+        if (const auto asleep = host_sleep_.power(static_cast<unsigned>(w)))
+            send_host_sleep(*asleep);
         return TRUE;
 
     case Tray::kCallbackMessage:

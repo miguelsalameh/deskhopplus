@@ -297,9 +297,9 @@ def seal(counter: int, plaintext: bytes, aad: bytes) -> bytes:
 # --------------------------------------------------------------------------
 
 
-# Mirrors DH_PROTO_VERSION in src/core/dh_session.h. 6 as of #275: 0x24 is
-# PEER_HELPER with a one-byte body, not any field below.
-PROTO_VERSION = 6
+# Mirrors DH_PROTO_VERSION in src/core/dh_session.h. 7 as of #293: a new
+# helper-to-board type, 0x11 HOST_SLEEP, not any field below.
+PROTO_VERSION = 7
 
 
 def build():
@@ -323,6 +323,7 @@ def build():
 
     v.append(("heartbeat", frame(0x05, b"", K_H2B, 0)))
     v.append(("device_heartbeat", frame(0x06, b"", K_B2H, 1)))
+    v.append(("host_sleep_asleep", frame(0x11, b"\x01", K_H2B, 12)))
 
     # A reason byte then how long the board had gone unheard, u32 LE (#107).
     # Only a liveness end is asserting anything about a clock, so only it
@@ -425,7 +426,8 @@ HEADER = """\
 # Directions and counters, so a verifier knows which key to try:
 #   hello_mac                  k_hello, counter 0
 #   helper to device (k_h2b)   heartbeat 0, pos_response 1, seal_offer 2, seal_accept 3,
-#                              seal_stale 4, and the clipboard messages 5 through 11
+#                              seal_stale 4, the clipboard messages 5 through 11,
+#                              host_sleep 12
 #   device to helper (k_b2h)   hello_ack 0, device_heartbeat 1, session_end 2/3/4,
 #                              listener_alert 5, place 6, pos_query 7,
 #                              clip_policy_both 8, clip_policy_receive_only 9,

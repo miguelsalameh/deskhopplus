@@ -164,6 +164,8 @@ void channel_lifecycle_step(channel_lifecycle *c, uint32_t now, void *context);
 
 /* Platform effects: pointer/config state, cross-core inbound handoff and UART. */
 void channel_lifecycle_position(void *context, const uint8_t *body, size_t len);
+/* The helper said its computer went to sleep or woke (#293). */
+void channel_lifecycle_host_sleep(void *context, bool asleep);
 void channel_lifecycle_update_config(void *context, uint32_t now);
 bool channel_lifecycle_send_relay(const dh_relay_packet *packet);
 

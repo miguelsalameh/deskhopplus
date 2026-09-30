@@ -98,6 +98,10 @@ static void test_the_peer_obeys_sleep_only_when_it_should(void) {
     CHECK(!dh_sleep_sync_obey_sleep(false, false, false), "obey", "obeyed with Sleep sync off");
     CHECK(!dh_sleep_sync_obey_sleep(true, true, false), "obey", "the active output obeyed sleep");
     CHECK(!dh_sleep_sync_obey_sleep(true, false, true), "obey", "pressed sleep on a computer already asleep");
+    dh_sleep_sync_t s = {0};
+    dh_sleep_sync_helper_says(&s, true);
+    CHECK(!dh_sleep_sync_obey_sleep(true, false, dh_sleep_sync_asleep(&s, false)), "obey",
+          "pressed sleep on a computer its helper said was asleep");
 }
 
 /* B's computer sleeps from idle, then you switch to B: that sleep was not
@@ -155,6 +159,46 @@ static void test_a_wake_cancels_the_pending_sleep(void) {
     dh_sleep_sync_wake(&s, true, true, true);
     CHECK(!dh_sleep_sync_step(&s, true, true, true, T0 + 5 * SEC), "wake race",
           "sent sleep after the input that woke the computer");
+}
+
+/* A Modern Standby PC sleeps with no USB suspend; its helper says so
+   instead (#293), and that counts the same. */
+static void test_the_helper_saying_asleep_counts_as_asleep(void) {
+    dh_sleep_sync_t s = {0};
+    dh_sleep_sync_helper_says(&s, true);
+    dh_sleep_sync_step(&s, true, true, false, T0);
+    CHECK(!dh_sleep_sync_step(&s, true, true, false, T0 + 4900000), "helper",
+          "sent sleep 4.9 s after the helper said asleep");
+    CHECK(dh_sleep_sync_step(&s, true, true, false, T0 + 5 * SEC), "helper",
+          "did not send sleep 5 s after the helper said asleep");
+}
+
+/* A key or mouse move on a PC its helper called asleep wakes the peer too.
+   The input also ends that sleep: a helper killed before it said awake must
+   not leave the PC counted asleep, or the next sleep would never be sent. */
+static void test_input_ends_a_sleep_the_helper_reported(void) {
+    dh_sleep_sync_t s = {0};
+    dh_sleep_sync_helper_says(&s, true);
+    dh_sleep_sync_step(&s, true, true, false, T0);
+    CHECK(dh_sleep_sync_wake(&s, true, true, false), "helper wake",
+          "input while the helper said asleep did not send wake");
+    dh_sleep_sync_step(&s, true, true, false, T0 + 1 * SEC);
+    dh_sleep_sync_wake(&s, true, true, false);
+
+    dh_sleep_sync_helper_says(&s, true);
+    dh_sleep_sync_step(&s, true, true, false, T0 + 60 * SEC);
+    CHECK(dh_sleep_sync_step(&s, true, true, false, T0 + 65 * SEC), "helper wake",
+          "the next sleep after an input wake was not sent");
+}
+
+/* The helper's awake ends the sleep with no input: a power-button wake. */
+static void test_the_helper_saying_awake_ends_the_sleep(void) {
+    dh_sleep_sync_t s = {0};
+    dh_sleep_sync_helper_says(&s, true);
+    dh_sleep_sync_step(&s, true, true, false, T0);
+    dh_sleep_sync_helper_says(&s, false);
+    CHECK(!dh_sleep_sync_step(&s, true, true, false, T0 + 5 * SEC), "helper awake",
+          "sent sleep after the helper said awake");
 }
 
 /* The peer pressed System Sleep at T0, and wake arrives at T0 + `wake_at`
@@ -265,6 +309,9 @@ int main(void) {
     test_input_while_asleep_sends_wake();
     test_wake_is_sent_once_per_sleep();
     test_a_wake_cancels_the_pending_sleep();
+    test_the_helper_saying_asleep_counts_as_asleep();
+    test_input_ends_a_sleep_the_helper_reported();
+    test_the_helper_saying_awake_ends_the_sleep();
     test_a_suspended_peer_gets_remote_wakeup();
     test_a_peer_not_suspended_gets_a_nudge();
     test_a_wake_during_the_sleep_is_kept();

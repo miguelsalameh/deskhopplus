@@ -377,6 +377,13 @@ void channel_receive_report(uint8_t index, const uint8_t *buffer, uint16_t bufsi
     channel_lifecycle_receive_channel_report(&channel.lifecycle, index, buffer, bufsize);
 }
 
+/* The helper said its computer went to sleep or woke (#293). Sleep sync
+   counts it like a USB suspend. */
+void channel_lifecycle_host_sleep(void *context, bool asleep) {
+    device_t *state = context;
+    dh_sleep_sync_helper_says(&state->sleep_sync, asleep);
+}
+
 /* An authenticated position response, applied to this board's cursor state. */
 void channel_lifecycle_position(void *context, const uint8_t *body, size_t body_len) {
     device_t *state = context;
