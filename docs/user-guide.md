@@ -337,6 +337,15 @@ both computers.
 - A computer can only be woken this way if it lets USB devices wake it. The same limit applies when a key press
   wakes the computer you use.
 
+**Windows PCs with Modern Standby.** Many new Windows PCs sleep with Modern Standby, not the older
+S3 sleep. To check, run `powercfg /a`. If it lists "Standby (S0 Low Power Idle)", the PC uses
+Modern Standby. The board cannot see when such a PC goes to sleep, so:
+
+- The other computer sleeping still sleeps this PC.
+- This PC sleeping does not sleep the other computer yet (#293).
+- A key press while the other computer is asleep does not wake this PC yet (#291). Move the pointer
+  onto the PC and it wakes.
+
 Save sends one setting to both boards.
 
 ### Cmd and Ctrl swap
