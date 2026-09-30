@@ -405,6 +405,17 @@ bool Helper::start(HINSTANCE instance) {
         log("could not register for sleep notifications (error " +
             std::to_string(GetLastError()) + ")");
 
+    /* The screen turning on is the candidate sign that the user, not a
+       maintenance wake, ended a sleep (#293). Windows sends the current state
+       once at registration. Defined here, not taken from winnt.h, so no
+       library has to supply the GUID. */
+    static const GUID kConsoleDisplayState = {
+        0x6fe69556, 0x704a, 0x47a0, {0x8f, 0x24, 0xc2, 0x8d, 0x93, 0x6f, 0xda, 0x47}};
+    if (!RegisterPowerSettingNotification(window_, &kConsoleDisplayState,
+                                          DEVICE_NOTIFY_WINDOW_HANDLE))
+        log("could not register for screen on/off notifications (error " +
+            std::to_string(GetLastError()) + ")");
+
     SecretStore::Identity identity;
     if (!secrets_.load_identity(identity)) {
         log("could not load or create this helper's key; the system RNG refused");
@@ -853,11 +864,16 @@ LRESULT Helper::handle(UINT message, WPARAM w, LPARAM l) {
     case WM_POWERBROADCAST:
         /*
          * Windows going into and out of sleep, Modern Standby included (#293).
-         * This first step only logs, so #292's five hardware cases can check
-         * the signal before the board is told anything. The beat stands in
-         * for the future "asleep" report: DAM freezes this process "a few
-         * seconds" after the broadcast, and the log shows whether one
-         * write still ends inside that window, and how long it took.
+         * This step only logs, so hardware runs can check the signals before
+         * the board is told anything. The beat stands in for the future
+         * "asleep" report: DAM freezes this process "a few seconds" after the
+         * broadcast, and the log shows whether one write still ends inside
+         * that window, and how long it took.
+         *
+         * PBT_APMRESUMEAUTOMATIC also fires on a maintenance wake with the
+         * screen dark (#292 hardware results), so it cannot mean "awake".
+         * PBT_APMRESUMESUSPEND and the screen state are logged to find which
+         * one marks a user wake.
          */
         if (w == PBT_APMSUSPEND) {
             log("Windows is going to sleep (PBT_APMSUSPEND)");
@@ -867,6 +883,18 @@ LRESULT Helper::handle(UINT message, WPARAM w, LPARAM l) {
                 std::to_string(now_ms() - started) + " ms");
         } else if (w == PBT_APMRESUMEAUTOMATIC) {
             log("Windows woke up (PBT_APMRESUMEAUTOMATIC)");
+        } else if (w == PBT_APMRESUMESUSPEND) {
+            log("Windows woke up for the user (PBT_APMRESUMESUSPEND)");
+        } else if (w == PBT_POWERSETTINGCHANGE) {
+            /* Only GUID_CONSOLE_DISPLAY_STATE is registered. Data is a DWORD:
+               0 off, 1 on, 2 dimmed. */
+            const auto *setting = reinterpret_cast<const POWERBROADCAST_SETTING *>(l);
+            if (setting->DataLength == sizeof(DWORD)) {
+                const DWORD state = *reinterpret_cast<const DWORD *>(setting->Data);
+                log(std::string("screen ") +
+                    (state == 0 ? "off" : state == 1 ? "on" : state == 2 ? "dimmed" : "state ?") +
+                    " (GUID_CONSOLE_DISPLAY_STATE " + std::to_string(state) + ")");
+            }
         }
         return TRUE;
 
