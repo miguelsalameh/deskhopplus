@@ -325,7 +325,16 @@ the computer you use goes to sleep, the other computer goes to sleep too, and it
   tell a shutdown from sleep, so shutting down the computer you use can also sleep the other one.
 - Nothing happens if the other board is unplugged. No helper is needed.
 
-Save sends one setting to both boards. Waking both computers with one key press is not in yet (#288).
+**Waking.** With Sleep sync On, a key press or mouse move while the computer you use is asleep wakes
+both computers.
+
+- Only input to the computer that has the keyboard and mouse does this. Typing on the computer you
+  use never wakes an idle computer you are not using.
+- A computer that wakes by itself (lid, power button, a wake timer) wakes alone.
+- A computer can only be woken this way if it lets USB devices wake it. The same limit applies when a key press
+  wakes the computer you use.
+
+Save sends one setting to both boards.
 
 ### Cmd and Ctrl swap
 

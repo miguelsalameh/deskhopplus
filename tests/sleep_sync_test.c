@@ -2,8 +2,8 @@
 /* Copyright (c) 2026 Derek Reynolds */
 
 /*
- * Sleep sync (#287), on the host: when the active output's board tells its
- * peer to sleep, and when the peer obeys.
+ * Sleep sync (#287, #288), on the host: when the active output's board tells
+ * its peer to sleep or wake, and when the peer obeys sleep.
  *
  * Style follows status_led_test.c: an assertion macro, a main, a printed
  * failure line, a non-zero exit — no framework.
@@ -122,6 +122,40 @@ static void test_a_switch_away_mid_wait_cancels_the_sleep(void) {
           "a sleep interrupted by a switch away was sent on the switch back");
 }
 
+/* Input reaches the active board while its computer sleeps (#288). */
+static bool sends_wake(bool on, bool active, bool suspended) {
+    dh_sleep_sync_t s = {0};
+    return dh_sleep_sync_wake(&s, on, active, suspended);
+}
+
+static void test_input_while_asleep_sends_wake(void) {
+    CHECK(sends_wake(true, true, true), "wake", "input while asleep did not send wake");
+    CHECK(!sends_wake(true, true, false), "wake", "input while awake sent wake");
+    CHECK(!sends_wake(false, true, true), "wake", "sent wake with Sleep sync off");
+    /* Typing on the computer you use never wakes an idle one (#286 story 7). */
+    CHECK(!sends_wake(true, false, true), "wake", "the inactive board sent wake");
+}
+
+/* Every report queued while asleep asks again; one wake per sleep is enough. */
+static void test_wake_is_sent_once_per_sleep(void) {
+    dh_sleep_sync_t s = {0};
+    dh_sleep_sync_wake(&s, true, true, true);
+    CHECK(!dh_sleep_sync_wake(&s, true, true, true), "wake once", "sent wake twice in one sleep");
+    dh_sleep_sync_wake(&s, true, true, false);
+    CHECK(dh_sleep_sync_wake(&s, true, true, true), "wake once", "the next sleep sent no wake");
+}
+
+/* A key just before the 5 s mark wakes the computer, but the USB resume takes
+   a moment, so the next pass still sees it suspended. That sleep is over: the
+   peer must not get sleep after the wake. */
+static void test_a_wake_cancels_the_pending_sleep(void) {
+    dh_sleep_sync_t s = {0};
+    dh_sleep_sync_step(&s, true, true, true, T0);
+    dh_sleep_sync_wake(&s, true, true, true);
+    CHECK(!dh_sleep_sync_step(&s, true, true, true, T0 + 5 * SEC), "wake race",
+          "sent sleep after the input that woke the computer");
+}
+
 int main(void) {
     test_sleep_is_sent_after_five_seconds();
     test_off_does_nothing();
@@ -133,6 +167,9 @@ int main(void) {
     test_switching_to_a_sleeping_computer_sends_nothing();
     test_a_switch_away_mid_wait_cancels_the_sleep();
     test_the_peer_obeys_sleep_only_when_it_should();
+    test_input_while_asleep_sends_wake();
+    test_wake_is_sent_once_per_sleep();
+    test_a_wake_cancels_the_pending_sleep();
 
     if (failures) {
         printf("sleep_sync_test: %d failure(s)\n", failures);

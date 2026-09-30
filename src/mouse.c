@@ -102,9 +102,8 @@ void process_mouse_queue_task(device_t *state) {
     if (!queue_try_peek(&state->mouse_queue, &report))
         return;
 
-    /* If we are suspended, let's wake the host up */
-    if (tud_suspended())
-        tud_remote_wakeup();
+    /* If we are suspended, let's wake the host up (and maybe the peer, #288) */
+    wake_on_input(state);
 
     /* If it's not ready, we'll try on the next pass */
     if (!tud_hid_n_ready(report.mode == RELATIVE || report.mode == BOOT_RELATIVE
