@@ -104,6 +104,11 @@ CONFIG_ = [
     FormField(102, "After", 60, {5: "5 seconds", 10: "10 seconds", 30: "30 seconds", 60: "1 minute",
                                  300: "5 minutes", 900: "15 minutes", 3600: "1 hour"}, "uint16"),
 
+    # Sleep sync (#287), one setting for both boards. A select rather than a
+    # checkbox: the page's checkboxes send on change, and this waits for Save.
+    FormField(1010, "Power", elem="label"),
+    FormField(103, "Sleep sync", 0, {0: "Off", 1: "On"}, "uint8"),
+
     # Clipboard sharing, one toggle per direction (#52). Named for the *block*
     # rather than the permission because that is how the board stores them —
     # zero means allowed, which is what let the two bytes land in existing

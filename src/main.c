@@ -65,8 +65,9 @@ void core1_main() {
         [4] = {.exec = &screensaver_task,        .frequency = _HZ(120)},     // | Handle "screensaver" movements
         [5] = {.exec = &firmware_upgrade_task,   .frequency = _HZ(4000)},    // | Send firmware to the other board if needed
         [6] = {.exec = &status_led_task,         .frequency = _HZ(30)},      // | Turn the Status LED off on its timer (#283)
+        [7] = {.exec = &sleep_sync_task,         .frequency = _HZ(10)},      // | Tell the peer this computer went to sleep (#287)
 #ifndef DH_BENCH_ECDH
-        [7] = {.exec = &heartbeat_output_task,   .frequency = _HZ(1)},       // | Output periodic heartbeats
+        [8] = {.exec = &heartbeat_output_task,   .frequency = _HZ(1)},       // | Output periodic heartbeats
 #endif                                                                       // | (silenced in the ECDH measure-only build -- see below)
     };                                                                       // `----- then go back and repeat forever
     const int NUM_TASKS = ARRAY_SIZE(tasks_core1);

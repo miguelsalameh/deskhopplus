@@ -309,6 +309,24 @@ you type. Any key or mouse move turns it back on. Config mode always blinks. The
 
 Save sends one setting to both boards. The keyboard's Caps Lock light is not part of this.
 
+### Sleep sync
+
+**Keyboard & Mouse** has a **Power** group with **Sleep sync**, Off by default. With it On, when
+the computer you use goes to sleep, the other computer goes to sleep too, and its monitors go dark.
+
+- Only the computer that has the keyboard and mouse starts this. It must stay asleep for 5 seconds
+  first, so a short USB power-saving blip does nothing.
+- The other board then presses the System Sleep key on its computer. It does not press it if that
+  computer is already asleep.
+- A computer you are not using that goes to sleep from idle sleeps alone. Its idle timer only counts
+  its own keyboard and mouse, and you are typing on the other one, so it must not put that one to
+  sleep.
+- "Sleep" is system sleep. A screen that only goes dark or locks does not count. The board cannot
+  tell a shutdown from sleep, so shutting down the computer you use can also sleep the other one.
+- Nothing happens if the other board is unplugged. No helper is needed.
+
+Save sends one setting to both boards. Waking both computers with one key press is not in yet (#288).
+
 ### Cmd and Ctrl swap
 
 Each output has **Swap Ctrl and Cmd**, under **Key mapping**. When on, Ctrl and Cmd (the Windows key) change places

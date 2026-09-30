@@ -11,6 +11,7 @@
  */
 
 #include "main.h"
+#include "core/dh_sleep_sync.h"
 
 void task_scheduler(device_t *state, task_t *task) {
     uint64_t current_time = time_us_64();
@@ -261,6 +262,18 @@ void heartbeat_output_task(device_t *state) {
     (void)queue_uart_packet(&packet, state);
 }
 
+
+/* Sleep sync (#287): tells the peer once this board's computer, as the
+   active output, has been suspended long enough; dh_sleep_sync_step decides.
+   A full UART queue leaves it unsent, to be tried again next pass. */
+void sleep_sync_task(device_t *state) {
+    static dh_sleep_sync_t sync;
+
+    if (dh_sleep_sync_step(&sync, state->config.sleep_sync, CURRENT_BOARD_IS_ACTIVE_OUTPUT,
+                           tud_suspended(), time_us_64())
+        && !send_value(DH_SLEEP_SYNC_SLEEP, SLEEP_SYNC_MSG))
+        sync.sent = false;
+}
 
 /* Process other outgoing hid report messages. */
 void process_hid_queue_task(device_t *state) {

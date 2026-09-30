@@ -22,6 +22,10 @@
 #define REPORT_ID_CONSUMER 3
 #define REPORT_ID_SYSTEM   4
 
+/* The System report's Sleep value: TinyUSB's system-control descriptor lists
+   Power Down, Sleep and Wake Up as array values 1 to 3 (#287). */
+#define SYSTEM_CONTROL_SLEEP 2
+
 // Interface 1
 #define REPORT_ID_RELMOUSE  5
 #define REPORT_ID_DIGITIZER 7

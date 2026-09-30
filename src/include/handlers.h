@@ -54,6 +54,7 @@ void handle_api_read_all_msg(uart_packet_t *, device_t *);
 void handle_cursor_trace_msg(uart_packet_t *, device_t *);
 void handle_consumer_control_msg(uart_packet_t *, device_t *);
 void handle_system_control_msg(uart_packet_t *, device_t *);
+void handle_sleep_sync_msg(uart_packet_t *, device_t *);
 void handle_flash_led_msg(uart_packet_t *, device_t *);
 void handle_fw_upgrade_msg(uart_packet_t *, device_t *);
 void request_bootsel(device_t *);

@@ -58,6 +58,9 @@ enum packet_type_e {
        config endpoint's allow list: only a physical press may open a window. */
     PAIR_WINDOW_MSG = 36,
     /* 37 was PEER_PAIRED_MSG (#268); the heartbeat carries it now (#275). */
+    /* Sleep sync (#287): the active output's computer went to sleep. The
+       payload byte is DH_SLEEP_SYNC_*. */
+    SLEEP_SYNC_MSG = 38,
 };
 
 _Static_assert(KEYBOARD_REPORT_MSG == DH_KEYBOARD_PHYSICAL_PACKET,

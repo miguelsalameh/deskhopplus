@@ -141,6 +141,9 @@ add_test(NAME webconfig_timer_test COMMAND ${NODE_EXECUTABLE}
 add_test(NAME webconfig_status_led_test COMMAND ${NODE_EXECUTABLE}
          ${CMAKE_CURRENT_SOURCE_DIR}/webconfig_status_led_test.js
          ${CMAKE_CURRENT_SOURCE_DIR}/../webconfig/config-unpacked.htm)
+add_test(NAME webconfig_sleep_sync_test COMMAND ${NODE_EXECUTABLE}
+         ${CMAKE_CURRENT_SOURCE_DIR}/webconfig_sleep_sync_test.js
+         ${CMAKE_CURRENT_SOURCE_DIR}/../webconfig/config-unpacked.htm)
 # The packed page's design budget (#225, PRODUCT.md): 40 960 of the 59 392
 # bytes the config disk can hold, so future fields have room. The disk's own
 # hard limit is checked by disk/capacity.py at build time.
@@ -267,6 +270,13 @@ add_test(NAME config_test COMMAND config_test)
 add_executable(status_led_test status_led_test.c)
 target_include_directories(status_led_test PRIVATE ${CORE} ${FW}/include)
 add_test(NAME status_led_test COMMAND status_led_test)
+
+# Sleep sync (#287): when the active board sends sleep to its peer, and when
+# the peer obeys. A pure decision in the core; the USB and UART calls around
+# it are checked on hardware.
+add_executable(sleep_sync_test sleep_sync_test.c)
+target_include_directories(sleep_sync_test PRIVATE ${CORE})
+add_test(NAME sleep_sync_test COMMAND sleep_sync_test)
 
 # How a config Read All walks the field map (#156). Firmware domain and split
 # out for the same reason as the two either side of it: the arithmetic lived

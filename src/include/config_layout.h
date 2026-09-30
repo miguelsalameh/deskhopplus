@@ -157,12 +157,23 @@ typedef struct {
     uint8_t _led_pad; /* named so it is zeroed and sealed, not indeterminate */
     uint16_t led_off_sec;
 
-    /* The rest of the words that make the struct end exactly on the checksum.
+    /*
+     * Sleep sync (#287): non-zero makes the other computer sleep when the
+     * active output's computer does (dh_sleep_sync.h). Both boards hold the
+     * same value; the page writes it to both.
+     *
+     * It took the first byte of the second reserved word, which every
+     * configuration already written holds as zero — and zero is off, so no
+     * CURRENT_CONFIG_VERSION bump is owed.
+     */
+    uint8_t sleep_sync;
+
+    /* The rest of the bytes that make the struct end exactly on the checksum.
        #46's 17 bytes rounded config_t up to 160 and left four bytes of padding
        *behind* the checksum, which is what broke persistence (#74); absorbing
        them here keeps the tail intentional rather than whatever alignment
        happens to leave over. */
-    uint32_t _reserved;
+    uint8_t _reserved[3];
 
     // Keep checksum at the end of the struct
     uint32_t checksum;
@@ -218,3 +229,10 @@ _Static_assert(offsetof(config_t, led_off_sec) == offsetof(config_t, led_off_mod
                "config_t: led_off_sec must stay aligned inside the first reserved word");
 _Static_assert(offsetof(config_t, checksum) == offsetof(config_t, led_off_mode) + 8,
                "config_t: the Status LED fields must not extend the struct");
+
+/* Sleep sync took the first byte of the second reserved word, so the checksum
+   does not move (#287). */
+_Static_assert(offsetof(config_t, sleep_sync) == offsetof(config_t, led_off_sec) + 2,
+               "config_t: Sleep sync must take the first byte of the second reserved word");
+_Static_assert(offsetof(config_t, checksum) == offsetof(config_t, sleep_sync) + 4,
+               "config_t: Sleep sync must not extend the struct");

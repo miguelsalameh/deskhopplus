@@ -11,6 +11,7 @@
  */
 
 #include "main.h"
+#include "core/dh_sleep_sync.h"
 
 /* =================================================== *
  * ============  Hotkey Handler Routines  ============ *
@@ -360,6 +361,21 @@ void handle_consumer_control_msg(uart_packet_t *packet, device_t *state) {
 /* Process system control message */
 void handle_system_control_msg(uart_packet_t *packet, device_t *state) {
     queue_system_packet(packet->data, state);
+}
+
+/* The peer's computer went to sleep (#287). Press and release System Sleep
+   here if dh_sleep_sync_obey_sleep agrees. If the host suspends before the
+   release goes out, the next report after wake stands in for it. */
+void handle_sleep_sync_msg(uart_packet_t *packet, device_t *state) {
+    if (packet->data[0] != DH_SLEEP_SYNC_SLEEP)
+        return;
+    if (!dh_sleep_sync_obey_sleep(state->config.sleep_sync, CURRENT_BOARD_IS_ACTIVE_OUTPUT,
+                                  tud_suspended()))
+        return;
+
+    uint8_t press = SYSTEM_CONTROL_SLEEP, release = 0;
+    queue_system_packet(&press, state);
+    queue_system_packet(&release, state);
 }
 
 /* Process request to store config to flash */
