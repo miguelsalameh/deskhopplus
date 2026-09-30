@@ -163,16 +163,24 @@ static void test_a_wake_cancels_the_pending_sleep(void) {
 static bool owed_wake_fires(uint64_t wake_at, uint64_t suspend_at) {
     dh_sleep_sync_peer_t p = {0};
     dh_sleep_sync_peer_press(&p, T0);
-    CHECK(!dh_sleep_sync_peer_wake(&p, false, T0 + wake_at), "owed",
-          "woke a computer that was not asleep");
+    CHECK(dh_sleep_sync_peer_wake(&p, false, T0 + wake_at) == DH_SLEEP_SYNC_NUDGE, "owed",
+          "called remote wakeup on a computer that was not asleep");
     return dh_sleep_sync_peer_step(&p, true, T0 + suspend_at);
 }
 
-/* A wake that finds the peer's computer asleep wakes it at once. */
-static void test_the_peer_obeys_wake_while_asleep(void) {
+/* A wake that finds the peer's computer suspended calls remote wakeup. */
+static void test_a_suspended_peer_gets_remote_wakeup(void) {
     dh_sleep_sync_peer_t p = {0};
-    CHECK(dh_sleep_sync_peer_wake(&p, true, T0), "peer wake", "an asleep peer did not wake");
-    CHECK(!dh_sleep_sync_peer_wake(&p, false, T0), "peer wake", "an awake peer called remote wakeup");
+    CHECK(dh_sleep_sync_peer_wake(&p, true, T0) == DH_SLEEP_SYNC_REMOTE_WAKEUP, "peer wake",
+          "a suspended peer did not get remote wakeup");
+}
+
+/* A Modern Standby PC can sleep without a USB suspend. A wake that finds the
+   peer's computer not suspended nudges the pointer instead (#291). */
+static void test_a_peer_not_suspended_gets_a_nudge(void) {
+    dh_sleep_sync_peer_t p = {0};
+    CHECK(dh_sleep_sync_peer_wake(&p, false, T0) == DH_SLEEP_SYNC_NUDGE, "peer wake",
+          "a peer that was not suspended got no nudge");
 }
 
 /* A wake that finds the computer just suspended is kept too: USB wants 5 ms
@@ -257,7 +265,8 @@ int main(void) {
     test_input_while_asleep_sends_wake();
     test_wake_is_sent_once_per_sleep();
     test_a_wake_cancels_the_pending_sleep();
-    test_the_peer_obeys_wake_while_asleep();
+    test_a_suspended_peer_gets_remote_wakeup();
+    test_a_peer_not_suspended_gets_a_nudge();
     test_a_wake_during_the_sleep_is_kept();
     test_a_wake_just_after_the_suspend_retries();
     test_a_kept_wake_expires();

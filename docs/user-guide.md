@@ -343,8 +343,9 @@ Modern Standby. The board cannot see when such a PC goes to sleep, so:
 
 - The other computer sleeping still sleeps this PC.
 - This PC sleeping does not sleep the other computer yet (#293).
-- A key press while the other computer is asleep does not wake this PC yet (#291). Move the pointer
-  onto the PC and it wakes.
+- A key press while the other computer is asleep still wakes this PC. The board sees the PC as
+  awake, so it moves the pointer 1 pixel out and 1 pixel back. Real input wakes Modern Standby. The
+  pointer ends where it started, so on a PC that is already awake you see nothing.
 
 Save sends one setting to both boards.
 

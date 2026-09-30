@@ -366,14 +366,26 @@ void handle_system_control_msg(uart_packet_t *packet, device_t *state) {
 /* The peer's computer went to sleep (#287) or got input while asleep (#288).
    Sleep: press and release System Sleep here if dh_sleep_sync_obey_sleep
    agrees. If the host suspends before the release goes out, the next report
-   after wake stands in for it. Wake: wake this computer if it sleeps, or keep
-   the wake for sleep_sync_task if it is still going to sleep (#289). The
-   sender already checked the setting, and tud_remote_wakeup only sets
-   hardware bits, so calling it here on core 1 is safe. */
+   after wake stands in for it. Wake: remote wakeup if this computer is
+   suspended, else a tiny mouse move, since a Modern Standby PC sleeps without
+   a USB suspend (#291). A wake while it is still going to sleep is also kept
+   for sleep_sync_task (#289). The sender already checked the setting, and
+   tud_remote_wakeup only sets hardware bits, so calling it here on core 1 is
+   safe. */
 void handle_sleep_sync_msg(uart_packet_t *packet, device_t *state) {
     if (packet->data[0] == DH_SLEEP_SYNC_WAKE) {
-        if (dh_sleep_sync_peer_wake(&state->sleep_sync_peer, tud_suspended(), time_us_64()))
+        if (dh_sleep_sync_peer_wake(&state->sleep_sync_peer, tud_suspended(), time_us_64())
+            == DH_SLEEP_SYNC_REMOTE_WAKEUP) {
             tud_remote_wakeup();
+            return;
+        }
+        /* Relative, so it works in both mouse modes and leaves the tracked
+           absolute pointer alone. Out and back: the pointer does not move.
+           Left first: an inactive output's pointer is parked at the right
+           edge in a side-by-side layout, and a host clamps a move past it. */
+        mouse_report_t out = {.x = -1, .mode = RELATIVE}, back = {.x = 1, .mode = RELATIVE};
+        queue_mouse_report(&out, state);
+        queue_mouse_report(&back, state);
         return;
     }
     if (packet->data[0] != DH_SLEEP_SYNC_SLEEP)
