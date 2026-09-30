@@ -397,6 +397,14 @@ bool Helper::start(HINSTANCE instance) {
        restarted. */
     taskbar_created_ = RegisterWindowMessageW(L"TaskbarCreated");
 
+    /* Without this, a Modern Standby PC sends no PBT_APMSUSPEND at all: the
+       Desktop Activity Moderator only tells processes that opted in (#292,
+       docs/research/windows-modern-standby-sleep-signal.md). The handle is
+       freed with the process. */
+    if (!RegisterSuspendResumeNotification(window_, DEVICE_NOTIFY_WINDOW_HANDLE))
+        log("could not register for sleep notifications (error " +
+            std::to_string(GetLastError()) + ")");
+
     SecretStore::Identity identity;
     if (!secrets_.load_identity(identity)) {
         log("could not load or create this helper's key; the system RNG refused");
@@ -841,6 +849,26 @@ LRESULT Helper::handle(UINT message, WPARAM w, LPARAM l) {
            owner window, not delivered as clipboard-update notifications. */
         clipboard_.handle(message, w);
         return 0;
+
+    case WM_POWERBROADCAST:
+        /*
+         * Windows going into and out of sleep, Modern Standby included (#293).
+         * This first step only logs, so #292's five hardware cases can check
+         * the signal before the board is told anything. The beat stands in
+         * for the future "asleep" report: DAM freezes this process "a few
+         * seconds" after the broadcast, and the log shows whether one
+         * write still ends inside that window, and how long it took.
+         */
+        if (w == PBT_APMSUSPEND) {
+            log("Windows is going to sleep (PBT_APMSUSPEND)");
+            const uint32_t started = now_ms();
+            const bool sent = dispatch_.send_payload(DH_MSG_HEARTBEAT, {}, "a sleep-time beat");
+            log(std::string("sleep-time beat ") + (sent ? "sent" : "not sent") + " in " +
+                std::to_string(now_ms() - started) + " ms");
+        } else if (w == PBT_APMRESUMEAUTOMATIC) {
+            log("Windows woke up (PBT_APMRESUMEAUTOMATIC)");
+        }
+        return TRUE;
 
     case Tray::kCallbackMessage:
         tray_.on_callback(l);
