@@ -15,6 +15,7 @@
 #include "config_read_all.h"
 #include "dh_hotkey.h"
 #include "dh_pair.h"
+#include "dh_sleep_sync.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -206,6 +207,10 @@ typedef struct {
     uint8_t output_arrival_guard;
     uint16_t output_arrival_reverse;
     uint8_t next_cursor_query_id;
+
+    /* Sleep sync's receiver side: a wake kept while this computer was still
+       going to sleep (#289). Core 1 only. */
+    dh_sleep_sync_peer_t sleep_sync_peer;
 
     /* Onboard LED blinky (provide feedback when e.g. mouse connected) */
     int32_t  blinks_left;     // How many blink transitions are left

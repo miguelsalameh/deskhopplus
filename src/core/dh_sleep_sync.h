@@ -5,13 +5,16 @@
  * Sleep sync (#287): when the active output's computer sleeps, its board tells
  * the peer, and the peer presses System Sleep on its own computer. When input
  * reaches the active output while its computer sleeps, its board tells the
- * peer to wake too (#288), and the peer calls remote wakeup.
+ * peer to wake too (#288), and the peer calls remote wakeup. A wake that finds
+ * the peer still going to sleep is kept until its computer suspends (#289).
  *
  * "Asleep" is the USB host suspending the device (tud_suspended). The sender
  * asks dh_sleep_sync_step on every pass of sleep_sync_task (tasks.c), and
  * dh_sleep_sync_wake from wake_on_input (tasks.c); the receiver asks
- * dh_sleep_sync_obey_sleep in handle_sleep_sync_msg (handlers.c). Pure C11,
- * no clock read of its own: the caller passes one `now` (the #107 rule).
+ * dh_sleep_sync_obey_sleep and dh_sleep_sync_peer_wake in
+ * handle_sleep_sync_msg (handlers.c), and dh_sleep_sync_peer_step in
+ * sleep_sync_task. Pure C11, no clock read of its own: the caller passes one
+ * `now` (the #107 rule).
  */
 
 #ifndef DH_SLEEP_SYNC_H_
@@ -90,6 +93,49 @@ static inline bool dh_sleep_sync_wake(dh_sleep_sync_t *s, bool on, bool active, 
 
     s->woken = true;
     return true;
+}
+
+/* How long the peer keeps a wake that came while its computer was still
+   going to sleep, counted from its System Sleep press (#289). */
+#define DH_SLEEP_SYNC_OWED_WAKE_US 30000000u
+
+/* What the receiving board remembers about its last System Sleep press. */
+typedef struct {
+    bool pressed;
+    uint64_t pressed_at_us;
+    bool owed; /* a wake came before the computer suspended */
+} dh_sleep_sync_peer_t;
+
+/* The receiver pressed System Sleep. A new sleep drops any wake kept from
+   before. */
+static inline void dh_sleep_sync_peer_press(dh_sleep_sync_peer_t *p, uint64_t now_us) {
+    *p = (dh_sleep_sync_peer_t){.pressed = true, .pressed_at_us = now_us};
+}
+
+/* Wake arrived from the active board. True when remote wakeup should be
+   called now: this computer is asleep. Within DH_SLEEP_SYNC_OWED_WAKE_US of a
+   sleep press, the wake is also kept for dh_sleep_sync_peer_step: an awake
+   computer may still be going to sleep, and a just-suspended one may ignore
+   a try made before USB's 5 ms of idle bus. Times compare signed, so a press
+   stamped just after `now` reads as recent. */
+static inline bool dh_sleep_sync_peer_wake(dh_sleep_sync_peer_t *p, bool suspended, uint64_t now_us) {
+    if (p->pressed && (int64_t)(now_us - p->pressed_at_us) < (int64_t)DH_SLEEP_SYNC_OWED_WAKE_US)
+        p->owed = true;
+    return suspended;
+}
+
+/* Asked on every pass. True while a kept wake should call remote wakeup: the
+   computer is suspended within the window. A host can resume the device for
+   a moment while it goes to sleep, so only the window's end drops the kept
+   wake; a new press drops it too. */
+static inline bool dh_sleep_sync_peer_step(dh_sleep_sync_peer_t *p, bool suspended, uint64_t now_us) {
+    if (!p->owed)
+        return false;
+    if ((int64_t)(now_us - p->pressed_at_us) >= (int64_t)DH_SLEEP_SYNC_OWED_WAKE_US) {
+        p->owed = false;
+        return false;
+    }
+    return suspended;
 }
 
 #endif /* DH_SLEEP_SYNC_H_ */

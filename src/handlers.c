@@ -366,12 +366,13 @@ void handle_system_control_msg(uart_packet_t *packet, device_t *state) {
 /* The peer's computer went to sleep (#287) or got input while asleep (#288).
    Sleep: press and release System Sleep here if dh_sleep_sync_obey_sleep
    agrees. If the host suspends before the release goes out, the next report
-   after wake stands in for it. Wake: wake this computer if it sleeps. The
+   after wake stands in for it. Wake: wake this computer if it sleeps, or keep
+   the wake for sleep_sync_task if it is still going to sleep (#289). The
    sender already checked the setting, and tud_remote_wakeup only sets
    hardware bits, so calling it here on core 1 is safe. */
 void handle_sleep_sync_msg(uart_packet_t *packet, device_t *state) {
     if (packet->data[0] == DH_SLEEP_SYNC_WAKE) {
-        if (tud_suspended())
+        if (dh_sleep_sync_peer_wake(&state->sleep_sync_peer, tud_suspended(), time_us_64()))
             tud_remote_wakeup();
         return;
     }
@@ -384,6 +385,7 @@ void handle_sleep_sync_msg(uart_packet_t *packet, device_t *state) {
     uint8_t press = SYSTEM_CONTROL_SLEEP, release = 0;
     queue_system_packet(&press, state);
     queue_system_packet(&release, state);
+    dh_sleep_sync_peer_press(&state->sleep_sync_peer, time_us_64());
 }
 
 /* Process request to store config to flash */

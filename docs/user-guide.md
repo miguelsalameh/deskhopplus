@@ -331,6 +331,9 @@ both computers.
 - Only input to the computer that has the keyboard and mouse does this. Typing on the computer you
   use never wakes an idle computer you are not using.
 - A computer that wakes by itself (lid, power button, a wake timer) wakes alone.
+- If you press a key while the other computer is still going to sleep, its board remembers the wake
+  for 30 seconds after it pressed System Sleep. As soon as that computer is asleep, the board wakes
+  it again.
 - A computer can only be woken this way if it lets USB devices wake it. The same limit applies when a key press
   wakes the computer you use.
 
