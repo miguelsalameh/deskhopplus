@@ -15,7 +15,7 @@ a new helper-to-board message, `0x11 HOST_SLEEP` (one byte: 1 asleep, 0 awake). 
 - The Windows helper sends **asleep** on `PBT_APMSUSPEND`, and **awake** on
   `PBT_APMRESUMESUSPEND`. It sends nothing on `PBT_APMRESUMEAUTOMATIC`.
 - The Mac helper sends **asleep** on `NSWorkspace.willSleepNotification`, and **awake** on
-  `screensDidWakeNotification`. It sends nothing on `didWakeNotification` or
+  `didWakeNotification`. It sends nothing on `screensDidWakeNotification` or
   `screensDidSleepNotification` (#298).
 - At the start of every session, a helper sends **awake** if its computer is awake, and nothing
   if it is asleep.
@@ -54,7 +54,11 @@ only thing running on the PC that the board can hear.
 - **Why the Mac reports too.** Docked on Thunderbolt, a sleeping Mac does a DarkWake about 45 s
   of every minute, with USB resumed and the screens off (#294). Its board read each one as awake,
   so the 5 s wait started over and the PC slept late or never, and input during a DarkWake sent no
-  WAKE. The screens stay off in a DarkWake, so `screensDidWake` marks the user.
+  WAKE.
+- **Why `didWake` marks the user.** In #298's runs `willSleep` and `didWake` came in pairs, ten
+  of each, and no DarkWake posted `didWake`. A notification wake turned the screens on and posted
+  `screensDidWake`, then went back to sleep with no `willSleep` (2026-10-01, 09:05:48). Awake on
+  `screensDidWake` left the Mac counted awake for the rest of that sleep, so input sent no WAKE.
 - **Why a gate.** A v6 board ends the session on an unknown type, so a v7 helper would drop its
   session at every sleep.
 
@@ -65,5 +69,5 @@ only thing running on the PC that the board can hear.
 - **Clear the state on a session end.** Rejected: see above.
 - **A helper on the Mac too.** First rejected: a Mac suspends USB when it sleeps, so its board
   already sees it. Reversed by #298 on the DarkWake data above.
-- **`didWakeNotification` for the Mac's awake.** It is not known whether it fires on a DarkWake.
-  Rejected; kept as a log line.
+- **`screensDidWakeNotification` for the Mac's awake.** First chosen, since a DarkWake keeps the
+  screens off. Rejected on the notification wake above; kept as a log line.

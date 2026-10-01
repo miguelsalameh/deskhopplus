@@ -15,11 +15,13 @@ public struct HostSleep {
     public enum Event {
         /// `willSleepNotification`: system sleep only, never a display-off timeout.
         case willSleep
-        /// `didWakeNotification`: may be a DarkWake, so it says nothing.
+        /// `didWakeNotification`: the full wake that pairs with `willSleep`. A
+        /// DarkWake or a notification wake does not post it (2026-10-01 logs).
         case didWake
         /// `screensDidSleepNotification`: a display sleep or timeout, which is not sleep.
         case screensDidSleep
-        /// `screensDidWakeNotification`: a DarkWake keeps the screens off, so this is the user.
+        /// `screensDidWakeNotification`: logged only. A notification turns the
+        /// screens on and the Mac goes back to sleep with no `willSleep`.
         case screensDidWake
     }
 
@@ -32,8 +34,8 @@ public struct HostSleep {
     public mutating func event(_ event: Event) -> UInt8? {
         switch event {
         case .willSleep: asleep = true
-        case .screensDidWake: asleep = false
-        case .didWake, .screensDidSleep: return nil
+        case .didWake: asleep = false
+        case .screensDidWake, .screensDidSleep: return nil
         }
         return asleep ? 1 : 0
     }
