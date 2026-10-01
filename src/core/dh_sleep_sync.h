@@ -5,9 +5,10 @@
  * Sleep sync (#287): when the active output's computer sleeps, its board tells
  * the peer, and the peer presses System Sleep on its own computer. When input
  * reaches the active output while its computer sleeps, its board tells the
- * peer to wake too (#288), and the peer calls remote wakeup, or nudges the
- * pointer when its computer is not suspended (#291). A wake that finds
- * the peer still going to sleep is kept until its computer suspends (#289).
+ * peer to wake too (#288), and the peer nudges the pointer, which calls
+ * remote wakeup first when its computer is suspended (#291, #296). A wake
+ * that finds the peer still going to sleep is kept until its computer
+ * suspends (#289).
  *
  * "Asleep" is the USB host suspending the device (tud_suspended), or the
  * helper saying its computer sleeps (#293). A Modern Standby PC sleeps
@@ -152,32 +153,27 @@ static inline bool dh_sleep_sync_peer_release(dh_sleep_sync_peer_t *p, uint64_t 
     return true;
 }
 
-/* How the receiver wakes its computer. */
-typedef enum {
-    DH_SLEEP_SYNC_REMOTE_WAKEUP, /* tud_remote_wakeup */
-    DH_SLEEP_SYNC_NUDGE,         /* a mouse move out and back (#291) */
-} dh_sleep_sync_wake_action_t;
-
-/* Wake arrived from the active board. A suspended computer gets remote
-   wakeup. One that is not suspended gets a nudge: a Modern Standby PC sleeps
-   without a USB suspend, and real input wakes it (#291). On an awake
-   computer the nudge is harmless, since the pointer ends where it started.
+/* Wake arrived from the active board. The caller always nudges the pointer
+   out and back, and the nudge's drain calls remote wakeup while the computer
+   is suspended, like real input. Remote wakeup alone is not enough: a
+   Modern Standby PC suspends the board's USB after minutes asleep, and turns
+   its screen on only for the input that follows the resume (#296).
    Within DH_SLEEP_SYNC_OWED_WAKE_US of a sleep press, the wake is also kept
    for dh_sleep_sync_peer_step: an awake computer may still be going to
    sleep, and a just-suspended one may ignore a try made before USB's 5 ms of
    idle bus. Times compare signed, so a press stamped just after `now` reads
    as recent. */
-static inline dh_sleep_sync_wake_action_t dh_sleep_sync_peer_wake(dh_sleep_sync_peer_t *p, bool suspended,
-                                                            uint64_t now_us) {
+static inline void dh_sleep_sync_peer_wake(dh_sleep_sync_peer_t *p, uint64_t now_us) {
     if (p->pressed && (int64_t)(now_us - p->pressed_at_us) < (int64_t)DH_SLEEP_SYNC_OWED_WAKE_US)
         p->owed = true;
-    return suspended ? DH_SLEEP_SYNC_REMOTE_WAKEUP : DH_SLEEP_SYNC_NUDGE;
 }
 
 /* Asked on every pass. True while a kept wake should call remote wakeup: the
-   computer is suspended within the window. A host can resume the device for
-   a moment while it goes to sleep, so only the window's end drops the kept
-   wake; a new press drops it too. */
+   computer is suspended within the window. This covers a computer that was
+   awake at the wake and suspends after it, such as a Mac just after the
+   press; a wake that finds it suspended is retried by the nudge's drain. A
+   host can resume the device for a moment while it goes to sleep, so only
+   the window's end drops the kept wake; a new press drops it too. */
 static inline bool dh_sleep_sync_peer_step(dh_sleep_sync_peer_t *p, bool suspended, uint64_t now_us) {
     if (!p->owed)
         return false;

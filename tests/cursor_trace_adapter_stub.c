@@ -14,3 +14,11 @@ void cursor_trace_event(const device_t *state, dh_cursor_trace_event_t event,
     (void)direction;
     (void)transition;
 }
+
+void sleep_sync_trace(const device_t *state, dh_sleep_sync_trace_t what, int16_t value,
+                      uint64_t now_us) {
+    (void)state;
+    (void)what;
+    (void)value;
+    (void)now_us;
+}

@@ -207,24 +207,8 @@ static void test_the_helper_saying_awake_ends_the_sleep(void) {
 static bool owed_wake_fires(uint64_t wake_at, uint64_t suspend_at) {
     dh_sleep_sync_peer_t p = {0};
     dh_sleep_sync_peer_press(&p, T0);
-    CHECK(dh_sleep_sync_peer_wake(&p, false, T0 + wake_at) == DH_SLEEP_SYNC_NUDGE, "owed",
-          "called remote wakeup on a computer that was not asleep");
+    dh_sleep_sync_peer_wake(&p, T0 + wake_at);
     return dh_sleep_sync_peer_step(&p, true, T0 + suspend_at);
-}
-
-/* A wake that finds the peer's computer suspended calls remote wakeup. */
-static void test_a_suspended_peer_gets_remote_wakeup(void) {
-    dh_sleep_sync_peer_t p = {0};
-    CHECK(dh_sleep_sync_peer_wake(&p, true, T0) == DH_SLEEP_SYNC_REMOTE_WAKEUP, "peer wake",
-          "a suspended peer did not get remote wakeup");
-}
-
-/* A Modern Standby PC can sleep without a USB suspend. A wake that finds the
-   peer's computer not suspended nudges the pointer instead (#291). */
-static void test_a_peer_not_suspended_gets_a_nudge(void) {
-    dh_sleep_sync_peer_t p = {0};
-    CHECK(dh_sleep_sync_peer_wake(&p, false, T0) == DH_SLEEP_SYNC_NUDGE, "peer wake",
-          "a peer that was not suspended got no nudge");
 }
 
 /* A wake that finds the computer just suspended is kept too: USB wants 5 ms
@@ -232,7 +216,7 @@ static void test_a_peer_not_suspended_gets_a_nudge(void) {
 static void test_a_wake_just_after_the_suspend_retries(void) {
     dh_sleep_sync_peer_t p = {0};
     dh_sleep_sync_peer_press(&p, T0);
-    dh_sleep_sync_peer_wake(&p, true, T0 + 3 * SEC);
+    dh_sleep_sync_peer_wake(&p, T0 + 3 * SEC);
     CHECK(dh_sleep_sync_peer_step(&p, true, T0 + 3 * SEC + 100000), "early",
           "a wake to a just-suspended computer was not tried again");
 }
@@ -253,7 +237,7 @@ static void test_a_kept_wake_expires(void) {
 /* No press, nothing to keep: a wake to an awake peer is dropped. */
 static void test_a_wake_without_a_press_is_dropped(void) {
     dh_sleep_sync_peer_t p = {0};
-    dh_sleep_sync_peer_wake(&p, false, T0);
+    dh_sleep_sync_peer_wake(&p, T0);
     CHECK(!dh_sleep_sync_peer_step(&p, true, T0 + SEC), "owed", "kept a wake with no sleep press");
 }
 
@@ -263,7 +247,7 @@ static void test_a_wake_without_a_press_is_dropped(void) {
 static void test_a_kept_wake_retries_through_a_resume(void) {
     dh_sleep_sync_peer_t p = {0};
     dh_sleep_sync_peer_press(&p, T0);
-    dh_sleep_sync_peer_wake(&p, false, T0 + SEC);
+    dh_sleep_sync_peer_wake(&p, T0 + SEC);
     CHECK(dh_sleep_sync_peer_step(&p, true, T0 + 5 * SEC), "retry", "no first try");
     CHECK(dh_sleep_sync_peer_step(&p, true, T0 + 6 * SEC), "retry", "no second try");
     dh_sleep_sync_peer_step(&p, false, T0 + 7 * SEC);
@@ -280,7 +264,7 @@ static void test_a_late_wake_is_dropped(void) {
 static void test_a_new_press_drops_a_kept_wake(void) {
     dh_sleep_sync_peer_t p = {0};
     dh_sleep_sync_peer_press(&p, T0);
-    dh_sleep_sync_peer_wake(&p, false, T0 + SEC);
+    dh_sleep_sync_peer_wake(&p, T0 + SEC);
     dh_sleep_sync_peer_press(&p, T0 + 2 * SEC);
     CHECK(!dh_sleep_sync_peer_step(&p, true, T0 + 5 * SEC), "press",
           "a new sleep press kept the old wake");
@@ -290,7 +274,7 @@ static void test_a_new_press_drops_a_kept_wake(void) {
 static void test_a_press_ahead_of_the_clock_is_recent(void) {
     dh_sleep_sync_peer_t p = {0};
     dh_sleep_sync_peer_press(&p, T0 + 1);
-    dh_sleep_sync_peer_wake(&p, false, T0);
+    dh_sleep_sync_peer_wake(&p, T0);
     CHECK(dh_sleep_sync_peer_step(&p, true, T0), "signed",
           "a press stamp ahead of the clock read as long ago");
 }
@@ -327,8 +311,6 @@ int main(void) {
     test_the_helper_saying_asleep_counts_as_asleep();
     test_input_ends_a_sleep_the_helper_reported();
     test_the_helper_saying_awake_ends_the_sleep();
-    test_a_suspended_peer_gets_remote_wakeup();
-    test_a_peer_not_suspended_gets_a_nudge();
     test_a_wake_during_the_sleep_is_kept();
     test_a_wake_just_after_the_suspend_retries();
     test_a_kept_wake_expires();

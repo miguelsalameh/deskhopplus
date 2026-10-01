@@ -51,6 +51,9 @@ typedef enum {
      * HOST_REPLUG query_id = pulls this run, this one included: the firmware
      *           emulated a cable pull because the port read attached and
      *           nothing had mounted (dh_host_replug.h).
+     * SLEEP_SYNC query_id = what happened (dh_sleep_sync_trace_t), move_x =
+     *           its value, move_y = seconds since boot (wraps after 9 h), so
+     *           the records line up with the computers' logs (#296).
      */
     DH_CURSOR_TRACE_BOOT,
     DH_CURSOR_TRACE_HID_MOUNT,
@@ -58,7 +61,17 @@ typedef enum {
     DH_CURSOR_TRACE_DEV_MOUNT,
     DH_CURSOR_TRACE_DEV_UNMOUNT,
     DH_CURSOR_TRACE_HOST_REPLUG,
+    DH_CURSOR_TRACE_SLEEP_SYNC,
 } dh_cursor_trace_event_t;
+
+/* SLEEP_SYNC's query_id, and what its move_x holds. */
+typedef enum {
+    DH_SLEEP_SYNC_TRACE_HELPER_SAYS = 1, /* 1 asleep, 0 awake */
+    DH_SLEEP_SYNC_TRACE_SLEEP_SENT,      /* 0 */
+    DH_SLEEP_SYNC_TRACE_SLEEP_RECEIVED,  /* 1 System Sleep pressed */
+    DH_SLEEP_SYNC_TRACE_WAKE_SENT,       /* 1 this computer was suspended */
+    DH_SLEEP_SYNC_TRACE_WAKE_RECEIVED,   /* bit0 suspended, bit1 remote wakeup signalled */
+} dh_sleep_sync_trace_t;
 
 /* Twelve bytes so one config response can carry either six-byte half. */
 typedef struct {

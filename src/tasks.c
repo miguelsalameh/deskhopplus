@@ -274,9 +274,12 @@ void sleep_sync_task(device_t *state) {
     bool suspended = tud_suspended();
 
     if (dh_sleep_sync_step(&state->sleep_sync, state->config.sleep_sync, CURRENT_BOARD_IS_ACTIVE_OUTPUT,
-                           suspended, now)
-        && !send_value(DH_SLEEP_SYNC_SLEEP, SLEEP_SYNC_MSG))
-        state->sleep_sync.sent = false;
+                           suspended, now)) {
+        if (send_value(DH_SLEEP_SYNC_SLEEP, SLEEP_SYNC_MSG))
+            sleep_sync_trace(state, DH_SLEEP_SYNC_TRACE_SLEEP_SENT, 0, now);
+        else
+            state->sleep_sync.sent = false;
+    }
 
     if (dh_sleep_sync_peer_step(&state->sleep_sync_peer, suspended, now))
         tud_remote_wakeup();
@@ -297,9 +300,12 @@ void wake_on_input(device_t *state) {
         tud_remote_wakeup();
 
     if (dh_sleep_sync_wake(&state->sleep_sync, state->config.sleep_sync, CURRENT_BOARD_IS_ACTIVE_OUTPUT,
-                           suspended)
-        && !send_value(DH_SLEEP_SYNC_WAKE, SLEEP_SYNC_MSG))
-        state->sleep_sync.woken = false;
+                           suspended)) {
+        if (send_value(DH_SLEEP_SYNC_WAKE, SLEEP_SYNC_MSG))
+            sleep_sync_trace(state, DH_SLEEP_SYNC_TRACE_WAKE_SENT, suspended, time_us_64());
+        else
+            state->sleep_sync.woken = false;
+    }
 }
 
 /* Process other outgoing hid report messages. */

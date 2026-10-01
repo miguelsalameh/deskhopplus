@@ -59,6 +59,12 @@ void cursor_trace_event(const device_t *state, dh_cursor_trace_event_t event,
     critical_section_exit(&cursor_trace_lock);
 }
 
+void sleep_sync_trace(const device_t *state, dh_sleep_sync_trace_t what, int16_t value,
+                      uint64_t now_us) {
+    cursor_trace_event(state, DH_CURSOR_TRACE_SLEEP_SYNC, (uint8_t)what, value,
+                       (int16_t)(now_us / 1000000u), 0, 0);
+}
+
 size_t cursor_trace_count(void) {
     critical_section_enter_blocking(&cursor_trace_lock);
     const size_t count = dh_cursor_trace_count(&cursor_trace_storage);

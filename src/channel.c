@@ -378,10 +378,11 @@ void channel_receive_report(uint8_t index, const uint8_t *buffer, uint16_t bufsi
 }
 
 /* The helper said its computer went to sleep or woke (#293). Sleep sync
-   counts it like a USB suspend. */
+   counts it like a USB suspend. The trace keeps it (#296). */
 void channel_lifecycle_host_sleep(void *context, bool asleep) {
     device_t *state = context;
     dh_sleep_sync_helper_says(&state->sleep_sync, asleep);
+    sleep_sync_trace(state, DH_SLEEP_SYNC_TRACE_HELPER_SAYS, asleep, time_us_64());
 }
 
 /* An authenticated position response, applied to this board's cursor state. */

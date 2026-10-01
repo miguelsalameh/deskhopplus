@@ -3848,8 +3848,11 @@ const packetType = {
 /* boot: q bit0 into config mode, bit1 watchdog reset, bit2 meant (bit1 without bit2 = hang).
    hid-mount/unmount (#102): q=dev_addr d=(instance,protocol);
    mount dir bit0 keyboard seen, bit1 mouse seen; transition 1 polling, 2 refused, 3 rejected.
-   dev-mount/unmount: q=dev_addr, the device before any class driver. replug: q=pulls so far. */
-const cursorTraceEvents = ["", "input", "decision", "query", "response", "place", "switch", "cancel", "timeout", "boot", "hid-mount", "hid-unmount", "dev-mount", "dev-unmount", "replug"];
+   dev-mount/unmount: q=dev_addr, the device before any class driver. replug: q=pulls so far.
+   sleep-sync (#296): q 1 helper said, 2 sleep sent, 3 sleep received, 4 wake sent,
+   5 wake received; d=(value, seconds since boot): asleep, obeyed, suspended; for 5,
+   bit0 suspended, bit1 remote wakeup signalled. */
+const cursorTraceEvents = ["", "input", "decision", "query", "response", "place", "switch", "cancel", "timeout", "boot", "hid-mount", "hid-unmount", "dev-mount", "dev-unmount", "replug", "sleep-sync"];
 const cursorTraceState = { output: 0, screen: 1, direction: 4, phase: 7, relative: 10, transition: 11 };
 let cursorTraceParts = new Map();
 

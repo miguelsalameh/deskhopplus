@@ -367,19 +367,22 @@ void handle_system_control_msg(uart_packet_t *packet, device_t *state) {
    Sleep: press System Sleep here if dh_sleep_sync_obey_sleep agrees;
    sleep_sync_task releases it DH_SLEEP_SYNC_HOLD_US later, since macOS
    ignores a short press. If the host suspends before the release goes out,
-   the next report after wake stands in for it. Wake: remote wakeup if this computer is
-   suspended, else a tiny mouse move, since a Modern Standby PC sleeps without
-   a USB suspend (#291). A wake while it is still going to sleep is also kept
-   for sleep_sync_task (#289). The sender already checked the setting, and
-   tud_remote_wakeup only sets hardware bits, so calling it here on core 1 is
-   safe. */
+   the next report after wake stands in for it. Wake: a tiny mouse move, as
+   real input. A Modern Standby PC sleeps without a USB suspend (#291), and
+   after minutes asleep it suspends USB and wakes only for input after the
+   resume (#296); the move's drain (wake_on_input) calls remote wakeup first
+   while suspended. A wake while it is still going to sleep is also kept for
+   sleep_sync_task (#289). The sender already checked the setting. Each step
+   goes to the trace (#296). */
 void handle_sleep_sync_msg(uart_packet_t *packet, device_t *state) {
     if (packet->data[0] == DH_SLEEP_SYNC_WAKE) {
-        if (dh_sleep_sync_peer_wake(&state->sleep_sync_peer, tud_suspended(), time_us_64())
-            == DH_SLEEP_SYNC_REMOTE_WAKEUP) {
-            tud_remote_wakeup();
-            return;
-        }
+        const uint64_t now = time_us_64();
+        /* One try here too, so the trace can tell a host that refused remote
+           wakeup from one that ignored the input after it. */
+        const bool suspended = tud_suspended();
+        const bool signalled = suspended && tud_remote_wakeup();
+        sleep_sync_trace(state, DH_SLEEP_SYNC_TRACE_WAKE_RECEIVED, suspended | (signalled << 1), now);
+        dh_sleep_sync_peer_wake(&state->sleep_sync_peer, now);
         /* Relative, so it works in both mouse modes and leaves the tracked
            absolute pointer alone. Out and back: the pointer does not move.
            Left first: an inactive output's pointer is parked at the right
@@ -391,13 +394,16 @@ void handle_sleep_sync_msg(uart_packet_t *packet, device_t *state) {
     }
     if (packet->data[0] != DH_SLEEP_SYNC_SLEEP)
         return;
-    if (!dh_sleep_sync_obey_sleep(state->config.sleep_sync, CURRENT_BOARD_IS_ACTIVE_OUTPUT,
-                                  dh_sleep_sync_asleep(&state->sleep_sync, tud_suspended())))
+    const bool obey = dh_sleep_sync_obey_sleep(state->config.sleep_sync, CURRENT_BOARD_IS_ACTIVE_OUTPUT,
+                                               dh_sleep_sync_asleep(&state->sleep_sync, tud_suspended()));
+    const uint64_t now = time_us_64();
+    sleep_sync_trace(state, DH_SLEEP_SYNC_TRACE_SLEEP_RECEIVED, obey, now);
+    if (!obey)
         return;
 
     uint8_t press = SYSTEM_CONTROL_SLEEP;
     queue_system_packet(&press, state);
-    dh_sleep_sync_peer_press(&state->sleep_sync_peer, time_us_64());
+    dh_sleep_sync_peer_press(&state->sleep_sync_peer, now);
 }
 
 /* Process request to store config to flash */

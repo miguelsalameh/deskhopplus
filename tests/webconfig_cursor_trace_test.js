@@ -38,3 +38,14 @@ if (mountActual !== mountExpected) {
   console.error(`FAIL webconfig_cursor_trace: expected ${mountExpected}; got ${mountActual}`);
   process.exit(1);
 }
+
+/* A Sleep sync step (#296): what 5 = wake received, value 1 = suspended,
+   at 300 s since boot. The number must match DH_CURSOR_TRACE_SLEEP_SYNC. */
+const sleep = [15, 5, 1, 0, 0x2c, 0x01, 0, 0, 0, 0, 0, 0];
+const sleepExpected = "1: sleep-sync q=5 d=(1,300) p=(0,0) out=A screen=0 dir=0 " +
+                      "transition=0 phase=0 relative=0";
+const sleepActual = decode(1, sleep);
+if (sleepActual !== sleepExpected) {
+  console.error(`FAIL webconfig_cursor_trace: expected ${sleepExpected}; got ${sleepActual}`);
+  process.exit(1);
+}

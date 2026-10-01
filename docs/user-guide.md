@@ -356,9 +356,9 @@ Modern Standby. The board cannot see when such a PC goes to sleep, so:
 - A screen that goes dark on a timeout is not sleep, and the helper does not report it.
 - Windows can wake for a moment by itself right after it goes to sleep, with the screen dark. The
   other computer stays asleep: only a wake by you counts.
-- A key press while the other computer is asleep still wakes this PC. The board sees the PC as
-  awake, so it moves the pointer 1 pixel out and 1 pixel back. Real input wakes Modern Standby. The
-  pointer ends where it started, so on a PC that is already awake you see nothing.
+- A key press while the other computer is asleep still wakes this PC. The board moves the pointer
+  1 pixel out and 1 pixel back. Real input wakes Modern Standby, even after the PC has slept for
+  minutes. The pointer ends where it started, so on a PC that is already awake you see nothing.
 
 Save sends one setting to both boards.
 
