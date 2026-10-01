@@ -60,6 +60,20 @@ void kick_watchdog_task(device_t *state) {
 
 void usb_device_task(device_t *state) {
     tud_task();
+
+    /* TinyUSB's suspended flag can outlive a Modern Standby wake, which
+       leaves every send waiting on it while the computer polls (#295). Looked
+       at every 20 ms, so a live bus moves the frame number between looks
+       (dh_usb_wake.h). The frame is read before the flag. */
+    static dh_usb_wake wake;
+    static uint32_t last_look_us;
+    const uint32_t now = time_us_32();
+    if ((uint32_t)(now - last_look_us) < 20000u)
+        return;
+    last_look_us = now;
+    const uint16_t frame = usb_device_frame();
+    if (dh_usb_wake_stale_suspend(&wake, tud_suspended(), frame) && usb_device_resume())
+        sleep_sync_trace(state, DH_SLEEP_SYNC_TRACE_STALE_SUSPEND, (int16_t)frame, time_us_64());
 }
 
 void usb_host_task(device_t *state) {

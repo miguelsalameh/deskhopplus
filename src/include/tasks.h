@@ -46,6 +46,9 @@ void usb_host_task(device_t *);
 bool usb_host_attached(void);
 bool usb_host_any_mounted(void);
 void usb_host_replug(void);
+/* The board's USB device link, for usb_device_task's stale-suspend watch (#295). */
+uint16_t usb_device_frame(void);
+bool usb_device_resume(void);
 
 #ifdef DH_BENCH_ECDH
 /* Measure-only build (-DDH_BENCH_ECDH=ON). Not part of the product: see

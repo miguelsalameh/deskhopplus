@@ -29,6 +29,7 @@
 #include "cursor_position.h"
 #include "cursor_trace.h"
 #include "dh_host_replug.h"
+#include "dh_usb_wake.h"
 #include "flash_layout.h"
 #include "identity_store.h"
 

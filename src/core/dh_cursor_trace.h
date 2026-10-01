@@ -71,6 +71,13 @@ typedef enum {
     DH_SLEEP_SYNC_TRACE_SLEEP_RECEIVED,  /* 1 System Sleep pressed */
     DH_SLEEP_SYNC_TRACE_WAKE_SENT,       /* 1 this computer was suspended */
     DH_SLEEP_SYNC_TRACE_WAKE_RECEIVED,   /* bit0 suspended, bit1 remote wakeup signalled */
+    /* This board's USB device link to its computer (#295). */
+    DH_SLEEP_SYNC_TRACE_USB_SUSPEND,     /* 1 the host allows remote wakeup */
+    DH_SLEEP_SYNC_TRACE_USB_RESUME,      /* 0 */
+    DH_SLEEP_SYNC_TRACE_STALE_SUSPEND,   /* the frame number: frames moved, flag cleared */
+    DH_SLEEP_SYNC_TRACE_KEY_BLOCKED,     /* bit0 mounted, bit1 suspended: a key waited 1 s;
+                                            mounted and not suspended = its endpoint is busy */
+    DH_SLEEP_SYNC_TRACE_USB_MOUNT,       /* 1 mounted, 0 unmounted (a re-enumeration) */
 } dh_sleep_sync_trace_t;
 
 /* Twelve bytes so one config response can carry either six-byte half. */

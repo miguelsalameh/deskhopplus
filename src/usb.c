@@ -13,6 +13,8 @@
 #include "main.h"
 
 #include "pio_usb_ll.h"
+#include "device/dcd.h"
+#include "hardware/structs/usb.h"
 
 _Static_assert(MAX_DEVICES <= CFG_TUH_DEVICE_MAX,
                "MAX_DEVICES must not exceed CFG_TUH_DEVICE_MAX");
@@ -23,6 +25,7 @@ _Static_assert(MAX_DEVICES <= CFG_TUH_DEVICE_MAX,
 
 /* Invoked when device is mounted */
 void tud_mount_cb(void) {
+    sleep_sync_trace(&global_state, DH_SLEEP_SYNC_TRACE_USB_MOUNT, 1, time_us_64());
     discard_queued_host_reports();
     global_state.tud_connected = true;
     tud_mouse_report_reset(global_state.pointer_x, global_state.pointer_y);
@@ -55,6 +58,7 @@ void tud_mount_cb(void) {
 
 /* Invoked when device is unmounted */
 void tud_umount_cb(void) {
+    sleep_sync_trace(&global_state, DH_SLEEP_SYNC_TRACE_USB_MOUNT, 0, time_us_64());
     global_state.tud_connected = false;
     discard_queued_host_reports();
     set_local_boot_mouse_mode(false);
@@ -72,6 +76,35 @@ void tud_umount_cb(void) {
        whole life. Config mode is decided at boot, where channel_init still
        runs. */
     channel_link_lost();
+}
+
+/* Suspend and resume go into the trace, to line up with the computer's
+   sleep and wake in its helper log (#295). */
+void tud_suspend_cb(bool remote_wakeup_en) {
+    sleep_sync_trace(&global_state, DH_SLEEP_SYNC_TRACE_USB_SUSPEND, remote_wakeup_en, time_us_64());
+}
+
+void tud_resume_cb(void) {
+    sleep_sync_trace(&global_state, DH_SLEEP_SYNC_TRACE_USB_RESUME, 0, time_us_64());
+}
+
+/* The number of the last Start of Frame from the computer. The hardware
+   updates it with or without the SOF interrupt; a suspended bus freezes it. */
+uint16_t usb_device_frame(void) {
+    return usb_hw->sof_rd & USB_SOF_RD_BITS;
+}
+
+/* Clear a suspended flag that outlived its suspend (#295), with the event
+   the resume interrupt sends. Interrupts off: the flag shares a byte with
+   others that the USB interrupt writes, and that interrupt may have cleared
+   it since the caller looked. False when it had. */
+bool usb_device_resume(void) {
+    const uint32_t irq = save_and_disable_interrupts();
+    const bool stale = tud_suspended();
+    if (stale)
+        dcd_event_bus_signal(0, DCD_EVENT_RESUME, false);
+    restore_interrupts(irq);
+    return stale;
 }
 
 #ifdef DH_DEBUG_CDC_FLASH

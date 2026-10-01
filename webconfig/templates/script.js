@@ -14,7 +14,10 @@ const packetType = {
    dev-mount/unmount: q=dev_addr, the device before any class driver. replug: q=pulls so far.
    sleep-sync (#296): q 1 helper said, 2 sleep sent, 3 sleep received, 4 wake sent,
    5 wake received; d=(value, seconds since boot): asleep, obeyed, suspended; for 5,
-   bit0 suspended, bit1 remote wakeup signalled. */
+   bit0 suspended, bit1 remote wakeup signalled. USB link (#295): 6 suspend (1 remote
+   wakeup allowed), 7 resume, 8 stale suspend cleared (value = frame number),
+   9 a key waited 1 s (bit0 mounted, bit1 suspended; mounted alone = endpoint busy),
+   10 mount (1) or unmount (0). */
 const cursorTraceEvents = ["", "input", "decision", "query", "response", "place", "switch", "cancel", "timeout", "boot", "hid-mount", "hid-unmount", "dev-mount", "dev-unmount", "replug", "sleep-sync"];
 const cursorTraceState = { output: 0, screen: 1, direction: 4, phase: 7, relative: 10, transition: 11 };
 let cursorTraceParts = new Map();

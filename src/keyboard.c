@@ -164,15 +164,24 @@ void process_kbd_queue_task(device_t *state) {
     if (!state->tud_connected)
         return;
 
+    /* A key that waits a whole second gets one trace record, with why (#295). */
+    static dh_usb_blocked blocked;
+
     /* Peek first, if there is anything there... */
-    if (!queue_try_peek(&state->kbd_queue, &report))
+    if (!queue_try_peek(&state->kbd_queue, &report)) {
+        blocked = (dh_usb_blocked){0}; /* the next report starts a new stall */
         return;
+    }
 
     /* If we are suspended, let's wake the host up (and maybe the peer, #288) */
     wake_on_input(state);
 
     /* If it's not ok to send yet, we'll try on the next pass */
-    if (!tud_hid_n_ready(ITF_NUM_HID))
+    const bool ready = tud_hid_n_ready(ITF_NUM_HID);
+    if (dh_usb_blocked_due(&blocked, !ready, time_us_32()))
+        sleep_sync_trace(state, DH_SLEEP_SYNC_TRACE_KEY_BLOCKED,
+                         (int16_t)((tud_mounted() ? 1 : 0) | (tud_suspended() ? 2 : 0)), time_us_64());
+    if (!ready)
         return;
 
     /* ... try sending it to the host, if it's successful */

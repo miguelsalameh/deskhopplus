@@ -76,6 +76,12 @@ add_executable(host_replug_test host_replug_test.c)
 target_include_directories(host_replug_test PRIVATE ${CORE})
 add_test(NAME host_replug_test COMMAND host_replug_test)
 
+# A stale "suspended" flag after a Modern Standby wake (#295): when the
+# firmware clears it, and when a blocked key report is traced.
+add_executable(usb_wake_test usb_wake_test.c)
+target_include_directories(usb_wake_test PRIVATE ${CORE})
+add_test(NAME usb_wake_test COMMAND usb_wake_test)
+
 add_executable(mouse_seam_test mouse_seam_test.c
                cursor_trace_adapter_stub.c
                ${CMAKE_CURRENT_SOURCE_DIR}/../src/mouse_logic.c ${CORE}/dh_mouse_layout.c
