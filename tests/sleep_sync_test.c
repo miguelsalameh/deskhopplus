@@ -295,6 +295,21 @@ static void test_a_press_ahead_of_the_clock_is_recent(void) {
           "a press stamp ahead of the clock read as long ago");
 }
 
+/* macOS reads System Sleep as its power button, and ignores a press shorter
+   than 350 ms; one held 1.5 s shows the shutdown dialog (#287, found on
+   #293). So the release comes DH_SLEEP_SYNC_HOLD_US after the press, once. */
+static void test_the_sleep_press_is_held_before_release(void) {
+    dh_sleep_sync_peer_t p = {0};
+    CHECK(!dh_sleep_sync_peer_release(&p, T0), "hold", "released with no press");
+    dh_sleep_sync_peer_press(&p, T0);
+    CHECK(!dh_sleep_sync_peer_release(&p, T0 + 349999), "hold",
+          "released before macOS's 350 ms debounce");
+    CHECK(dh_sleep_sync_peer_release(&p, T0 + 500000), "hold", "did not release after 0.5 s");
+    CHECK(!dh_sleep_sync_peer_release(&p, T0 + 600000), "hold", "released twice");
+    CHECK(DH_SLEEP_SYNC_HOLD_US > 350000 && DH_SLEEP_SYNC_HOLD_US < 1500000, "hold",
+          "the hold is outside macOS's sleep window");
+}
+
 int main(void) {
     test_sleep_is_sent_after_five_seconds();
     test_off_does_nothing();
@@ -322,6 +337,7 @@ int main(void) {
     test_a_late_wake_is_dropped();
     test_a_new_press_drops_a_kept_wake();
     test_a_press_ahead_of_the_clock_is_recent();
+    test_the_sleep_press_is_held_before_release();
 
     if (failures) {
         printf("sleep_sync_test: %d failure(s)\n", failures);

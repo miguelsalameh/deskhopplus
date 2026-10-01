@@ -123,17 +123,33 @@ static inline bool dh_sleep_sync_wake(dh_sleep_sync_t *s, bool on, bool active, 
    going to sleep, counted from its System Sleep press (#289). */
 #define DH_SLEEP_SYNC_OWED_WAKE_US 30000000u
 
+/* How long the receiver holds System Sleep down. macOS reads the key as its
+   power button: it ignores a press shorter than 350 ms, and shows the
+   shutdown dialog for one held 1.5 s (#287; loginwindow's log, found on
+   #293). Windows sleeps on the press, so the hold costs it nothing. */
+#define DH_SLEEP_SYNC_HOLD_US 500000u
+
 /* What the receiving board remembers about its last System Sleep press. */
 typedef struct {
     bool pressed;
     uint64_t pressed_at_us;
     bool owed; /* a wake came before the computer suspended */
+    bool held; /* the release is still to send */
 } dh_sleep_sync_peer_t;
 
 /* The receiver pressed System Sleep. A new sleep drops any wake kept from
    before. */
 static inline void dh_sleep_sync_peer_press(dh_sleep_sync_peer_t *p, uint64_t now_us) {
-    *p = (dh_sleep_sync_peer_t){.pressed = true, .pressed_at_us = now_us};
+    *p = (dh_sleep_sync_peer_t){.pressed = true, .pressed_at_us = now_us, .held = true};
+}
+
+/* Asked on every pass of sleep_sync_task. True once, DH_SLEEP_SYNC_HOLD_US
+   after the press: send the release now. Times compare signed. */
+static inline bool dh_sleep_sync_peer_release(dh_sleep_sync_peer_t *p, uint64_t now_us) {
+    if (!p->held || (int64_t)(now_us - p->pressed_at_us) < (int64_t)DH_SLEEP_SYNC_HOLD_US)
+        return false;
+    p->held = false;
+    return true;
 }
 
 /* How the receiver wakes its computer. */

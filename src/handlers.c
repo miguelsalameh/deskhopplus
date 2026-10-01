@@ -364,9 +364,10 @@ void handle_system_control_msg(uart_packet_t *packet, device_t *state) {
 }
 
 /* The peer's computer went to sleep (#287) or got input while asleep (#288).
-   Sleep: press and release System Sleep here if dh_sleep_sync_obey_sleep
-   agrees. If the host suspends before the release goes out, the next report
-   after wake stands in for it. Wake: remote wakeup if this computer is
+   Sleep: press System Sleep here if dh_sleep_sync_obey_sleep agrees;
+   sleep_sync_task releases it DH_SLEEP_SYNC_HOLD_US later, since macOS
+   ignores a short press. If the host suspends before the release goes out,
+   the next report after wake stands in for it. Wake: remote wakeup if this computer is
    suspended, else a tiny mouse move, since a Modern Standby PC sleeps without
    a USB suspend (#291). A wake while it is still going to sleep is also kept
    for sleep_sync_task (#289). The sender already checked the setting, and
@@ -394,9 +395,8 @@ void handle_sleep_sync_msg(uart_packet_t *packet, device_t *state) {
                                   dh_sleep_sync_asleep(&state->sleep_sync, tud_suspended())))
         return;
 
-    uint8_t press = SYSTEM_CONTROL_SLEEP, release = 0;
+    uint8_t press = SYSTEM_CONTROL_SLEEP;
     queue_system_packet(&press, state);
-    queue_system_packet(&release, state);
     dh_sleep_sync_peer_press(&state->sleep_sync_peer, time_us_64());
 }
 

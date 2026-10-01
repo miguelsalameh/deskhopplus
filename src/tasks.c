@@ -266,8 +266,9 @@ void heartbeat_output_task(device_t *state) {
 /* Sleep sync (#287): tells the peer once this board's computer, as the
    active output, has been asleep long enough; dh_sleep_sync_step decides.
    A full UART queue leaves it unsent, to be tried again next pass. As the
-   receiver, it wakes this computer for a wake kept while it was still going
-   to sleep, trying on each suspended pass until the window ends (#289). */
+   receiver, it releases System Sleep once held long enough, and wakes this
+   computer for a wake kept while it was still going to sleep, trying on each
+   suspended pass until the window ends (#289). */
 void sleep_sync_task(device_t *state) {
     uint64_t now = time_us_64();
     bool suspended = tud_suspended();
@@ -279,6 +280,10 @@ void sleep_sync_task(device_t *state) {
 
     if (dh_sleep_sync_peer_step(&state->sleep_sync_peer, suspended, now))
         tud_remote_wakeup();
+
+    uint8_t release = 0;
+    if (dh_sleep_sync_peer_release(&state->sleep_sync_peer, now))
+        queue_system_packet(&release, state);
 }
 
 /* Input for this board's computer is waiting (core 0's kbd and mouse queue
