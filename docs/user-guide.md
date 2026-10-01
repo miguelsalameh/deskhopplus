@@ -342,6 +342,9 @@ both computers.
 - If you press a key while the other computer is still going to sleep, its board remembers the wake
   for 30 seconds after it pressed System Sleep. As soon as that computer is asleep, the board wakes
   it again.
+- A Mac half awake with its screens off (a "DarkWake") ignores a mouse move but wakes for a key. So
+  when the helper on a Mac said the Mac sleeps, the first mouse move also taps Left Shift. A wake
+  from the other computer gets the tap too.
 - A computer can only be woken this way if it lets USB devices wake it. The same limit applies when a key press
   wakes the computer you use.
 

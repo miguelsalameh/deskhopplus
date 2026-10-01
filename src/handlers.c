@@ -371,9 +371,10 @@ void handle_system_control_msg(uart_packet_t *packet, device_t *state) {
    real input. A Modern Standby PC sleeps without a USB suspend (#291), and
    after minutes asleep it suspends USB and wakes only for input after the
    resume (#296); the move's drain (wake_on_input) calls remote wakeup first
-   while suspended. A wake while it is still going to sleep is also kept for
-   sleep_sync_task (#289). The sender already checked the setting. Each step
-   goes to the trace (#296). */
+   while suspended. A Mac in a DarkWake ignores the move, so the drain also
+   taps Left Shift (#300). A wake while it is still going to sleep is also
+   kept for sleep_sync_task (#289). The sender already checked the setting.
+   Each step goes to the trace (#296). */
 void handle_sleep_sync_msg(uart_packet_t *packet, device_t *state) {
     if (packet->data[0] == DH_SLEEP_SYNC_WAKE) {
         const uint64_t now = time_us_64();

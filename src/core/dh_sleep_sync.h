@@ -6,7 +6,8 @@
  * the peer, and the peer presses System Sleep on its own computer. When input
  * reaches the active output while its computer sleeps, its board tells the
  * peer to wake too (#288), and the peer nudges the pointer, which calls
- * remote wakeup first when its computer is suspended (#291, #296). A wake
+ * remote wakeup first when its computer is suspended (#291, #296). A Mac its
+ * helper called asleep also gets a Left Shift tap (#300). A wake
  * that finds the peer still going to sleep is kept until its computer
  * suspends (#289).
  *
@@ -118,6 +119,15 @@ static inline bool dh_sleep_sync_wake(dh_sleep_sync_t *s, bool on, bool active, 
 
     s->woken = true;
     return true;
+}
+
+/* Asked by the mouse drain before wake_on_input, which ends the sleep. True
+   when a mouse move should also tap Left Shift: the output is a Mac and its
+   helper said asleep. A Mac in a DarkWake (helper said asleep, USB resumed)
+   ignores a mouse move but wakes at once for a key (#300). A lone modifier
+   types nothing and opens nothing. */
+static inline bool dh_sleep_sync_tap_key(const dh_sleep_sync_t *s, bool mac) {
+    return mac && s->helper_asleep;
 }
 
 /* How long the peer keeps a wake that came while its computer was still

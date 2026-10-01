@@ -211,7 +211,7 @@ typedef struct {
     /* Sleep sync's sender side (#287): sleep_sync_task (core 1) and
        wake_on_input (core 0) each write their own fields. helper_asleep
        is set by channel_task and cleared by wake_on_input, both core 0
-       (#293). */
+       (#293); the mouse drain reads it just before that clear (#300). */
     dh_sleep_sync_t sleep_sync;
 
     /* Sleep sync's receiver side: a wake kept while this computer was still

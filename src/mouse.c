@@ -102,6 +102,16 @@ void process_mouse_queue_task(device_t *state) {
     if (!queue_try_peek(&state->mouse_queue, &report))
         return;
 
+    /* A Mac in a DarkWake wakes for a key, not a move (#300). This covers the
+       peer wake's nudge too. Before wake_on_input, which clears the flag, so
+       it taps once per sleep. Both reports or neither, so Shift cannot stick. */
+    if (dh_sleep_sync_tap_key(&state->sleep_sync, state->config.output[BOARD_ROLE].os == MACOS)
+        && queue_get_level(&state->kbd_queue) + 2 <= KBD_QUEUE_LENGTH) {
+        hid_keyboard_report_t shift = {.modifier = KEYBOARD_MODIFIER_LEFTSHIFT}, release = {0};
+        queue_kbd_report(&shift, state);
+        queue_kbd_report(&release, state);
+    }
+
     /* If we are suspended, let's wake the host up (and maybe the peer, #288) */
     wake_on_input(state);
 

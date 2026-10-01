@@ -201,6 +201,19 @@ static void test_the_helper_saying_awake_ends_the_sleep(void) {
           "sent sleep after the helper said awake");
 }
 
+/* A Mac in a DarkWake ignores a mouse move but wakes for a key (#300), so
+   the first move of a sleep its helper reported taps Left Shift. Only on a
+   Mac, and only once: the input ends the sleep. */
+static void test_a_mac_the_helper_called_asleep_gets_a_key_tap(void) {
+    dh_sleep_sync_t s = {0};
+    CHECK(!dh_sleep_sync_tap_key(&s, true), "key tap", "tapped a key on an awake Mac");
+    dh_sleep_sync_helper_says(&s, true);
+    CHECK(!dh_sleep_sync_tap_key(&s, false), "key tap", "tapped a key on a PC");
+    CHECK(dh_sleep_sync_tap_key(&s, true), "key tap", "no key tap for a Mac the helper called asleep");
+    dh_sleep_sync_wake(&s, true, true, false);
+    CHECK(!dh_sleep_sync_tap_key(&s, true), "key tap", "tapped a key again after the input");
+}
+
 /* The peer pressed System Sleep at T0, and wake arrives at T0 + `wake_at`
    while its computer is still awake. The computer suspends at T0 +
    `suspend_at`. True when a pass then calls remote wakeup (#289). */
@@ -311,6 +324,7 @@ int main(void) {
     test_the_helper_saying_asleep_counts_as_asleep();
     test_input_ends_a_sleep_the_helper_reported();
     test_the_helper_saying_awake_ends_the_sleep();
+    test_a_mac_the_helper_called_asleep_gets_a_key_tap();
     test_a_wake_during_the_sleep_is_kept();
     test_a_wake_just_after_the_suspend_retries();
     test_a_kept_wake_expires();
