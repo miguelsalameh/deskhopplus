@@ -256,8 +256,9 @@ output's computer going to sleep puts the other to sleep, so an idle computer yo
 sleeps alone. A key press or mouse move while the active output's computer is asleep wakes both;
 a computer that wakes by itself (lid, power button, a timer) wakes alone. "Sleep" is system sleep:
 a screen that only goes dark or locks is not sleep. A shutdown the board cannot tell from sleep
-counts as sleep. The board sees sleep as a USB suspend, or, on a Modern Standby PC that suspends
-nothing, as its helper saying so (ADR-0015); without the helper such a PC cannot start it.
+counts as sleep. The board sees sleep as a USB suspend, or as its helper saying so (ADR-0015).
+A Modern Standby PC suspends nothing, so without the helper it cannot start it. A docked Mac's
+DarkWakes resume USB, so without the helper they delay it or stop it.
 _Avoid_: power sync, sleep mirroring, standby (Windows' word for one kind of sleep)
 
 **Config chord**:

@@ -739,7 +739,8 @@ void Helper::feed(const std::vector<Output> &outputs) {
      */
     const bool live = session_->can_send_bulk();
     if (bulk_was_allowed_ && !live) dispatch_.emit(clipboard_service_->session_ended());
-    if (!bulk_was_allowed_ && live) send_host_sleep(host_sleep_.session_started());
+    if (!bulk_was_allowed_ && live)
+        if (const auto awake = host_sleep_.session_started()) send_host_sleep(*awake);
     if (const auto presence = words::session_edge_presence(session_->state(),
                                                            transport_.mode() == Mode::Config,
                                                            bulk_was_allowed_, live))

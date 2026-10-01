@@ -8,8 +8,8 @@
  * USB suspend, so the board cannot see it; Sleep sync counts this instead.
  *
  * main.cpp feeds `power` from WM_POWERBROADCAST and sends what it returns,
- * and sends `session_started` at the start of each session. No Win32 here,
- * so the rules are tested on any machine (tests/host_sleep_test.cpp).
+ * and at the start of each session sends what `session_started` returns. No
+ * Win32 here, so the rules are tested on any machine (tests/host_sleep_test.cpp).
  */
 
 #include <cstdint>
@@ -35,10 +35,15 @@ class HostSleep {
         return asleep_;
     }
 
-    /* A session started: the body to send. The board ends the session while
-       the PC sleeps, so the awake sent at a user wake can go nowhere; the
-       next session carries it. */
-    uint8_t session_started() const { return asleep_; }
+    /* A session started: awake if the PC is awake, else nothing. The board
+       ends the session while the PC sleeps, so the awake sent at a user wake
+       can go nowhere; the next session carries it. Asleep is not resent: the
+       board keeps it through a session end, and a resend that lands after the
+       user's input cleared it would sleep the other computer again (#298). */
+    std::optional<uint8_t> session_started() const {
+        if (asleep_) return std::nullopt;
+        return uint8_t{0};
+    }
 
   private:
     bool asleep_ = false;

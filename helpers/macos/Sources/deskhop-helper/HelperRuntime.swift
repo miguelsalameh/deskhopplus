@@ -38,6 +38,8 @@ final class HelperRuntime: HelperEffects {
      */
     private var bulkWasAllowed = false
     private var imagePrefetch = ImagePrefetch()
+    /* The Mac's sleep, as the board is told it (#298). */
+    private var hostSleep = HostSleep()
 
     /* What the menu bar last showed, so the twice-a-second refresh only
        touches it when something has actually moved. */
@@ -141,6 +143,8 @@ final class HelperRuntime: HelperEffects {
          */
         let application = NSApplication.shared
         application.setActivationPolicy(.accessory)
+
+        observeSleep()
 
         transport.log = { message in Self.note(message) }
         transport.onEvent = { [weak self] event in self?.feed(event) }
@@ -312,6 +316,36 @@ final class HelperRuntime: HelperEffects {
         NSApplication.shared.terminate(nil)
     }
 
+    /*
+     * The Mac's sleep and wake, for Sleep sync (#298). HostSleep decides what
+     * the board hears. Registered only after NSApplication exists: NSWorkspace
+     * is AppKit, and AppKit before it aborts the helper (see run()).
+     */
+    private func observeSleep() {
+        let center = NSWorkspace.shared.notificationCenter
+        let events: [(NSNotification.Name, HostSleep.Event)] = [
+            (NSWorkspace.willSleepNotification, .willSleep),
+            (NSWorkspace.didWakeNotification, .didWake),
+            (NSWorkspace.screensDidSleepNotification, .screensDidSleep),
+            (NSWorkspace.screensDidWakeNotification, .screensDidWake),
+        ]
+        for (name, event) in events {
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                Self.note("the Mac posted \(event)")
+                if let asleep = self.hostSleep.event(event) { self.sendHostSleep(asleep) }
+            }
+        }
+    }
+
+    /// Tell the board this Mac sleeps (1) or is awake (0) (#298).
+    private func sendHostSleep(_ asleep: UInt8) {
+        let name = asleep == 1 ? "the asleep report" : "the awake report"
+        if dispatch.sendPayload(type: UInt8(DH_MSG_HOST_SLEEP.rawValue), body: [asleep], name: name) {
+            Self.note("\(name) sent")
+        }
+    }
+
     /// Everything the helper needs to do its job, with no user interface in it.
     private func startTimersAndTransport() {
         transport.start()
@@ -379,6 +413,11 @@ final class HelperRuntime: HelperEffects {
         let live = session.canSendBulk
         if bulkWasAllowed && !live {
             dispatch.emit(clipboard.sessionEnded())
+        }
+        /* The awake report at a user wake usually finds no session, since the
+           board ended it while the Mac slept; the next session carries it. */
+        if !bulkWasAllowed && live, let awake = hostSleep.sessionStarted() {
+            sendHostSleep(awake)
         }
         bulkWasAllowed = live
 

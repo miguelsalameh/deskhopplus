@@ -48,21 +48,25 @@ static void test_an_automatic_wake_says_nothing() {
 }
 
 /* The board ends the session while the PC sleeps, so the user wake's awake
-   goes nowhere. Each new session hears the current state again. */
-static void test_a_new_session_hears_the_current_state() {
+   goes nowhere; the next session says it. Asleep is never resent: the board
+   keeps it through a session end, and a resend after the user's input cleared
+   it would sleep the other computer again (#298). */
+static void test_a_new_session_hears_awake_only_when_awake() {
     HostSleep h;
-    CHECK(h.session_started() == 0, "a fresh helper did not say awake");
+    const auto fresh = h.session_started();
+    CHECK(fresh && *fresh == 0, "a fresh helper did not say awake");
     h.power(kSuspend);
     h.power(kResumeAutomatic);
-    CHECK(h.session_started() == 1, "a session in a maintenance wake did not hear asleep");
+    CHECK(!h.session_started(), "a session in a maintenance wake said something");
     h.power(kResumeSuspend);
-    CHECK(h.session_started() == 0, "a session after a user wake did not hear awake");
+    const auto woken = h.session_started();
+    CHECK(woken && *woken == 0, "a session after a user wake did not say awake");
 }
 
 int main() {
     test_sleep_says_asleep_and_a_user_wake_says_awake();
     test_an_automatic_wake_says_nothing();
-    test_a_new_session_hears_the_current_state();
+    test_a_new_session_hears_awake_only_when_awake();
     if (failures) {
         std::printf("host_sleep_test: %d failure(s)\n", failures);
         return 1;
