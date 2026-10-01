@@ -123,6 +123,10 @@ std::vector<Output> HelperSession::transport_failed(const std::string &reason, u
     return collect(reason);
 }
 
+void HelperSession::host_sleep(bool asleep, uint32_t now_ms) {
+    dh_helper_host_sleep(machine_.get(), asleep, now_ms);
+}
+
 std::vector<Output> HelperSession::tick(uint32_t now_ms) {
     dh_helper_outputs_reset(outputs_.get());
     dh_helper_tick(machine_.get(), now_ms, outputs_.get());

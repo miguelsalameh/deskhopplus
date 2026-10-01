@@ -161,6 +161,9 @@ a connection torn down and rebuilt inside the window is invisible however often 
 is how a helper failing every frame it received read as *Connected and paired* for two days
 ([#94](https://github.com/myn/deskhopplus/issues/94)). Four rebuilds inside thirty seconds is
 therefore its own state, and it does not flap back to connected on each successful hello.
+A session lost while the computer sleeps, or in the thirty seconds after it wakes, is not
+counted: the board ends it because the helper was frozen, not because the link failed
+([#297](https://github.com/myn/deskhopplus/issues/297)).
 
 It is reported whether or not the handshake ever completes: a device that takes the hello and says
 nothing loops on the timeout, and each re-acquisition clears the deferred *device not connected* a

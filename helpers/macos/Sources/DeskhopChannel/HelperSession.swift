@@ -51,6 +51,9 @@ public enum SessionInput: Equatable {
        The reason is carried for the log only: the core takes the failure, not
        the sentence. */
     case transportFailed(String)
+    /* The Mac goes to sleep (true) or wakes for the user (false). A session lost then is
+       not counted toward `reconnectingRepeatedly` (#297). */
+    case hostSleep(Bool)
     case tick
 
     var transportReason: String? {
@@ -350,6 +353,8 @@ public final class HelperSession {
             }
         case .transportFailed:
             dh_helper_transport_failed(machine, ms, outputs)
+        case .hostSleep(let asleep):
+            dh_helper_host_sleep(machine, asleep, ms)
         case .tick:
             dh_helper_tick(machine, ms, outputs)
         }

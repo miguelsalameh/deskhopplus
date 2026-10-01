@@ -93,6 +93,9 @@ class HelperSession {
        connection, not a retryable write (dh_helper.h). The reason is for the
        log only: the core takes the failure, not the sentence. */
     std::vector<Output> transport_failed(const std::string &reason, uint32_t now_ms);
+    /* This PC goes to sleep or wakes for the user. A session lost then is
+       not counted toward RECONNECTING_REPEATEDLY (#297). No outputs. */
+    void host_sleep(bool asleep, uint32_t now_ms);
     std::vector<Output> tick(uint32_t now_ms);
 
     dh_helper_state state() const { return machine_->state; }

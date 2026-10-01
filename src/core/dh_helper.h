@@ -92,6 +92,8 @@ extern "C" {
  * "Connected and paired" because each cycle on its own was correctly too brief
  * to mention (#94).
  */
+/* Also the grace after a mode change (#274) or a host wake (#297), during
+   which a teardown is the reboot or the sleep, not the link. */
 #define DH_HELPER_RECONNECT_WINDOW_MS 30000u
 #define DH_HELPER_RECONNECT_LIMIT 4u
 
@@ -628,6 +630,11 @@ typedef struct {
     uint32_t identity_changed_at;
     bool identity_changed;
 
+    /* This computer sleeps, or woke at host_woke_at: see dh_helper_host_sleep. */
+    uint32_t host_woke_at;
+    bool host_asleep;
+    bool host_woke;
+
     /* A state worth reporting only if it is still true when the window ends.
        `deferred_at` is when it was armed, not when it comes due: a deadline
        stored as a sum cannot be compared wrap-safely against the clock. */
@@ -734,6 +741,15 @@ static inline bool dh_helper_may_receive_clip(const dh_helper *h) {
 void dh_helper_device_appeared(dh_helper *h, dh_device_identity which, uint32_t now_ms,
                                dh_helper_outputs *out);
 void dh_helper_device_disappeared(dh_helper *h, uint32_t now_ms, dh_helper_outputs *out);
+
+/*
+ * This computer goes to sleep (true) or wakes for the user (false) (#297). A
+ * sleep freezes the helper and the board ends the session on its liveness
+ * timeout, which says nothing about the link. So a drop while asleep, or
+ * inside DH_HELPER_RECONNECT_WINDOW_MS after the wake, is not counted toward
+ * DH_HELPER_RECONNECTING_REPEATEDLY. No outputs.
+ */
+void dh_helper_host_sleep(dh_helper *h, bool asleep, uint32_t now_ms);
 
 /* Every channel was opened exclusively. A partial acquisition is not this
    input — it is dh_helper_acquisition_refused. */

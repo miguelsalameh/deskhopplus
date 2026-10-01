@@ -68,6 +68,7 @@ let helperSessionTests: [(String, () throws -> Void)] = [
     ("a connection rebuilt over and over is not reported as connected",
      testRepeatedReconnectionIsNotReportedAsConnected),
     ("a link that keeps re-enumerating is the same reading", testAFlappingLinkIsTheSameReading),
+    ("a link lost while the Mac sleeps is not a flapping link", testALinkLostAsleepIsNotAFlap),
     ("a handshake that never completes is reported too",
      testAHandshakeThatNeverCompletesIsReported),
     ("a stuck handshake still asks to be paired", testAStuckHandshakeStillAsksToBePaired),
@@ -1210,6 +1211,22 @@ private func testAFlappingLinkIsTheSameReading() throws {
 
     Check.equal(f.session.state, .reconnectingRepeatedly,
                 "a link re-enumerating once a second went on reading as connected")
+}
+
+/* The same flap with the Mac asleep is the sleep, not the link (#297). */
+private func testALinkLostAsleepIsNotAFlap() throws {
+    let f = Fixture()
+    try f.establishSession()
+    f.send(.hostSleep(true))
+
+    for _ in 0..<HelperSession.reconnectLimit {
+        f.send(.deviceDisappeared)
+        _ = f.advance(0.5)
+        f.send(.deviceAppeared(.normal))
+        try f.reacquire()
+    }
+
+    Check.equal(f.session.state, .connected, "a sleeping Mac read as a flapping link")
 }
 
 /*

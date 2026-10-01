@@ -1091,6 +1091,65 @@ static void test_a_slow_teardown_loop_reaches_the_state_line(void) {
           "the short window reached its threshold, so this proves nothing");
 }
 
+/* The session drops at `t` and is rebuilt 100 ms later. */
+static void lose_and_rebuild(dh_helper *h, uint32_t t, const char *name) {
+    dh_helper_outputs_reset(&out);
+    dh_helper_transport_failed(h, t, &out);
+    no_overflow(name);
+
+    dh_helper_outputs_reset(&out);
+    dh_helper_channels_acquired(h, 2, t + 100, &out);
+    dh_helper_outputs acquired = out;
+    dh_helper_outputs_reset(&out);
+    answer_all(h, &acquired, t + 100, &out);
+    no_overflow(name);
+}
+
+/*
+ * A session lost while the computer sleeps says nothing about the link (#297).
+ *
+ * Every host sleep freezes the helper, and the board ends the session on its
+ * liveness timeout. A Mac docked on Thunderbolt does that once a minute in its
+ * DarkWake cycle, and both helpers then read "Reconnecting repeatedly" over a
+ * link that was fine. The loss is seen asleep, or just after the wake.
+ */
+static void test_a_session_lost_to_host_sleep_is_not_counted(void) {
+    const char *name = "a session lost to host sleep is not counted";
+    dh_helper h;
+    a_live_session(&h);
+
+    const uint32_t period = 98000;
+    for (unsigned i = 0; i < 2 * DH_HELPER_SESSION_LOSS_LIMIT; i++) {
+        const uint32_t t = (i + 1) * period;
+
+        dh_helper_host_sleep(&h, true, t);
+        lose_and_rebuild(&h, t + 1000, name); /* asleep, in a DarkWake */
+        dh_helper_host_sleep(&h, false, t + 60000);
+        lose_and_rebuild(&h, t + 65000, name); /* just woke */
+    }
+
+    CHECK(h.state == DH_HELPER_CONNECTED, name,
+          "sleeps read as a link that will not hold");
+    CHECK(h.drop_count == 0 && h.session_loss_count == 0, name,
+          "a loss to sleep was counted");
+}
+
+/* And the wake excuses only its own losses: once the link has had a short
+   window to come back, a slow teardown loop reads as one again. */
+static void test_a_loss_well_after_a_wake_still_counts(void) {
+    const char *name = "a loss well after a wake still counts";
+    dh_helper h;
+    a_live_session(&h);
+    dh_helper_host_sleep(&h, true, 1000);
+    dh_helper_host_sleep(&h, false, 2000);
+
+    const uint32_t start = 2000 + DH_HELPER_RECONNECT_WINDOW_MS + 1;
+    for (unsigned i = 0; i < DH_HELPER_SESSION_LOSS_LIMIT; i++)
+        lose_and_rebuild(&h, start + i * 98000, name);
+    CHECK(h.state == DH_HELPER_RECONNECTING_REPEATEDLY, name,
+          "an old wake hid a link that will not hold");
+}
+
 /*
  * And a burst does not leave the slow reading standing behind it.
  *
@@ -3020,6 +3079,8 @@ int main(int argc, char **argv) {
     test_a_flapping_link_is_reported_as_a_rate();
     test_one_re_enumeration_is_one_drop();
     test_a_slow_teardown_loop_reaches_the_state_line();
+    test_a_session_lost_to_host_sleep_is_not_counted();
+    test_a_loss_well_after_a_wake_still_counts();
     test_a_burst_does_not_hold_the_slow_reading();
     test_a_disappearance_clears_the_slow_reading();
     test_deliberate_session_ends_do_not_read_as_a_flapping_link();

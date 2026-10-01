@@ -167,6 +167,10 @@ static bool rate_reached(const uint32_t *ring, size_t count, size_t need, uint32
 /* False when the drop was not counted, so a caller feeding the second ring
    makes the same decision about the same event rather than a second one. */
 static bool record_drop(dh_helper *h, uint32_t now_ms) {
+    /* The computer slept, so the board ended the session: not the link (#297). */
+    if (h->host_asleep ||
+        (h->host_woke && !elapsed(now_ms, h->host_woke_at, DH_HELPER_RECONNECT_WINDOW_MS)))
+        return false;
     if (!h->holding_channels && h->phase == DH_HELPER_PHASE_IDLE) return false;
 
     /*
@@ -496,6 +500,14 @@ void dh_helper_device_appeared(dh_helper *h, dh_device_identity which, uint32_t 
         h->state == DH_HELPER_CONNECTED_CONFIG_MODE)
         set_state(h, o, DH_HELPER_QUIET);
     put(o, DH_HELPER_OUT_OPEN_CHANNELS);
+}
+
+void dh_helper_host_sleep(dh_helper *h, bool asleep, uint32_t now_ms) {
+    if (h->host_asleep && !asleep) {
+        h->host_woke = true;
+        h->host_woke_at = now_ms;
+    }
+    h->host_asleep = asleep;
 }
 
 void dh_helper_device_disappeared(dh_helper *h, uint32_t now_ms, dh_helper_outputs *o) {
@@ -1268,6 +1280,8 @@ void dh_helper_tick(dh_helper *h, uint32_t now_ms, dh_helper_outputs *o) {
     if (h->identity_changed &&
         elapsed(now_ms, h->identity_changed_at, DH_HELPER_RECONNECT_WINDOW_MS))
         h->identity_changed = false;
+    if (h->host_woke && elapsed(now_ms, h->host_woke_at, DH_HELPER_RECONNECT_WINDOW_MS))
+        h->host_woke = false;
 
     if (h->have_deferred) {
         if (elapsed(now_ms, h->deferred_at, DH_HELPER_SILENCE_MS)) {

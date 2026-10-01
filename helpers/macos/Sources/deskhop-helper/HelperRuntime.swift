@@ -318,8 +318,10 @@ final class HelperRuntime: HelperEffects {
 
     /*
      * The Mac's sleep and wake, for Sleep sync (#298). HostSleep decides what
-     * the board hears. Registered only after NSApplication exists: NSWorkspace
-     * is AppKit, and AppKit before it aborts the helper (see run()).
+     * the board hears. The session hears it too, so a session lost to the
+     * sleep is not read as a flapping link (#297). Registered only after
+     * NSApplication exists: NSWorkspace is AppKit, and AppKit before it
+     * aborts the helper (see run()).
      */
     private func observeSleep() {
         let center = NSWorkspace.shared.notificationCenter
@@ -333,7 +335,10 @@ final class HelperRuntime: HelperEffects {
             center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 guard let self else { return }
                 Self.note("the Mac posted \(event)")
-                if let asleep = self.hostSleep.event(event) { self.sendHostSleep(asleep) }
+                if let asleep = self.hostSleep.event(event) {
+                    self.sendHostSleep(asleep)
+                    self.feed(.hostSleep(asleep == 1))
+                }
             }
         }
     }

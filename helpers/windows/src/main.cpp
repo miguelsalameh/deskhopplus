@@ -908,8 +908,11 @@ LRESULT Helper::handle(UINT message, WPARAM w, LPARAM l) {
                     " (GUID_CONSOLE_DISPLAY_STATE " + std::to_string(state) + ")");
             }
         }
-        if (const auto asleep = host_sleep_.power(static_cast<unsigned>(w)))
+        if (const auto asleep = host_sleep_.power(static_cast<unsigned>(w))) {
             send_host_sleep(*asleep);
+            /* And a session lost to the sleep is not a flapping link (#297). */
+            if (session_) session_->host_sleep(*asleep != 0, now_ms());
+        }
         return TRUE;
 
     case Tray::kCallbackMessage:
