@@ -1296,8 +1296,12 @@ static void test_helper_free_windows_arrival_walks_from_the_main_screen(void) {
           "helper-free crossing down from Mac TL did not select Windows BL");
     CHECK(emitted_walk(0, 0, LEFT),
           "helper-free Windows arrival did not walk from BR to BL");
-    CHECK(state.pointer_x == MAX_SCREEN_COORD && state.pointer_y == MAX_SCREEN_COORD / 2,
+    CHECK(state.pointer_x == MAX_SCREEN_COORD - 50 && state.pointer_y == MAX_SCREEN_COORD / 2,
           "board's Windows pointer is not where the walk left the relative cursor");
+    /* The hardware trace: a move down with 2 counts right went straight back. */
+    mouse_values_t jitter = {.move_x = 2, .move_y = 15};
+    CHECK(update_mouse_position(&state, &jitter) == NONE,
+          "a small move after a Windows walk crossed back to the main screen");
     helper_absent[0] = false;
 }
 

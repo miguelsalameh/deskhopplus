@@ -509,9 +509,11 @@ enum screen_pos_e update_mouse_position(device_t *state, mouse_values_t *values)
  * (#310). The walk runs along the middle of each edge, where screens of
  * different sizes still touch. macOS then takes the next absolute report on
  * the new screen, so the board's pointer stays at the entry point. Windows
- * past its main screen is relative and stays where the walk left it, so the
- * board's pointer moves there instead.
- * ponytail: that is mid-edge, not the entry point; a helper places it exactly. */
+ * past its main screen is relative and stays where the walk left it: the
+ * nudges' distance inside the far edge. The board's pointer moves there
+ * instead, or the next small move back would cross straight back.
+ * ponytail: mid-edge, and the nudge distance ignores Windows acceleration;
+ * a helper places it exactly. */
 static void walk_to_arrival_screen(device_t *state, const output_t *target,
                                    uint8_t os_screen, uint8_t screen) {
     if (target->os == WINDOWS)
@@ -527,8 +529,12 @@ static void walk_to_arrival_screen(device_t *state, const output_t *target,
     if (target->os == WINDOWS && screen > 1) {
         const dh_mouse_coordinates_t landed = dh_mouse_entry_coordinates(
             (dh_direction_t)direction, middle, MIN_SCREEN_COORD, MAX_SCREEN_COORD);
-        state->pointer_x = (int16_t)landed.x;
-        state->pointer_y = (int16_t)landed.y;
+        const dh_mouse_coordinates_t inside = dh_mouse_nudge(
+            (dh_direction_t)direction, WALK_NUDGE_X * WALK_NUDGE_COUNT *
+                                           (dh_direction_is_vertical((dh_direction_t)direction)
+                                                ? target->speed_y : target->speed_x));
+        state->pointer_x = (int16_t)move_and_keep_on_screen(landed.x, inside.x);
+        state->pointer_y = (int16_t)move_and_keep_on_screen(landed.y, inside.y);
     }
 }
 
