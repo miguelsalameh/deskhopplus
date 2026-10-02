@@ -264,7 +264,9 @@ _Avoid_: power sync, sleep mirroring, standby (Windows' word for one kind of sle
 **Sleep when idle**:
 The part of Sleep sync that lets the active output's computer follow the other into sleep: while
 the other computer is asleep, the active one sleeps after a set time with no input through the
-boards. Either computer can be the one that follows. Off ("Never") by default, and only with Sleep
+boards. With **Immediately**, the active one sleeps as soon as the other goes to sleep, input or
+not; a switch onto the active one while the other sleeps does not count. Either computer can be
+the one that follows. Off ("Never") by default, and only with Sleep
 sync on. A computer's own keyboard or trackpad does not count as input. A wake then wakes both,
 as Sleep sync does.
 _Avoid_: idle follow, follow sleep, auto sleep (the computer's own sleep timer)
