@@ -253,13 +253,21 @@ _Avoid_: status light, indicator (the keyboard's caps-lock light can also act as
 **Sleep sync**:
 The setting that makes both computers sleep and wake together; off by default. Only the active
 output's computer going to sleep puts the other to sleep, so an idle computer you are not using
-sleeps alone. A key press or mouse move while the active output's computer is asleep wakes both;
+sleeps alone (but see Sleep when idle). A key press or mouse move while the active output's computer is asleep wakes both;
 a computer that wakes by itself (lid, power button, a timer) wakes alone. "Sleep" is system sleep:
 a screen that only goes dark or locks is not sleep. A shutdown the board cannot tell from sleep
 counts as sleep. The board sees sleep as a USB suspend, or as its helper saying so (ADR-0015).
 A Modern Standby PC suspends nothing, so without the helper it cannot start it. A docked Mac's
 DarkWakes resume USB, so without the helper they delay it or stop it.
 _Avoid_: power sync, sleep mirroring, standby (Windows' word for one kind of sleep)
+
+**Sleep when idle**:
+The part of Sleep sync that lets the active output's computer follow the other into sleep: while
+the other computer is asleep, the active one sleeps after a set time with no input through the
+boards. Either computer can be the one that follows. Off ("Never") by default, and only with Sleep
+sync on. A computer's own keyboard or trackpad does not count as input. A wake then wakes both,
+as Sleep sync does.
+_Avoid_: idle follow, follow sleep, auto sleep (the computer's own sleep timer)
 
 **Config chord**:
 The fixed hotkey (Left Ctrl + Right Shift + C + O) that always opens config mode, whatever the
