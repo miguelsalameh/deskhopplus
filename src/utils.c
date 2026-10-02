@@ -144,8 +144,8 @@ void load_config(device_t *state) {
 
     /* The same for the Status LED time (#283): an old config holds zero, which
        the page's list of times does not offer. Only under Never, where the
-       time does nothing: a hand-set mode with zero seconds means never and is
-       shown as it is stored. */
+       time does nothing: a hand-set timed mode with zero seconds means never, and
+       any other mode with zero is shown as it is stored. */
     if (running_config->led_off_mode == DH_STATUS_LED_NEVER && running_config->led_off_sec == 0)
         running_config->led_off_sec = DH_STATUS_LED_SEC_DEFAULT;
 

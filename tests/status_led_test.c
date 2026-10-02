@@ -74,13 +74,23 @@ static void test_zero_seconds_means_never(void) {
           "zero seconds went dark in After a switch");
 }
 
+/* Always (#309) is dark whatever the history and whatever time is stored. */
+static void test_always_stays_dark(void) {
+    CHECK(dark(DH_STATUS_LED_ALWAYS, 60, T0, 0, 0), "always", "lit with no input");
+    CHECK(dark(DH_STATUS_LED_ALWAYS, 60, T0, T0, T0 - 60 * SEC), "always", "lit right after input");
+    CHECK(dark(DH_STATUS_LED_ALWAYS, 60, T0, T0 - 60 * SEC, T0), "always", "lit right after a switch");
+    CHECK(dark(DH_STATUS_LED_ALWAYS, 0, T0 + 3600 * SEC, T0, T0), "always", "lit with zero seconds");
+}
+
 static void test_an_unknown_mode_stays_lit(void) {
-    CHECK(!dark(3, 60, T0 + 3600 * SEC, T0, T0), "mode", "an unknown mode went dark");
+    CHECK(!dark(4, 60, T0 + 3600 * SEC, T0, T0), "mode", "an unknown mode went dark");
 }
 
 static void test_config_mode_is_always_lit(void) {
     CHECK(!dh_status_led_dark(DH_STATUS_LED_IDLE, 5, T0 + 3600 * SEC, T0, T0, true), "config",
           "went dark in config mode");
+    CHECK(!dh_status_led_dark(DH_STATUS_LED_ALWAYS, 5, T0, T0, T0, true), "config",
+          "went dark in config mode while set to Always");
 }
 
 /* A stamp taken a moment after the clock read (another core, or a callee that
@@ -108,6 +118,7 @@ int main(void) {
     test_a_switch_relights_and_restarts_the_idle_clock();
     test_after_a_switch_goes_dark_while_typing();
     test_zero_seconds_means_never();
+    test_always_stays_dark();
     test_an_unknown_mode_stays_lit();
     test_config_mode_is_always_lit();
     test_a_stamp_ahead_of_the_clock_is_recent();

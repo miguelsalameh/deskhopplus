@@ -2405,6 +2405,8 @@ pre {
 
       <option value="2">After a switch</option>
 
+      <option value="3">Always</option>
+
       </select>
     </div>
 
@@ -2460,7 +2462,7 @@ pre {
   </div>
 
 
-        <p class="hint">Any key or mouse move turns it back on. Config mode always blinks.</p>
+        <p class="hint">When idle: any key or mouse move turns it back on. Config mode always blinks.</p>
 
 
 
@@ -4855,11 +4857,11 @@ function refreshUnsaved() {
   document.querySelectorAll('#sidebar button').forEach(b => b.toggleAttribute('data-unsaved', sections.has(b.dataset.section)));
 }
 
-// Status LED: After means nothing while Turn off is Never (#283).
+// Status LED: After means nothing while Turn off is Never (#283) or Always (#309).
 function refreshStatusLed() {
   const mode = document.querySelector('[data-key="101"]');
   const after = document.querySelector('[data-key="102"]');
-  if (mode && after) after.disabled = !Number(mode.value);
+  if (mode && after) after.disabled = !Number(mode.value) || mode.value === '3';
 }
 
 // Power: Sleep when idle shows only while Sleep sync is On (#303).

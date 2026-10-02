@@ -22,6 +22,7 @@ enum {
     DH_STATUS_LED_NEVER        = 0,
     DH_STATUS_LED_IDLE         = 1, /* no input for the time, counted from the later of input and switch */
     DH_STATUS_LED_AFTER_SWITCH = 2, /* the time after a switch, even while typing */
+    DH_STATUS_LED_ALWAYS       = 3, /* dark whatever the time (#309) */
 };
 
 /* The page's default After time (form.py, field 102), and what a stored zero
@@ -33,7 +34,11 @@ enum {
 static inline bool dh_status_led_dark(uint8_t mode, uint16_t seconds, uint64_t now_us,
                                       uint64_t last_input_us, uint64_t last_switch_us,
                                       bool config_mode) {
-    if (config_mode || seconds == 0)
+    if (config_mode)
+        return false;
+    if (mode == DH_STATUS_LED_ALWAYS)
+        return true;
+    if (seconds == 0)
         return false;
 
     uint64_t since;

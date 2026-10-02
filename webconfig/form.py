@@ -96,10 +96,11 @@ CONFIG_ = [
 
     # When the Status LED goes dark on its own (#283). One setting for both
     # boards: only the active computer's board has its LED lit. After is off
-    # while Turn off is Never (page.js); a stored time not in this list shows
+    # while Turn off is Never or Always (page.js); a stored time not in this list shows
     # as its own option (setValue).
     FormField(1009, "Status LED", elem="label"),
-    FormField(101, "Turn off", 0, {0: "Never", 1: "When idle", 2: "After a switch"}, "uint8"),
+    FormField(101, "Turn off", 0, {0: "Never", 1: "When idle", 2: "After a switch",
+                                     3: "Always"}, "uint8"),
     # 60 is DH_STATUS_LED_SEC_DEFAULT (dh_status_led.h).
     FormField(102, "After", 60, {5: "5 seconds", 10: "10 seconds", 30: "30 seconds", 60: "1 minute",
                                  300: "5 minutes", 900: "15 minutes", 3600: "1 hour"}, "uint16"),

@@ -81,11 +81,11 @@ function refreshUnsaved() {
   document.querySelectorAll('#sidebar button').forEach(b => b.toggleAttribute('data-unsaved', sections.has(b.dataset.section)));
 }
 
-// Status LED: After means nothing while Turn off is Never (#283).
+// Status LED: After means nothing while Turn off is Never (#283) or Always (#309).
 function refreshStatusLed() {
   const mode = document.querySelector('[data-key="101"]');
   const after = document.querySelector('[data-key="102"]');
-  if (mode && after) after.disabled = !Number(mode.value);
+  if (mode && after) after.disabled = !Number(mode.value) || mode.value === '3';
 }
 
 // Power: Sleep when idle shows only while Sleep sync is On (#303).
