@@ -152,9 +152,15 @@ void handle_keyboard_descriptor_values(report_val_t *src, report_val_t *dst, hid
        only 8 bits), so a section is any run of usages one per bit, other than the
        modifier. The total width decides NKRO, so one stray narrow bit field leaves a
        6KRO keyboard alone.
+       The Keychron Ultra-Link declares 153 usages over 152 bits, so a section at
+       least NKRO_MIN_BITS wide may also declare more usages than bits; the surplus
+       is never read. Narrower fields keep the exact test, or a lazy range such as
+       0x00-0xFF would pass any stray field off as a section. The span is 64-bit so
+       a 4-byte usage range cannot overflow it.
        ponytail: a fifth section is dropped; raise MAX_NKRO_BLOCKS if a keyboard needs it */
-    bool usage_per_bit = src->usage_max > src->usage_min &&
-                         src->usage_max - src->usage_min + 1 == src->size;
+    int64_t span = (int64_t)src->usage_max - src->usage_min + 1;
+    bool usage_per_bit = src->usage_max > src->usage_min && span >= src->size &&
+                         (span == src->size || src->size >= NKRO_MIN_BITS);
     if (usage_per_bit && !is_modifier && src->data_type == VARIABLE &&
         keyboard->nkro_count < MAX_NKRO_BLOCKS) {
         keyboard->nkro[keyboard->nkro_count++] = (nkro_block_t){

@@ -609,6 +609,66 @@ static void test_narrow_bit_field_keeps_6kro(void) {
     CHECK(last_keys.keycode[1] == 0x05);
 }
 
+/* The Keychron Ultra-Link declares 153 usages (0x00-0x98) over a 152-bit
+   bitmap. Its keys decode, the last bit included, and the surplus usage is
+   never read: the report is allocated to its exact length for ASan. */
+static void test_keychron_bitmap_with_one_extra_usage_decodes(void) {
+    desc_t d = {0};
+    PUT(&d, 0x05, 0x01, 0x09, 0x06, 0xA1, 0x01, 0x85, 0x11,
+            0x05, 0x07, 0x19, 0xE0, 0x29, 0xE7, 0x15, 0x00, 0x25, 0x01,
+            0x75, 0x01, 0x95, 0x08, 0x81, 0x02,                     /* modifiers */
+            0x19, 0x00, 0x2A, 0x98, 0x00, 0x95, 0x98, 0x81, 0x02,   /* 152 bits */
+            0xC0);
+    mount(d.buf, d.len);
+
+    int len = 1 + 1 + 152 / 8;                      /* ID, modifiers, bitmap */
+    uint8_t *report = calloc(1, len);
+    report[0] = 0x11, report[1] = 0x02;
+    report[2] = 0x10;                               /* bit 4: usage 0x04 */
+    report[len - 1] = 0x80;                         /* bit 151: usage 0x97 */
+    feed(report, len);
+    free(report);
+    CHECK(keyboard_reports == 1);
+    CHECK(last_keys.modifier == 0x02);
+    CHECK(last_keys.keycode[0] == 0x04);
+    CHECK(last_keys.keycode[1] == 0x97);
+    CHECK(last_keys.keycode[2] == 0x00);
+}
+
+/* Narrow bit fields with a usage range wider than their bits are not NKRO
+   sections, even when together they pass NKRO_MIN_BITS. */
+static void test_narrow_fields_with_broad_ranges_keep_6kro(void) {
+    desc_t d = {0};
+    put_keyboard(&d, 0x02);
+    d.len--;                                        /* reopen the collection */
+    PUT(&d, 0x19, 0x00, 0x29, 0xFF, 0x75, 0x01, 0x95, 0x18, 0x81, 0x02,
+            0x19, 0x00, 0x29, 0xFF, 0x75, 0x01, 0x95, 0x18, 0x81, 0x02, 0xC0);
+    mount(d.buf, d.len);
+
+    uint8_t report[1 + 8 + 6] = {0x02, 0x02, 0x00, 0x04, 0x05};
+    feed(report, sizeof(report));
+    CHECK(keyboard_reports == 1);
+    CHECK(last_keys.modifier == 0x02);
+    CHECK(last_keys.keycode[0] == 0x04);
+    CHECK(last_keys.keycode[1] == 0x05);
+}
+
+/* A wide bit field whose usage range is narrower than its bits is not an NKRO
+   section: its upper bits would have no usage. */
+static void test_wide_field_with_short_range_keeps_6kro(void) {
+    desc_t d = {0};
+    put_keyboard(&d, 0x02);
+    d.len--;                                        /* reopen the collection */
+    PUT(&d, 0x19, 0x68, 0x29, 0x6F, 0x75, 0x01, 0x95, 0x28, 0x81, 0x02, 0xC0);
+    mount(d.buf, d.len);
+
+    uint8_t report[1 + 8 + 5] = {0x02, 0x02, 0x00, 0x04, 0x05};
+    feed(report, sizeof(report));
+    CHECK(keyboard_reports == 1);
+    CHECK(last_keys.keycode[0] == 0x04);
+    CHECK(last_keys.keycode[1] == 0x05);
+}
+
 /* A 6KRO report shorter than its descriptor reads nothing past its end. */
 static void test_short_6kro_report_stops_at_its_end(void) {
     desc_t d = {0};
@@ -670,6 +730,9 @@ int main(void) {
     test_keyboard_collections_keep_their_own_layout();
     test_keyboard_collections_past_the_limit_are_dropped();
     test_narrow_bit_field_keeps_6kro();
+    test_keychron_bitmap_with_one_extra_usage_decodes();
+    test_narrow_fields_with_broad_ranges_keep_6kro();
+    test_wide_field_with_short_range_keeps_6kro();
     test_short_6kro_report_stops_at_its_end();
     test_6kro_and_boot_keyboards_decode();
 

@@ -28,7 +28,8 @@
 #define MAX_REPORT_LAYOUTS          24  // Distinct report IDs whose layout one interface parses
 #define MAX_KEYBOARDS               5
 #define MAX_NKRO_BLOCKS             4   // Bitmap sections per keyboard; a Wooting declares 4
-#define NKRO_MIN_BITS               32  // Total bitmap width a keyboard must exceed to be NKRO
+#define NKRO_MIN_BITS               32  // Total bitmap width a keyboard must exceed to be NKRO, and
+                                        // width a section needs to declare surplus usages
 #define MAX_SYS_BUTTONS             8
 #define PRIMARY_KEYBOARD            0
 /*==============================================================================
