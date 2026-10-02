@@ -356,11 +356,13 @@ void handle_screensaver_msg(uart_packet_t *packet, device_t *state) {
 /* Process consumer control message */
 void handle_consumer_control_msg(uart_packet_t *packet, device_t *state) {
     queue_cc_packet(packet->data, state);
+    state->last_activity[BOARD_ROLE] = time_us_64();
 }
 
 /* Process system control message */
 void handle_system_control_msg(uart_packet_t *packet, device_t *state) {
     queue_system_packet(packet->data, state);
+    state->last_activity[BOARD_ROLE] = time_us_64();
 }
 
 /* The peer's computer went to sleep (#287) or got input while asleep (#288).

@@ -161,6 +161,12 @@ void screensaver_task(device_t *state) {
         return;
     }
 
+    /* Nor while the helper says its computer sleeps: a Modern Standby PC
+       sleeps without a USB suspend, and a move would wake it, and through
+       Sleep sync's wake, the other computer too (#303). */
+    if (dh_sleep_sync_asleep(&state->sleep_sync, false))
+        return;
+
     mouse_report_t *report;
     switch (screensaver->mode) {
         case PONG:
@@ -286,7 +292,8 @@ void heartbeat_output_task(device_t *state) {
 /* Sleep sync (#287): tells the peer once this board's computer, as the
    active output, has been asleep long enough; dh_sleep_sync_step decides.
    A full UART queue leaves it unsent, to be tried again next pass. It also
-   keeps the heartbeat's "this computer sleeps" bit (#304). As the
+   keeps the heartbeat's "this computer sleeps" bit (#304), and sleeps this
+   computer under Sleep when idle (#303). As the
    receiver, it releases System Sleep once held long enough, and wakes this
    computer for a wake kept while it was still going to sleep, trying on each
    suspended pass until the window ends (#289). */
@@ -302,6 +309,17 @@ void sleep_sync_task(device_t *state) {
             state->sleep_sync.sent = false;
     }
     dh_sleep_sync_tell(&state->sleep_sync, state->config.sleep_sync, CURRENT_BOARD_IS_ACTIVE_OUTPUT, now);
+
+    /* Sleep when idle (#303): press System Sleep on this computer, held like
+       a press the peer asked for. */
+    if (dh_sleep_sync_idle(&state->sleep_sync, state->config.sleep_sync, state->config.sleep_idle_min,
+                           CURRENT_BOARD_IS_ACTIVE_OUTPUT, dh_sleep_sync_asleep(&state->sleep_sync, suspended),
+                           state->last_activity[BOARD_ROLE], state->last_switch_time, now)) {
+        uint8_t press = SYSTEM_CONTROL_SLEEP;
+        queue_system_packet(&press, state);
+        dh_sleep_sync_peer_press(&state->sleep_sync_peer, now);
+        sleep_sync_trace(state, DH_SLEEP_SYNC_TRACE_IDLE_SLEEP, state->config.sleep_idle_min, now);
+    }
 
     if (dh_sleep_sync_peer_step(&state->sleep_sync_peer, suspended, now))
         tud_remote_wakeup();

@@ -104,7 +104,7 @@ static void test_every_payload_byte_is_covered(void) {
    so they are the first thing a short range drops. */
 static void test_the_reserved_tail_is_covered(void) {
     config_t cfg = a_populated_config();
-    cfg._reserved[2] ^= 0xFFu;
+    cfg._reserved[sizeof cfg._reserved - 1] ^= 0xFFu;
     CHECK(!config_is_valid(&cfg), "tail",
           "the last byte before the checksum is outside the checksum");
 

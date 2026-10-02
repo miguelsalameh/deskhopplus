@@ -81,6 +81,7 @@ typedef enum {
     /* The peer's heartbeat changed its word about its computer (#304). */
     DH_SLEEP_SYNC_TRACE_OTHER_ASLEEP,    /* 1 this board is the active output */
     DH_SLEEP_SYNC_TRACE_OTHER_AWAKE,     /* 1 this board is the active output */
+    DH_SLEEP_SYNC_TRACE_IDLE_SLEEP,      /* minutes: Sleep when idle pressed System Sleep here (#303) */
 } dh_sleep_sync_trace_t;
 
 /* Twelve bytes so one config response can carry either six-byte half. */

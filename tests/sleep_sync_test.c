@@ -5,7 +5,8 @@
  * Sleep sync (#287, #288, #289), on the host: when the active output's board
  * tells its peer to sleep or wake, when the peer obeys sleep, and when it
  * keeps a wake that came while its computer was still going to sleep. Also
- * how the active board learns that the other computer sleeps or wakes (#304).
+ * how the active board learns that the other computer sleeps or wakes (#304),
+ * and when it sleeps its own computer after the setting's idle time (#303).
  *
  * Style follows status_led_test.c: an assertion macro, a main, a printed
  * failure line, a non-zero exit — no framework.
@@ -417,6 +418,98 @@ static void test_a_rebooted_board_learns_again(void) {
     CHECK(dh_sleep_sync_other_asleep(&a, true, true), "reboot", "a rebooted A forgot the PC sleeps");
 }
 
+/* Sleep when idle (#303). The other computer sleeps (A heard it at T0), and
+   the last input to A's computer was at `last_input`. True when a pass at
+   `now` presses System Sleep on A's computer. */
+#define MINUTE (60 * SEC)
+static bool idle_sleeps(bool on, uint8_t minutes, bool active, uint64_t last_input, uint64_t now) {
+    dh_sleep_sync_t a = {0};
+    dh_sleep_sync_heard(&a, true);
+    return dh_sleep_sync_idle(&a, on, minutes, active, false, T0 + last_input, T0 - SEC, T0 + now);
+}
+
+/* The ticket's example: PC sleeps at 2:00, last Mac input at 1:50, 30
+   minutes: the Mac sleeps at 2:20, not before. */
+static void test_idle_sleeps_after_the_time(void) {
+    CHECK(!idle_sleeps(true, 30, true, 0, 30 * MINUTE - 1), "idle", "slept before 30 minutes");
+    CHECK(idle_sleeps(true, 30, true, 0, 30 * MINUTE), "idle", "did not sleep after 30 minutes");
+    CHECK(idle_sleeps(true, 15, true, 0, 15 * MINUTE), "idle", "15 minutes did not sleep");
+    CHECK(idle_sleeps(true, 120, true, 0, 120 * MINUTE), "idle", "2 hours did not sleep");
+    CHECK(!idle_sleeps(true, 120, true, 0, 119 * MINUTE), "idle", "2 hours slept early");
+}
+
+/* Never (0), Sleep sync off, or this board not the active output: nothing. */
+static void test_idle_off_does_nothing(void) {
+    CHECK(!idle_sleeps(true, 0, true, 0, 600 * MINUTE), "idle off", "Never slept");
+    CHECK(!idle_sleeps(false, 30, true, 0, 600 * MINUTE), "idle off", "slept with Sleep sync off");
+    CHECK(!idle_sleeps(true, 30, false, 0, 600 * MINUTE), "idle off", "the inactive board slept");
+}
+
+/* The other computer is awake: nothing, however long the idle. */
+static void test_idle_waits_for_the_other_to_sleep(void) {
+    dh_sleep_sync_t a = {0};
+    CHECK(!dh_sleep_sync_idle(&a, true, 30, true, false, T0, T0 - SEC, T0 + 600 * MINUTE), "idle awake",
+          "slept with the other computer awake");
+}
+
+/* One press per idle stretch: a computer that ignores it is not pressed again
+   every pass. New input starts a new stretch. */
+static void test_idle_presses_once_per_stretch(void) {
+    dh_sleep_sync_t a = {0};
+    dh_sleep_sync_heard(&a, true);
+    CHECK(dh_sleep_sync_idle(&a, true, 15, true, false, T0, T0 - SEC, T0 + 15 * MINUTE), "idle once", "no press");
+    CHECK(!dh_sleep_sync_idle(&a, true, 15, true, false, T0, T0 - SEC, T0 + 16 * MINUTE), "idle once",
+          "pressed twice in one stretch");
+    CHECK(!dh_sleep_sync_idle(&a, true, 15, true, false, T0 + 20 * MINUTE, T0 - SEC, T0 + 34 * MINUTE), "idle once",
+          "new input did not restart the time");
+    CHECK(dh_sleep_sync_idle(&a, true, 15, true, false, T0 + 20 * MINUTE, T0 - SEC, T0 + 35 * MINUTE), "idle once",
+          "the next stretch did not press");
+}
+
+/* A switch after the last input restarts the time, as the Status LED does. */
+static void test_a_switch_restarts_idle(void) {
+    dh_sleep_sync_t a = {0};
+    dh_sleep_sync_heard(&a, true);
+    CHECK(!dh_sleep_sync_idle(&a, true, 15, true, false, T0, T0 + 10 * MINUTE, T0 + 24 * MINUTE),
+          "idle switch", "a switch did not restart the time");
+    CHECK(dh_sleep_sync_idle(&a, true, 15, true, false, T0, T0 + 10 * MINUTE, T0 + 25 * MINUTE),
+          "idle switch", "did not sleep 15 minutes after the switch");
+}
+
+/* This computer already sleeps: no press. */
+static void test_idle_leaves_a_sleeping_computer_alone(void) {
+    dh_sleep_sync_t a = {0};
+    dh_sleep_sync_heard(&a, true);
+    CHECK(!dh_sleep_sync_idle(&a, true, 15, true, true, T0, T0 - SEC, T0 + 60 * MINUTE), "idle asleep",
+          "pressed sleep on a computer already asleep");
+}
+
+/* A PC maintenance wake pauses the rule; the sleep after it, with the time
+   still counted from the last input, presses at once. */
+static void test_a_maintenance_wake_pauses_idle(void) {
+    dh_sleep_sync_t a = {0};
+    dh_sleep_sync_heard(&a, true);
+    dh_sleep_sync_heard(&a, false);
+    CHECK(!dh_sleep_sync_idle(&a, true, 15, true, false, T0, T0 - SEC, T0 + 20 * MINUTE), "idle pause",
+          "slept during the maintenance wake");
+    dh_sleep_sync_heard(&a, true);
+    CHECK(dh_sleep_sync_idle(&a, true, 15, true, false, T0, T0 - SEC, T0 + 21 * MINUTE), "idle pause",
+          "the sleep after the maintenance wake did not press");
+}
+
+/* Both directions: either board, active while the other's computer sleeps,
+   sleeps its own. The record comes over the heartbeat (#304). */
+static void test_idle_works_both_ways(void) {
+    for (int a_active = 0; a_active < 2; ++a_active) {
+        dh_sleep_sync_t a = {0}, b = {0};
+        dh_sleep_sync_t *active = a_active ? &a : &b, *other = a_active ? &b : &a;
+        tell(other, true, false, true, T0);
+        dh_sleep_sync_heard(active, tell(other, true, false, true, T0 + 5 * SEC));
+        CHECK(dh_sleep_sync_idle(active, true, 15, true, false, T0, T0 - SEC, T0 + 15 * MINUTE), "idle both",
+              a_active ? "A did not sleep for B" : "B did not sleep for A");
+    }
+}
+
 int main(void) {
     test_sleep_is_sent_after_five_seconds();
     test_off_does_nothing();
@@ -452,6 +545,14 @@ int main(void) {
     test_a_switch_leaves_no_stale_asleep();
     test_the_board_that_becomes_active_learns_the_real_state();
     test_a_rebooted_board_learns_again();
+    test_idle_sleeps_after_the_time();
+    test_idle_off_does_nothing();
+    test_idle_waits_for_the_other_to_sleep();
+    test_idle_presses_once_per_stretch();
+    test_a_switch_restarts_idle();
+    test_idle_leaves_a_sleeping_computer_alone();
+    test_a_maintenance_wake_pauses_idle();
+    test_idle_works_both_ways();
 
     if (failures) {
         printf("sleep_sync_test: %d failure(s)\n", failures);

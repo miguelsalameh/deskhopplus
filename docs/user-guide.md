@@ -327,11 +327,24 @@ the computer you use goes to sleep, the other computer goes to sleep too, and it
   computer is already asleep.
 - A computer you are not using that goes to sleep from idle sleeps alone. Its idle timer only counts
   its own keyboard and mouse, and you are typing on the other one, so it must not put that one to
-  sleep.
+  sleep. Use **Sleep when idle** (below) to sleep the computer you use too.
 - "Sleep" is system sleep. A screen that only goes dark or locks does not count. The board cannot
   tell a shutdown from sleep, so shutting down the computer you use can also sleep the other one.
 - Nothing happens if the other board is unplugged. No helper is needed, except on a Windows PC
   with Modern Standby (below) and on a Mac on a Thunderbolt dock (above).
+
+**Sleep when idle.** This row shows only when Sleep sync is On. Pick Never (the default), 15
+minutes, 30 minutes, 1 hour or 2 hours. If the other computer is already asleep, the computer you
+use sleeps after this long with no key or mouse input through the boards.
+
+- The time counts from your last input, or from your last switch if that came later. Example: the
+  PC sleeps at 2:00, your last input on the Mac was at 1:50, and the setting is 30 minutes. The Mac
+  sleeps at 2:20.
+- The computer's own keyboard or trackpad does not count as input. Nor does a video: a long video
+  can be cut, so pick a time long enough.
+- If the other computer wakes, nothing happens. If it goes back to sleep and the time is already
+  up, the computer you use sleeps at once.
+- A key press or mouse move then wakes both, as below.
 
 **Waking.** With Sleep sync On, a key press or mouse move while the computer you use is asleep wakes
 both computers.

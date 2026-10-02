@@ -134,6 +134,7 @@ const field_map_t api_field_map[] = {
     /* Sleep sync (#287), written to both boards by the page like the Status
        LED: the sender and the receiver each read their own copy. */
     { 103, false, UINT8,  1, offsetof(device_t, config.sleep_sync) },
+    { 104, false, UINT8,  1, offsetof(device_t, config.sleep_idle_min) }, /* Sleep when idle (#303) */
 
     /*
      * What this board has dropped on the helper channel, since boot.

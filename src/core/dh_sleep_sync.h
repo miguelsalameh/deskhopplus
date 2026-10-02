@@ -26,7 +26,9 @@
  * computer sleeps while it is not the active output (#304), in a heartbeat
  * bit: sleep_sync_task asks dh_sleep_sync_tell, heartbeat_output_task sends
  * `tells_asleep` (tasks.c), and handle_heartbeat_msg passes it to
- * dh_sleep_sync_heard (handlers.c).
+ * dh_sleep_sync_heard (handlers.c). The active board then asks
+ * dh_sleep_sync_idle in sleep_sync_task, and presses System Sleep on its own
+ * computer.
  *
  * Pure C11, no clock read of its own: the caller passes one
  * `now` (the #107 rule).
@@ -60,6 +62,9 @@ typedef struct {
     bool helper_asleep; /* the helper said its computer sleeps (#293); core 0 writes it */
     bool tells_asleep;  /* the heartbeat says this computer sleeps (#304); core 1 */
     bool other_asleep;  /* the peer's heartbeat said its computer sleeps; core 1 */
+    bool idle_pressed;  /* Sleep when idle pressed for the idle stretch that began at
+                           idle_since_us (#303); core 1 */
+    uint64_t idle_since_us;
 } dh_sleep_sync_t;
 
 /* The helper says its computer went to sleep or woke (#293). A Modern
@@ -137,6 +142,32 @@ static inline bool dh_sleep_sync_heard(dh_sleep_sync_t *s, bool asleep) {
    active stops treating its peer as asleep. */
 static inline bool dh_sleep_sync_other_asleep(const dh_sleep_sync_t *s, bool on, bool active) {
     return on && active && s->other_asleep;
+}
+
+/* Sleep when idle (#303), asked on every pass of sleep_sync_task. True once
+   per idle stretch, on the pass that should press System Sleep on this
+   board's own computer: `minutes` is not Never (0), this board is the active
+   output with Sleep sync on and has heard the other computer sleeps
+   (dh_sleep_sync_other_asleep), its own computer is awake, and the later of
+   the last input and the last switch is `minutes` old, as the Status LED
+   counts idle. The time counts from there whenever the other computer went
+   to sleep. A maintenance wake of the other
+   computer pauses the rule, and the sleep after it presses at once if the
+   time is up. New input starts a new stretch. Times compare signed. */
+static inline bool dh_sleep_sync_idle(dh_sleep_sync_t *s, bool on, uint8_t minutes, bool active,
+                                      bool asleep, uint64_t last_input_us, uint64_t last_switch_us,
+                                      uint64_t now_us) {
+    const uint64_t idle_since_us =
+        (int64_t)(last_input_us - last_switch_us) > 0 ? last_input_us : last_switch_us;
+    if (s->idle_pressed && s->idle_since_us == idle_since_us)
+        return false;
+    if (!minutes || asleep || !dh_sleep_sync_other_asleep(s, on, active)
+        || (int64_t)(now_us - idle_since_us) < (int64_t)minutes * 60000000)
+        return false;
+
+    s->idle_pressed = true;
+    s->idle_since_us = idle_since_us;
+    return true;
 }
 
 /* True when the peer's sleep should press System Sleep here: the setting is

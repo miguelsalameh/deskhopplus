@@ -88,11 +88,19 @@ function refreshStatusLed() {
   if (mode && after) after.disabled = !Number(mode.value);
 }
 
+// Power: Sleep when idle shows only while Sleep sync is On (#303).
+function refreshSleepIdle() {
+  const sync = document.querySelector('[data-key="103"]');
+  const row = document.querySelector('[data-key="104"]')?.closest('.row');
+  if (sync && row) row.hidden = !Number(sync.value);
+}
+
 // What every edit, report and toolbar action refreshes.
 function refresh() {
   refreshUnsaved();
   refreshTitles();
   refreshStatusLed();
+  refreshSleepIdle();
 }
 
 document.getElementById('main').addEventListener('input', event => {

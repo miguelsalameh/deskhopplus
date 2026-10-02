@@ -168,12 +168,22 @@ typedef struct {
      */
     uint8_t sleep_sync;
 
+    /*
+     * Sleep when idle (#303): minutes with no input before the active output
+     * sleeps its own computer while the other one sleeps; 0 is Never
+     * (dh_sleep_sync_idle). Both boards hold the same value; the page writes
+     * it to both. It took the byte after sleep_sync, which every
+     * configuration already written holds as zero, so no
+     * CURRENT_CONFIG_VERSION bump is owed.
+     */
+    uint8_t sleep_idle_min;
+
     /* The rest of the bytes that make the struct end exactly on the checksum.
        #46's 17 bytes rounded config_t up to 160 and left four bytes of padding
        *behind* the checksum, which is what broke persistence (#74); absorbing
        them here keeps the tail intentional rather than whatever alignment
        happens to leave over. */
-    uint8_t _reserved[3];
+    uint8_t _reserved[2];
 
     // Keep checksum at the end of the struct
     uint32_t checksum;
@@ -236,3 +246,5 @@ _Static_assert(offsetof(config_t, sleep_sync) == offsetof(config_t, led_off_sec)
                "config_t: Sleep sync must take the first byte of the second reserved word");
 _Static_assert(offsetof(config_t, checksum) == offsetof(config_t, sleep_sync) + 4,
                "config_t: Sleep sync must not extend the struct");
+_Static_assert(offsetof(config_t, sleep_idle_min) == offsetof(config_t, sleep_sync) + 1,
+               "config_t: Sleep when idle must take the byte after Sleep sync");
