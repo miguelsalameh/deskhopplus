@@ -4,7 +4,8 @@
 /*
  * Sleep sync (#287, #288, #289), on the host: when the active output's board
  * tells its peer to sleep or wake, when the peer obeys sleep, and when it
- * keeps a wake that came while its computer was still going to sleep.
+ * keeps a wake that came while its computer was still going to sleep. Also
+ * how the active board learns that the other computer sleeps or wakes (#304).
  *
  * Style follows status_led_test.c: an assertion macro, a main, a printed
  * failure line, a non-zero exit — no framework.
@@ -307,6 +308,115 @@ static void test_the_sleep_press_is_held_before_release(void) {
           "the hold is outside macOS's sleep window");
 }
 
+/* Sleep when idle needs the active board to know the other computer sleeps
+   (#304). One pass of the board whose computer this is: dh_sleep_sync_step,
+   then dh_sleep_sync_tell, as sleep_sync_task does. Returns the heartbeat's
+   bit. */
+static bool tell(dh_sleep_sync_t *s, bool on, bool active, bool suspended, uint64_t now) {
+    dh_sleep_sync_step(s, on, active, suspended, now);
+    dh_sleep_sync_tell(s, on, active, now);
+    return s->tells_asleep;
+}
+
+/* Board B's computer sleeps from idle while A is the active output. A short
+   USB suspend says nothing (#286). */
+static void test_the_inactive_board_tells_asleep_after_the_wait(void) {
+    dh_sleep_sync_t s = {0};
+    CHECK(!tell(&s, true, false, false, T0 - SEC), "tell", "said asleep while awake");
+    CHECK(!tell(&s, true, false, true, T0), "tell", "said asleep at once");
+    CHECK(!tell(&s, true, false, true, T0 + 4900000), "tell", "said asleep before 5 s");
+    CHECK(tell(&s, true, false, true, T0 + 5 * SEC), "tell", "did not say asleep after 5 s");
+    CHECK(!tell(&s, true, false, false, T0 + 600 * SEC), "tell", "did not say awake on the wake");
+}
+
+/* A PC maintenance wake follows every Start > Sleep (#292): awake, then
+   asleep again after the wait. */
+static void test_a_maintenance_wake_says_awake_then_asleep(void) {
+    dh_sleep_sync_t s = {0};
+    tell(&s, true, false, true, T0);
+    tell(&s, true, false, true, T0 + 5 * SEC);
+    CHECK(!tell(&s, true, false, false, T0 + 60 * SEC), "maintenance",
+          "the maintenance wake did not say awake");
+    CHECK(!tell(&s, true, false, true, T0 + 90 * SEC), "maintenance", "said asleep at once");
+    CHECK(tell(&s, true, false, true, T0 + 95 * SEC), "maintenance",
+          "the sleep after it did not say asleep");
+}
+
+/* Turned off mid-sleep, the peer hears awake, so it holds no stale asleep. */
+static void test_tell_says_nothing_while_off(void) {
+    dh_sleep_sync_t s = {0};
+    tell(&s, false, false, true, T0);
+    CHECK(!tell(&s, false, false, true, T0 + 600 * SEC), "tell off",
+          "said asleep with Sleep sync off");
+    CHECK(tell(&s, true, false, true, T0 + 601 * SEC), "tell off", "turning it on did not say asleep");
+    CHECK(!tell(&s, false, false, true, T0 + 602 * SEC), "tell off", "turning it off kept asleep");
+}
+
+/* The active board's own sleep goes as DH_SLEEP_SYNC_SLEEP, not as this. */
+static void test_the_active_board_does_not_tell_asleep(void) {
+    dh_sleep_sync_t s = {0};
+    tell(&s, true, true, true, T0);
+    CHECK(!tell(&s, true, true, true, T0 + 600 * SEC), "tell active", "the active board said asleep");
+}
+
+/* The receiving side: what the active board holds about the other computer,
+   and the trace once per change. */
+static void test_the_record_follows_the_heartbeat(void) {
+    dh_sleep_sync_t a = {0};
+    CHECK(!dh_sleep_sync_heard(&a, false), "record", "an unchanged awake was traced");
+    CHECK(!dh_sleep_sync_other_asleep(&a, true, true), "record", "asleep before any word");
+    CHECK(dh_sleep_sync_heard(&a, true), "record", "the change to asleep was not traced");
+    CHECK(!dh_sleep_sync_heard(&a, true), "record", "asleep was traced every heartbeat");
+    CHECK(dh_sleep_sync_other_asleep(&a, true, true), "record", "did not record asleep");
+    CHECK(!dh_sleep_sync_other_asleep(&a, false, true), "record", "asleep with Sleep sync off");
+    CHECK(!dh_sleep_sync_other_asleep(&a, true, false), "record",
+          "the inactive board treats its peer as asleep");
+    CHECK(dh_sleep_sync_heard(&a, false), "record", "the change to awake was not traced");
+    CHECK(!dh_sleep_sync_other_asleep(&a, true, true), "record", "did not record awake");
+}
+
+/* Two boards wired together through switches of the active output: one pass
+   of B, then the heartbeat to A. `a_active` false means B is active. */
+static void pass(dh_sleep_sync_t *a, dh_sleep_sync_t *b, bool a_active, bool b_suspended,
+                 uint64_t now) {
+    dh_sleep_sync_heard(a, tell(b, true, !a_active, b_suspended, now));
+}
+
+/* The PC sleeps, you switch to it, and input wakes it: A must not think it
+   still sleeps when you switch back. */
+static void test_a_switch_leaves_no_stale_asleep(void) {
+    dh_sleep_sync_t a = {0}, b = {0};
+    pass(&a, &b, true, true, T0);
+    pass(&a, &b, true, true, T0 + 5 * SEC);
+    CHECK(dh_sleep_sync_other_asleep(&a, true, true), "switch", "A did not learn the PC sleeps");
+    CHECK(!dh_sleep_sync_other_asleep(&a, true, false), "switch",
+          "A treats its peer as asleep once B is active");
+    pass(&a, &b, false, false, T0 + 60 * SEC); /* switched to B, input woke the PC */
+    CHECK(!dh_sleep_sync_other_asleep(&a, true, true), "switch", "a switch back left a stale asleep");
+}
+
+/* The PC sleeps while it is the active output, then you switch to the Mac:
+   A becomes active and must learn the PC still sleeps. */
+static void test_the_board_that_becomes_active_learns_the_real_state(void) {
+    dh_sleep_sync_t a = {0}, b = {0};
+    pass(&a, &b, false, true, T0);
+    pass(&a, &b, false, true, T0 + 600 * SEC);
+    CHECK(!dh_sleep_sync_other_asleep(&a, true, true), "switch", "the active PC's sleep was told");
+    pass(&a, &b, true, true, T0 + 601 * SEC);
+    CHECK(dh_sleep_sync_other_asleep(&a, true, true), "switch",
+          "the newly active board did not learn the PC sleeps");
+}
+
+/* A reboots while the PC sleeps: the next heartbeat restores its record. */
+static void test_a_rebooted_board_learns_again(void) {
+    dh_sleep_sync_t a = {0}, b = {0};
+    pass(&a, &b, true, true, T0);
+    pass(&a, &b, true, true, T0 + 5 * SEC);
+    a = (dh_sleep_sync_t){0};
+    pass(&a, &b, true, true, T0 + 6 * SEC);
+    CHECK(dh_sleep_sync_other_asleep(&a, true, true), "reboot", "a rebooted A forgot the PC sleeps");
+}
+
 int main(void) {
     test_sleep_is_sent_after_five_seconds();
     test_off_does_nothing();
@@ -334,6 +444,14 @@ int main(void) {
     test_a_new_press_drops_a_kept_wake();
     test_a_press_ahead_of_the_clock_is_recent();
     test_the_sleep_press_is_held_before_release();
+    test_the_inactive_board_tells_asleep_after_the_wait();
+    test_a_maintenance_wake_says_awake_then_asleep();
+    test_tell_says_nothing_while_off();
+    test_the_active_board_does_not_tell_asleep();
+    test_the_record_follows_the_heartbeat();
+    test_a_switch_leaves_no_stale_asleep();
+    test_the_board_that_becomes_active_learns_the_real_state();
+    test_a_rebooted_board_learns_again();
 
     if (failures) {
         printf("sleep_sync_test: %d failure(s)\n", failures);

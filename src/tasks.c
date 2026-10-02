@@ -208,6 +208,11 @@ void heartbeat_output_task(device_t *state) {
        is the heartbeat interval, which is what the staleness window counts. */
     peer_fw_expire(&state->peer_fw, now);
 
+    /* A silent peer board says nothing about its computer, so it cannot
+       leave a stale "other computer asleep" either (#304). */
+    if (state->peer_fw.version == PEER_FW_UNKNOWN)
+        sleep_sync_heard(state, false);
+
     /* Give up on a transfer that has gone quiet, so the board can start it
        again instead of waiting for a power cycle. Restarting a pull rewrites
        every page, so this is also how a half-written image gets repaired —
@@ -268,7 +273,8 @@ void heartbeat_output_task(device_t *state) {
             [HEARTBEAT_VERSION_SLOT16] = state->_running_fw.version,
             [HEARTBEAT_OUTPUT_SLOT16]  = state->active_output |
                 (state->boot_mouse_mode[BOARD_ROLE] ? HEARTBEAT_BOOT_MOUSE_BIT : 0) |
-                (channel_helper_present() ? HEARTBEAT_HELPER_BIT : 0),
+                (channel_helper_present() ? HEARTBEAT_HELPER_BIT : 0) |
+                (state->sleep_sync.tells_asleep ? HEARTBEAT_ASLEEP_BIT : 0),
         },
     };
     packet.data32[HEARTBEAT_CHECKSUM_SLOT32] = state->_running_fw.checksum;
@@ -279,7 +285,8 @@ void heartbeat_output_task(device_t *state) {
 
 /* Sleep sync (#287): tells the peer once this board's computer, as the
    active output, has been asleep long enough; dh_sleep_sync_step decides.
-   A full UART queue leaves it unsent, to be tried again next pass. As the
+   A full UART queue leaves it unsent, to be tried again next pass. It also
+   keeps the heartbeat's "this computer sleeps" bit (#304). As the
    receiver, it releases System Sleep once held long enough, and wakes this
    computer for a wake kept while it was still going to sleep, trying on each
    suspended pass until the window ends (#289). */
@@ -294,6 +301,7 @@ void sleep_sync_task(device_t *state) {
         else
             state->sleep_sync.sent = false;
     }
+    dh_sleep_sync_tell(&state->sleep_sync, state->config.sleep_sync, CURRENT_BOARD_IS_ACTIVE_OUTPUT, now);
 
     if (dh_sleep_sync_peer_step(&state->sleep_sync_peer, suspended, now))
         tud_remote_wakeup();
@@ -301,6 +309,14 @@ void sleep_sync_task(device_t *state) {
     uint8_t release = 0;
     if (dh_sleep_sync_peer_release(&state->sleep_sync_peer, now))
         queue_system_packet(&release, state);
+}
+
+/* The peer's heartbeat bit (#304), or false for a peer gone silent. Keeps
+   the record Sleep when idle reads, and traces each change once. */
+void sleep_sync_heard(device_t *state, bool other_asleep) {
+    if (dh_sleep_sync_heard(&state->sleep_sync, other_asleep))
+        sleep_sync_trace(state, other_asleep ? DH_SLEEP_SYNC_TRACE_OTHER_ASLEEP : DH_SLEEP_SYNC_TRACE_OTHER_AWAKE,
+                         CURRENT_BOARD_IS_ACTIVE_OUTPUT, time_us_64());
 }
 
 /* Input for this board's computer is waiting (core 0's kbd and mouse queue

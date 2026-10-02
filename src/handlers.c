@@ -602,6 +602,9 @@ void handle_heartbeat_msg(uart_packet_t *packet, device_t *state) {
         (packet->data16[HEARTBEAT_OUTPUT_SLOT16] & HEARTBEAT_BOOT_MOUSE_BIT) != 0;
     channel_peer_board_heartbeat((packet->data16[HEARTBEAT_OUTPUT_SLOT16] & HEARTBEAT_HELPER_BIT) != 0);
 
+    /* The other computer sleeps or woke (#304). */
+    sleep_sync_heard(state, (packet->data16[HEARTBEAT_OUTPUT_SLOT16] & HEARTBEAT_ASLEEP_BIT) != 0);
+
     /* Remember it, so this board can be asked what its peer is running (#89).
        The checksum comes along because at equal version it is the only thing
        that distinguishes two builds (#91). Recorded before the upgrade check

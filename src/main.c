@@ -65,7 +65,7 @@ void core1_main() {
         [4] = {.exec = &screensaver_task,        .frequency = _HZ(120)},     // | Handle "screensaver" movements
         [5] = {.exec = &firmware_upgrade_task,   .frequency = _HZ(4000)},    // | Send firmware to the other board if needed
         [6] = {.exec = &status_led_task,         .frequency = _HZ(30)},      // | Turn the Status LED off on its timer (#283)
-        [7] = {.exec = &sleep_sync_task,         .frequency = _HZ(10)},      // | Sleep sync: send sleep; wake a kept wake (#287, #289)
+        [7] = {.exec = &sleep_sync_task,         .frequency = _HZ(10)},      // | Sleep sync: send sleep; wake a kept wake; keep the heartbeat bit (#287, #289, #304)
 #ifndef DH_BENCH_ECDH
         [8] = {.exec = &heartbeat_output_task,   .frequency = _HZ(1)},       // | Output periodic heartbeats
 #endif                                                                       // | (silenced in the ECDH measure-only build -- see below)

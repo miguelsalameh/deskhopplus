@@ -20,7 +20,15 @@
  * dh_sleep_sync_wake from wake_on_input (tasks.c); the receiver asks
  * dh_sleep_sync_obey_sleep and dh_sleep_sync_peer_wake in
  * handle_sleep_sync_msg (handlers.c), and dh_sleep_sync_peer_step in
- * sleep_sync_task. Pure C11, no clock read of its own: the caller passes one
+ * sleep_sync_task.
+ *
+ * For Sleep when idle (#303), each board also tells its peer whether its
+ * computer sleeps while it is not the active output (#304), in a heartbeat
+ * bit: sleep_sync_task asks dh_sleep_sync_tell, heartbeat_output_task sends
+ * `tells_asleep` (tasks.c), and handle_heartbeat_msg passes it to
+ * dh_sleep_sync_heard (handlers.c).
+ *
+ * Pure C11, no clock read of its own: the caller passes one
  * `now` (the #107 rule).
  */
 
@@ -40,8 +48,9 @@ enum {
     DH_SLEEP_SYNC_WAKE = 2,
 };
 
-/* What the sender remembers about its computer's current sleep. Zero is
-   "awake, nothing sent". */
+/* What the sender remembers about its computer's current sleep, and what
+   this board heard about the other computer's (#304). Zero is "awake,
+   nothing sent". */
 typedef struct {
     bool asleep;
     bool sent; /* or nothing to send: this board was not active at some point in this sleep,
@@ -49,6 +58,8 @@ typedef struct {
     uint64_t asleep_since_us;
     bool woken; /* input in this sleep sent wake; written by dh_sleep_sync_wake on core 0 */
     bool helper_asleep; /* the helper said its computer sleeps (#293); core 0 writes it */
+    bool tells_asleep;  /* the heartbeat says this computer sleeps (#304); core 1 */
+    bool other_asleep;  /* the peer's heartbeat said its computer sleeps; core 1 */
 } dh_sleep_sync_t;
 
 /* The helper says its computer went to sleep or woke (#293). A Modern
@@ -94,6 +105,38 @@ static inline bool dh_sleep_sync_step(dh_sleep_sync_t *s, bool on, bool active, 
 
     s->sent = true;
     return true;
+}
+
+/* Asked on every pass of sleep_sync_task, just after dh_sleep_sync_step,
+   which keeps the sleep state read here. Sets `tells_asleep`, which every
+   heartbeat carries to the peer (#304). It turns on once this computer has
+   been asleep for DH_SLEEP_SYNC_WAIT_US while this board is not the active
+   output; the active output's own sleep goes as DH_SLEEP_SYNC_SLEEP instead.
+   A switch away from a sleeping computer turns it on at once, so the board
+   that becomes active learns the real state. It turns off when the computer
+   wakes, whatever the active output, or when the setting is off. A
+   heartbeat a second restates it, so a peer that reboots or misses one
+   learns it again. Times compare signed. */
+static inline void dh_sleep_sync_tell(dh_sleep_sync_t *s, bool on, bool active, uint64_t now_us) {
+    if (!on || !s->asleep)
+        s->tells_asleep = false;
+    else if (!active && (int64_t)(now_us - s->asleep_since_us) >= (int64_t)DH_SLEEP_SYNC_WAIT_US)
+        s->tells_asleep = true;
+}
+
+/* A heartbeat brought the peer's bit (#304). True when the record changed,
+   so the caller traces each change once, not each second. */
+static inline bool dh_sleep_sync_heard(dh_sleep_sync_t *s, bool asleep) {
+    const bool changed = s->other_asleep != asleep;
+    s->other_asleep = asleep;
+    return changed;
+}
+
+/* The other computer sleeps, as far as this board knows. Only the active
+   output with the setting on trusts the record: a board that stops being
+   active stops treating its peer as asleep. */
+static inline bool dh_sleep_sync_other_asleep(const dh_sleep_sync_t *s, bool on, bool active) {
+    return on && active && s->other_asleep;
 }
 
 /* True when the peer's sleep should press System Sleep here: the setting is

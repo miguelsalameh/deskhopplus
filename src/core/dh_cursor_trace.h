@@ -78,6 +78,9 @@ typedef enum {
     DH_SLEEP_SYNC_TRACE_KEY_BLOCKED,     /* bit0 mounted, bit1 suspended: a key waited 1 s;
                                             mounted and not suspended = its endpoint is busy */
     DH_SLEEP_SYNC_TRACE_USB_MOUNT,       /* 1 mounted, 0 unmounted (a re-enumeration) */
+    /* The peer's heartbeat changed its word about its computer (#304). */
+    DH_SLEEP_SYNC_TRACE_OTHER_ASLEEP,    /* 1 this board is the active output */
+    DH_SLEEP_SYNC_TRACE_OTHER_AWAKE,     /* 1 this board is the active output */
 } dh_sleep_sync_trace_t;
 
 /* Twelve bytes so one config response can carry either six-byte half. */
