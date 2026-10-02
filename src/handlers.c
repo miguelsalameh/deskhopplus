@@ -25,6 +25,7 @@ void output_toggle_hotkey_handler(device_t *state, hid_keyboard_report_t *report
 
     state->active_output ^= 1;
     set_active_output(state, state->active_output);
+    cursor_output_switched(state);
 };
 
 void _get_border_position(device_t *state, border_size_t *border) {
@@ -259,6 +260,8 @@ void handle_output_select_msg(uart_packet_t *packet, device_t *state) {
 
     restore_leds(state);
     channel_output_changed(state->active_output);
+    /* The peer switched: a hotkey there, or a crossing by its mouse. */
+    cursor_output_switched(state);
 }
 
 void handle_cursor_place_msg(uart_packet_t *packet, device_t *state) {

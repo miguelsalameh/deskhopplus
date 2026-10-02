@@ -93,6 +93,20 @@ if(NOT MSVC)
 endif()
 add_test(NAME mouse_seam_test COMMAND mouse_seam_test)
 
+# Crossings against modelled macOS and Windows screens, every layout (#310).
+add_executable(crossing_model_test crossing_model_test.c
+               cursor_trace_adapter_stub.c
+               ${CMAKE_CURRENT_SOURCE_DIR}/../src/mouse_logic.c ${CORE}/dh_mouse_layout.c
+               ${CMAKE_CURRENT_SOURCE_DIR}/../src/cursor_position.c ${CORE}/dh_seam_map.c)
+target_include_directories(crossing_model_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stubs ${CORE}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../src/include)
+if(NOT MSVC)
+  target_link_libraries(crossing_model_test PRIVATE m)
+  # About 140 million checks: unoptimised, this one test takes 20 s.
+  target_compile_options(crossing_model_test PRIVATE -O2)
+endif()
+add_test(NAME crossing_model_test COMMAND crossing_model_test)
+
 add_executable(seam_map_test seam_map_test.c ${CORE}/dh_seam_map.c)
 target_include_directories(seam_map_test PRIVATE ${CORE})
 add_test(NAME seam_map_test COMMAND seam_map_test)

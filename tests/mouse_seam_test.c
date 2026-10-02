@@ -328,7 +328,13 @@ static void test_diagonal_corner_continues_without_a_synthetic_adjacent_seam(voi
         global_state = state;
         CHECK(update_mouse_position(&state, &movement) == corner->horizontal,
               "horizontal-first corner did not choose the farther overshoot");
-        CHECK(state.pointer_x == corner->x && state.pointer_y == corner->y,
+        /* The losing axis keeps its last valid coordinate. The winning one
+           does too, except a relative source keeps the overshoot Windows
+           moved its cursor by (#310). */
+        CHECK(state.pointer_y == corner->y &&
+                  state.pointer_x == (source_screen > 1
+                                          ? corner->x + corner->move_x * 2
+                                          : corner->x),
               "horizontal-first corner discarded its last valid coordinates");
         CHECK(movement.move_x == corner->move_x * 2 &&
                   movement.move_y == (source_screen > 1 ? 0 : corner->move_y / 2),
@@ -878,6 +884,29 @@ static void test_windows_chain_readback_timeout_does_not_force_a_crossing(void) 
     source_query_available = false;
 }
 
+/* A relative chain crossing keeps its overshoot past the edge until the
+   switch (#310). If the readback times out there is no switch, so the
+   pointer must come back on screen, or a move back reads as a crossing. */
+static void test_windows_chain_timeout_brings_the_pointer_back_on_screen(void) {
+    device_t state = side_by_side_state();
+    state.config.output[0].os = WINDOWS;
+    state.config.output[0].screen_index = 2;
+    state.relative_mouse = true;
+    state.pointer_x = 2;
+    source_query_available = true;
+    global_state = state;
+    mouse_values_t left = {.move_x = -10};
+    CHECK(update_mouse_position(&state, &left) == LEFT && state.pointer_x < MIN_SCREEN_COORD,
+          "relative chain crossing did not keep its overshoot");
+    do_screen_switch(&state, LEFT);
+    mouse_crossing_task(&state, 30000);
+
+    mouse_values_t back = {.move_x = 1};
+    CHECK(update_mouse_position(&state, &back) == NONE && state.pointer_x >= MIN_SCREEN_COORD,
+          "a timed-out chain left the pointer off screen, and a move back crossed");
+    source_query_available = false;
+}
+
 static void test_windows_chain_without_helper_keeps_firmware_fallback(void) {
     device_t state = side_by_side_state();
     state.config.output[0].os = WINDOWS;
@@ -1296,7 +1325,7 @@ static void test_helper_free_windows_arrival_walks_from_the_main_screen(void) {
           "helper-free crossing down from Mac TL did not select Windows BL");
     CHECK(emitted_walk(0, 0, LEFT),
           "helper-free Windows arrival did not walk from BR to BL");
-    CHECK(state.pointer_x == MAX_SCREEN_COORD - 50 && state.pointer_y == MAX_SCREEN_COORD / 2,
+    CHECK(state.pointer_x == MAX_SCREEN_COORD - 49 && state.pointer_y == MAX_SCREEN_COORD / 2,
           "board's Windows pointer is not where the walk left the relative cursor");
     /* The hardware trace: a move down with 2 counts right went straight back. */
     mouse_values_t jitter = {.move_x = 2, .move_y = 15};
@@ -1354,6 +1383,7 @@ int main(void) {
     test_virtual_desktops_remain_local();
     test_windows_chain_back_waits_for_the_os_cursor_edge();
     test_windows_chain_readback_timeout_does_not_force_a_crossing();
+    test_windows_chain_timeout_brings_the_pointer_back_on_screen();
     test_windows_chain_without_helper_keeps_firmware_fallback();
     test_confirmed_macos_chain_forward_uses_only_helper_placement();
     test_confirmed_macos_chain_back_uses_only_helper_placement();
