@@ -25,6 +25,7 @@ typedef struct { uint8_t bytes[16]; } hid_generic_pkt_t;
 typedef struct { int32_t speed_x, speed_y; dh_keymap_profile_t keymap; bool swap_ctrl_gui; } output_t;
 bool queue_try_remove(queue_t *queue, void *item);
 void tud_mouse_report_reset(int16_t x, int16_t y);
+uint32_t time_us_32(void);
 
 typedef struct {
     bool config_mode_active;

@@ -75,6 +75,14 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance) {
 }
 
 static int16_t last_absolute_x, last_absolute_y;
+/* The interface that took the last mouse report, and since when a report
+   for the other one has waited for the host to read it. */
+static uint8_t last_mouse_instance = ITF_NUM_HID;
+static bool interface_wait;
+static uint32_t interface_wait_start_us;
+/* A host that never reads an interface (one that ignores the second mouse)
+   must not stop the mouse: after this long, send anyway. */
+#define INTERFACE_ORDER_WAIT_US 20000u
 
 void tud_mouse_report_reset(int16_t x, int16_t y) {
     last_absolute_x = x;
@@ -125,7 +133,22 @@ bool tud_mouse_report(uint8_t mode, uint8_t buttons, int16_t x, int16_t y, int8_
         return sent;
     }
 
+    /* The host polls the two mouse interfaces in no set order. On a change
+       of interface, wait until it has read the last report, or a walk's
+       nudge can land before the absolute report it follows (#310). */
+    if (instance != last_mouse_instance && !tud_hid_n_ready(last_mouse_instance)) {
+        const uint32_t now = time_us_32();
+        if (!interface_wait) {
+            interface_wait = true;
+            interface_wait_start_us = now;
+        }
+        if (now - interface_wait_start_us < INTERFACE_ORDER_WAIT_US)
+            return false;
+    }
+    interface_wait = false;
     bool sent = tud_hid_n_report(instance, report_id, &report, sizeof(report));
+    if (sent)
+        last_mouse_instance = instance;
     if (sent && !relative)
         tud_mouse_report_reset(x, y);
     return sent;

@@ -30,6 +30,11 @@ void pico_get_unique_board_id_string(char *buffer, unsigned size) {
 }
 
 uint8_t tud_hid_n_get_protocol(uint8_t instance) { return protocol[instance]; }
+/* An interface whose last report the host has not read yet. */
+static bool endpoint_busy[8];
+bool tud_hid_n_ready(uint8_t instance) { return !endpoint_busy[instance]; }
+static uint32_t now_us;
+uint32_t time_us_32(void) { return now_us; }
 bool tud_hid_n_report(uint8_t instance, uint8_t report_id, const void *report, uint16_t len) {
     last_instance = instance;
     last_id = report_id;
@@ -247,6 +252,39 @@ int main(void) {
     global_state.config_mode_active = true;
     tud_hid_set_report_cb(3, 0, HID_REPORT_TYPE_OUTPUT, &led, 1);
     CHECK(channel_calls == 2 && received_channel == 0);
+
+    /* A walk sends an absolute report, then relative nudges, on two
+       interfaces. The host polls them in no set order, so a nudge must wait
+       until the host has read the absolute report, or it lands first (#310). */
+    protocol[0] = protocol[1] = HID_PROTOCOL_REPORT;
+    CHECK(tud_mouse_report(ABSOLUTE, 0, 0, 100, 0, 0) && last_instance == ITF_NUM_HID);
+    endpoint_busy[ITF_NUM_HID] = true;
+    CHECK(!tud_mouse_report(RELATIVE, 0, -2, 0, 0, 0));
+    endpoint_busy[ITF_NUM_HID] = false;
+    CHECK(tud_mouse_report(RELATIVE, 0, -2, 0, 0, 0) && last_instance == ITF_NUM_HID_REL_M);
+    /* One interface keeps its own order: no wait for the other. */
+    endpoint_busy[ITF_NUM_HID] = true;
+    CHECK(tud_mouse_report(RELATIVE, 0, -2, 0, 0, 0));
+    endpoint_busy[ITF_NUM_HID_REL_M] = true;
+    endpoint_busy[ITF_NUM_HID] = false;
+    CHECK(!tud_mouse_report(ABSOLUTE, 0, 0, 100, 0, 0));
+    endpoint_busy[ITF_NUM_HID_REL_M] = false;
+    CHECK(tud_mouse_report(ABSOLUTE, 0, 0, 100, 0, 0) && last_instance == ITF_NUM_HID);
+    /* A host that never reads the other interface delays the mouse, but
+       does not stop it. */
+    endpoint_busy[ITF_NUM_HID] = true;
+    now_us = 1000;
+    CHECK(!tud_mouse_report(RELATIVE, 0, -2, 0, 0, 0));
+    now_us = 1000 + 19999;
+    CHECK(!tud_mouse_report(RELATIVE, 0, -2, 0, 0, 0));
+    now_us = 1000 + 20000;
+    CHECK(tud_mouse_report(RELATIVE, 0, -2, 0, 0, 0) && last_instance == ITF_NUM_HID_REL_M);
+    /* The next wait starts its own clock. */
+    endpoint_busy[ITF_NUM_HID_REL_M] = true;
+    endpoint_busy[ITF_NUM_HID] = false;
+    now_us = 50000;
+    CHECK(!tud_mouse_report(ABSOLUTE, 0, 0, 100, 0, 0));
+    endpoint_busy[ITF_NUM_HID_REL_M] = false;
 
     global_state.kbd_queue.remaining = 3;
     global_state.mouse_queue.remaining = 4;

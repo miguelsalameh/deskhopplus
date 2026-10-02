@@ -26,6 +26,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "main.h"
@@ -62,6 +63,11 @@ static computer_t world[2];
 static device_t board;
 static uint8_t pending_query;    /* a correlated query the model must answer */
 static uint8_t pending_output;
+/* Windows' real pixels per board-estimated unit, in percent: its pointer
+   speed, Enhance pointer precision and screen size, which the board cannot
+   see. 100 is the board's exact guess. */
+static int windows_gain = 100;
+#define ENHANCED_PRECISION -1    /* windows_gain: depends on each report's speed */
 static unsigned long checks, layouts_run;
 static int failures;
 static char context[160];
@@ -106,8 +112,15 @@ void output_mouse_report(mouse_report_t *report, device_t *state) {
         c->y = report->y;
         return;
     }
-    move_axis(c, &c->x, report->x * o->speed_x, 1, 0);
-    move_axis(c, &c->y, report->y * o->speed_y, 0, 1);
+    int gain = c->os == WINDOWS ? windows_gain : 100;
+    if (gain == ENHANCED_PRECISION) {
+        /* Like Enhance pointer precision: slow reports move less, fast
+           ones more, up to nearly three times. */
+        const int fast = abs(report->x) > abs(report->y) ? abs(report->x) : abs(report->y);
+        gain = fast <= 3 ? 60 : fast <= 10 ? 100 : fast <= 30 ? 180 : 290;
+    }
+    move_axis(c, &c->x, report->x * o->speed_x * gain / 100, 1, 0);
+    move_axis(c, &c->y, report->y * o->speed_y * gain / 100, 0, 1);
 }
 
 void set_active_output(device_t *state, uint8_t output) {
@@ -275,6 +288,10 @@ static void start(int on, int screen, int remembered, int x, int y) {
 
 static bool switched;            /* this report changed screen or computer */
 static bool attempted;           /* this report took a seam, even a blocked one */
+static bool board_crossed_vertically;
+static int arrived_direction;
+static int arrived_along = -1;   /* a crossing onto relative Windows: the source's
+                                    coordinate along the seam, else -1 */
 
 static void check(void) {
     checks++;
@@ -304,6 +321,54 @@ static void check(void) {
     if (!attempted && !board.relative_mouse &&
         (world[on].x != board.pointer_x || world[on].y != board.pointer_y))
         fail("absolute screen: cursor is not at the board's pointer");
+    /* On a relative screen the board's pointer is its estimate of the
+       cursor; the model's Windows moves exactly that estimate. */
+    if (board.relative_mouse &&
+        (world[on].x != board.pointer_x || world[on].y != board.pointer_y))
+        fail("relative screen: cursor is not at the board's pointer");
+    /* Without a helper the walk must still leave the cursor under where it
+       left the other computer, not mid-edge (#310). Rounding to whole
+       counts may cost one count's worth. */
+    if (arrived_along >= 0) {
+        const output_t *o = &board.config.output[on];
+        const bool vertical = board_crossed_vertically;
+        const int along = vertical ? world[on].x : world[on].y;
+        const int slack = vertical ? o->speed_x : o->speed_y;
+        /* A move back along the chain stops a third of the way to an edge
+           with a screen past it, so a fast Windows cannot run onto that
+           screen: a third in from an edge, or within a walk's nudges of it. */
+        const bool chain_vertical = o->chain_direction == TOP || o->chain_direction == BOTTOM;
+        const bool along_chain = chain_vertical != vertical;
+        const bool held_short = along_chain &&
+                                (abs(along - MAX_SCREEN_COORD / 3) <= 12 * slack ||
+                                 abs(along - 2 * MAX_SCREEN_COORD / 3) <= 12 * slack ||
+                                 abs(along - arrived_along) <= 10 * slack);
+        if (abs(along - arrived_along) > slack && !held_short)
+            fail("relative arrival: cursor is not under where it crossed");
+        /* Across the seam: on the edge it came in by, not mid-screen (the
+           #310 hardware report). Only a screen that touches the seam has
+           that edge; a walk along the chain ends on such a screen. */
+        const int across = vertical ? world[on].y : world[on].x;
+        const int edge = arrived_direction == BOTTOM || arrived_direction == RIGHT
+                             ? MIN_SCREEN_COORD : MAX_SCREEN_COORD;
+        if (along_chain && across != edge)
+            fail("relative arrival: cursor is not on the edge it came in by");
+    }
+}
+
+/* With a wrong Windows gain the board may cross early or late, but a long
+   push must not leave it stuck: the board and the cursor end on the same
+   screen of the same computer, so every screen stays reachable. */
+static void check_same_screen_after_push(void) {
+    checks++;
+    const int on = board.active_output;
+    if ((int)board.config.output[on].screen_index != world[on].screen) {
+        char what[96];
+        snprintf(what, sizeof what, "gain %d%% (-1: enhanced): after a long push board thinks %c screen %d, "
+                 "cursor is on %d", windows_gain, 'A' + on,
+                 board.config.output[on].screen_index, world[on].screen);
+        fail(what);
+    }
 }
 
 /* One mouse report through the same steps as process_mouse_report. */
@@ -311,6 +376,8 @@ static void report(int dx, int dy) {
     mouse_values_t values = {.move_x = dx, .move_y = dy};
     global_state = board;
     const enum screen_pos_e direction = update_mouse_position(&board, &values);
+    const int source_along = direction == TOP || direction == BOTTOM ? board.pointer_x
+                                                                     : board.pointer_y;
     mouse_report_t r = create_mouse_report(&board, &values);
     output_mouse_report(&r, &board);
     const int before_output = board.active_output;
@@ -321,7 +388,14 @@ static void report(int dx, int dy) {
     attempted = direction != NONE;
     switched = board.active_output != before_output ||
                (int)board.config.output[before_output].screen_index != before_screen;
-    check();
+    board_crossed_vertically = direction == TOP || direction == BOTTOM;
+    arrived_direction = direction;
+    arrived_along = board.active_output != before_output && board.relative_mouse
+                        ? source_along : -1;
+    /* With a wrong gain the estimate drifts by design; a long push is judged
+       by check_same_screen_after_push. */
+    if (windows_gain == 100)
+        check();
 }
 
 /* ---- drivers ------------------------------------------------------------- */
@@ -339,6 +413,9 @@ static void describe(const layout_t *l, const char *driver) {
 
 /* Every start screen and remembered screen, pushed straight each way. */
 static void push_every_way(const layout_t *l) {
+    /* Only Windows has a speed of its own. */
+    if (windows_gain != 100 && l->os[0] != WINDOWS && l->os[1] != WINDOWS)
+        return;
     for (int on = 0; on < 2; on++)
         for (int s = 1; s <= l->count[on]; s++)
             for (int r = 1; r <= l->count[1 - on]; r++)
@@ -346,11 +423,18 @@ static void push_every_way(const layout_t *l) {
                     if (!build(l))
                         return;
                     describe(l, "push");
+                    snprintf(context + strlen(context), sizeof context - strlen(context),
+                             " from %c%d remembered %d dir %d", 'A' + on, s, r, directions[d]);
                     start(on, s, r, MAX_SCREEN_COORD / 2, MAX_SCREEN_COORD / 3);
                     const int dx = unit_x(directions[d]) * 37;
                     const int dy = unit_y(directions[d]) * 23;
-                    for (int i = 0; i < 160; i++)
+                    /* A slow Windows needs a longer push to reach the wall:
+                       5 times, for the slowest gain, 60%, with room to spare. */
+                    const int length = windows_gain == 100 ? 160 : 160 * 5;
+                    for (int i = 0; i < length; i++)
                         report(dx + (i % 3) - 1, dy + (i % 5) - 2);
+                    if (windows_gain != 100)
+                        check_same_screen_after_push();
                 }
 }
 
@@ -432,12 +516,20 @@ static void test_issue_310_layout(void) {
         .chain = {LEFT, LEFT}, .offset = 0, .mapped = true, .helper = {false, false},
     };
     push_every_way(&l);
-    run_wander(&l);
+    if (windows_gain == 100)
+        run_wander(&l);
 }
 
 int main(void) {
     test_issue_310_layout();
     for_each_layout(push_every_way);
+    static const int gains[] = {60, 80, 125, 160, ENHANCED_PRECISION};
+    for (size_t g = 0; g < sizeof gains / sizeof gains[0]; g++) {
+        windows_gain = gains[g];
+        test_issue_310_layout();
+        for_each_layout(push_every_way);
+    }
+    windows_gain = 100;
     layouts_run = 0;
     for_each_layout(run_wander);
     if (failures) {

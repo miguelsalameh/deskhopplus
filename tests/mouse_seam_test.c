@@ -1325,8 +1325,24 @@ static void test_helper_free_windows_arrival_walks_from_the_main_screen(void) {
           "helper-free crossing down from Mac TL did not select Windows BL");
     CHECK(emitted_walk(0, 0, LEFT),
           "helper-free Windows arrival did not walk from BR to BL");
-    CHECK(state.pointer_x == MAX_SCREEN_COORD - 49 && state.pointer_y == MAX_SCREEN_COORD / 2,
-          "board's Windows pointer is not where the walk left the relative cursor");
+    /* The hardware report: the old 10-count nudges showed as a jump. */
+    int first_nudge = 0;
+    while (first_nudge < emitted_count && emitted_reports[first_nudge].mode != RELATIVE)
+        first_nudge++;
+    CHECK(first_nudge < emitted_count && emitted_reports[first_nudge].x == -2,
+          "Windows walk nudges are not 2 counts");
+    /* The hardware report: it landed mid-height at the far right, not under
+       where it left the Mac. */
+    CHECK(state.pointer_x == MAX_SCREEN_COORD / 2 && state.pointer_y == MIN_SCREEN_COORD,
+          "Windows walk did not bring the cursor back under where it left the Mac");
+    /* Back along the seam by counts, then past the top edge, where Windows
+       stops it whatever its speed. The walk's 5 nudges of 2 counts at speed
+       1 left it at MAX - 9. */
+    const mouse_report_t *back = &emitted_reports[emitted_count - 2];
+    const mouse_report_t *up = &emitted_reports[emitted_count - 1];
+    CHECK(back->mode == RELATIVE && back->x == MAX_SCREEN_COORD / 2 - (MAX_SCREEN_COORD - 9) &&
+              back->y == 0 && up->mode == RELATIVE && up->x == 0 && up->y <= -MAX_SCREEN_COORD,
+          "Windows walk did not move back along the seam, then onto the top edge");
     /* The hardware trace: a move down with 2 counts right went straight back. */
     mouse_values_t jitter = {.move_x = 2, .move_y = 15};
     CHECK(update_mouse_position(&state, &jitter) == NONE,

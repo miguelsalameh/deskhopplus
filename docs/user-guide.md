@@ -187,6 +187,13 @@ moves it to a screen edge and nudges it across, from the screen where it left it
 a second mouse that moved the cursor in between makes the walk land on the wrong screen. Keep
 the helper running on any computer with more than one screen.
 
+Without its helper, Windows' second screens also run on the board's estimate of the cursor. It is
+exact only when Windows moves one pixel per mouse count: turn off **Enhance pointer precision**
+(Settings → Mouse → Additional mouse settings → Pointer Options), leave the pointer speed in the
+middle, and set that output's speed to 32768 ÷ the screen size in pixels (17 and 30 for
+1920 × 1080, 13 and 23 for 2560 × 1440). Otherwise the cursor crosses early or late, and lands
+along the seam a little off.
+
 **On a Mac, eject `DESKHOP` in Finder before you leave config mode** — before Exit, before the
 chord, and before the five minutes run out. macOS can hang its disk mounter when a mounted drive
 vanishes ([#178](https://github.com/myn/deskhopplus/issues/178)). The board withdraws the drive
