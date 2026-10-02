@@ -27,6 +27,8 @@
 #define MAX_KEYS                    32
 #define MAX_REPORT_LAYOUTS          24  // Distinct report IDs whose layout one interface parses
 #define MAX_KEYBOARDS               5
+#define MAX_NKRO_BLOCKS             4   // Bitmap sections per keyboard; a Wooting declares 4
+#define NKRO_MIN_BITS               32  // Total bitmap width a keyboard must exceed to be NKRO
 #define MAX_SYS_BUTTONS             8
 #define PRIMARY_KEYBOARD            0
 /*==============================================================================
@@ -127,10 +129,20 @@ typedef enum {
     RECEIVER_SYSTEM,
 } receiver_e;
 
+/* One section of an NKRO bitmap: usage_min + i is pressed when bit offset + i
+   of the payload (report ID excluded) is set, for i below size. */
+typedef struct {
+    uint16_t offset; // In bits
+    uint16_t size;   // In bits
+    uint8_t usage_min;
+} nkro_block_t;
+
 /* Defines information about HID report format for the keyboard. */
 typedef struct {
     report_val_t modifier;
-    report_val_t nkro;
+    nkro_block_t nkro[MAX_NKRO_BLOCKS];
+    uint8_t nkro_count;
+    uint16_t nkro_bits; // Sum of nkro[].size, which decides is_nkro
     uint16_t cc_array[MAX_CC_BUTTONS];
     uint16_t sys_array[MAX_SYS_BUTTONS];
     bool key_array[MAX_KEYS];

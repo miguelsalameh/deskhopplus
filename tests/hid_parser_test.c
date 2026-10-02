@@ -66,8 +66,10 @@ void process_system_report(uint8_t *raw, int len, uint8_t itf, hid_interface_t *
 
 static hid_interface_t iface;
 
+/* Mounts a device in report protocol, as TinyUSB leaves it after enumeration. */
 static void mount(const uint8_t *desc, int len) {
     memset(&iface, 0, sizeof(iface));
+    iface.protocol = HID_PROTOCOL_REPORT;
     keyboard_reports = mouse_reports = consumer_reports = system_reports = 0;
     last_x = last_y = last_buttons = 0;
     last_consumer = 0;
@@ -96,14 +98,31 @@ static void put(desc_t *d, const uint8_t *bytes, int n) {
 }
 #define PUT(d, ...) put((d), (const uint8_t[]){__VA_ARGS__}, sizeof((const uint8_t[]){__VA_ARGS__}))
 
-/* A boot-layout keyboard behind a report ID; its main items declare no usages. */
+/* A boot-layout keyboard behind a report ID (none if id is 0); its main
+   items declare no usages. */
 static void put_keyboard(desc_t *d, uint8_t id) {
-    PUT(d, 0x05, 0x01, 0x09, 0x06, 0xA1, 0x01, 0x85, id,
-           0x05, 0x07, 0x19, 0xE0, 0x29, 0xE7, 0x15, 0x00, 0x25, 0x01,
+    PUT(d, 0x05, 0x01, 0x09, 0x06, 0xA1, 0x01);
+    if (id)
+        PUT(d, 0x85, id);
+    PUT(d, 0x05, 0x07, 0x19, 0xE0, 0x29, 0xE7, 0x15, 0x00, 0x25, 0x01,
            0x75, 0x01, 0x95, 0x08, 0x81, 0x02,            /* modifiers */
            0x95, 0x01, 0x75, 0x08, 0x81, 0x01,            /* reserved */
            0x95, 0x06, 0x75, 0x08, 0x15, 0x00, 0x25, 0x65,
            0x05, 0x07, 0x19, 0x00, 0x29, 0x65, 0x81, 0x00, /* keys */
+           0xC0);
+}
+
+/* An NKRO keyboard behind a report ID: modifiers, then its bitmap
+   in three sections with padding. Payload bytes: 0 modifiers, 1-6 usages
+   0x04-0x33, 7 usages 0x34-0x3B, 8 padding, 9-14 usages 0x3C-0x6B. */
+static void put_nkro_keyboard(desc_t *d, uint8_t id) {
+    PUT(d, 0x05, 0x01, 0x09, 0x06, 0xA1, 0x01, 0x85, id,
+           0x05, 0x07, 0x19, 0xE0, 0x29, 0xE7, 0x15, 0x00, 0x25, 0x01,
+           0x75, 0x01, 0x95, 0x08, 0x81, 0x02,            /* modifiers */
+           0x19, 0x04, 0x29, 0x33, 0x95, 0x30, 0x81, 0x02, /* 48-bit section */
+           0x19, 0x34, 0x29, 0x3B, 0x95, 0x08, 0x81, 0x02, /* 8-bit section */
+           0x95, 0x08, 0x81, 0x01,                        /* padding */
+           0x19, 0x3C, 0x29, 0x6B, 0x95, 0x30, 0x81, 0x02, /* 48-bit section */
            0xC0);
 }
 
@@ -476,6 +495,157 @@ static void test_empty_and_truncated_controls_are_dropped(void) {
     free(report);
 }
 
+/* Keys pressed in every section of a split bitmap all reach the report. */
+static void test_nkro_sections_all_decode(void) {
+    desc_t d = {0};
+    put_nkro_keyboard(&d, 0x11);
+    mount(d.buf, d.len);
+
+    /* Left Shift; 0x04; 0x35; 0x3C and 0x50 */
+    uint8_t report[16] = {0x11, 0x02, 0x01, 0, 0, 0, 0, 0, 0x02, 0x00, 0x01, 0, 0x10};
+    feed(report, sizeof(report));
+    CHECK(keyboard_reports == 1);
+    CHECK(last_keys.modifier == 0x02);
+    CHECK(last_keys.keycode[0] == 0x04);
+    CHECK(last_keys.keycode[1] == 0x35);
+    CHECK(last_keys.keycode[2] == 0x3C);
+    CHECK(last_keys.keycode[3] == 0x50);
+    CHECK(last_keys.keycode[4] == 0x00);
+}
+
+/* More keys than the outgoing report holds: the first six go. */
+static void test_nkro_keys_past_report_capacity_are_dropped(void) {
+    desc_t d = {0};
+    put_nkro_keyboard(&d, 0x11);
+    mount(d.buf, d.len);
+
+    uint8_t report[16] = {0x11, 0x00, 0xFF, 0, 0, 0, 0, 0, 0xFF, 0x00, 0xFF};
+    feed(report, sizeof(report));
+    CHECK(keyboard_reports == 1);
+    for (int i = 0; i < KEYS_IN_USB_REPORT; i++)
+        CHECK(last_keys.keycode[i] == 0x04 + i);
+}
+
+/* A bitmap report cut off before its last section decodes what it holds and
+   reads nothing past its end. */
+static void test_short_nkro_report_stops_at_its_end(void) {
+    desc_t d = {0};
+    put_nkro_keyboard(&d, 0x11);
+    mount(d.buf, d.len);
+
+    uint8_t *report = calloc(1, 10);                /* ID, modifiers, two sections, padding */
+    report[0] = 0x11, report[2] = 0x01, report[8] = 0x02;
+    feed(report, 10);
+    free(report);
+    CHECK(keyboard_reports == 1);
+    CHECK(last_keys.keycode[0] == 0x04);
+    CHECK(last_keys.keycode[1] == 0x35);
+    CHECK(last_keys.keycode[2] == 0x00);
+}
+
+/* A 6KRO collection and an NKRO collection on one interface each decode their
+   own reports, as on the Keychron Ultra-Link. */
+static void test_keyboard_collections_keep_their_own_layout(void) {
+    desc_t d = {0};
+    put_keyboard(&d, 0x07);
+    put_nkro_keyboard(&d, 0x11);
+    mount(d.buf, d.len);
+
+    uint8_t six[] = {0x07, 0x02, 0x00, 0x04, 0x05, 0, 0, 0, 0};
+    feed(six, sizeof(six));
+    CHECK(keyboard_reports == 1);
+    CHECK(last_keys.modifier == 0x02);
+    CHECK(last_keys.keycode[0] == 0x04);
+    CHECK(last_keys.keycode[1] == 0x05);
+    CHECK(last_keys.keycode[2] == 0x00);
+
+    uint8_t bits[16] = {0x11, 0x01, 0x00, 0, 0, 0, 0, 0, 0x02};
+    feed(bits, sizeof(bits));
+    CHECK(keyboard_reports == 2);
+    CHECK(last_keys.modifier == 0x01);
+    CHECK(last_keys.keycode[0] == 0x35);
+    CHECK(last_keys.keycode[1] == 0x00);
+}
+
+/* Five keyboard collections each decode their own reports; a sixth is dropped. */
+static void test_keyboard_collections_past_the_limit_are_dropped(void) {
+    desc_t d = {0};
+    for (int id = 1; id <= MAX_KEYBOARDS - 1; id++)
+        put_keyboard(&d, (uint8_t)id);
+    put_nkro_keyboard(&d, 0x11);
+    put_keyboard(&d, 0x12);
+    mount(d.buf, d.len);
+
+    uint8_t bits[16] = {0x11, 0x01, 0x00, 0, 0, 0, 0, 0, 0x02};
+    feed(bits, sizeof(bits));
+    CHECK(keyboard_reports == 1);
+    CHECK(last_keys.modifier == 0x01);
+    CHECK(last_keys.keycode[0] == 0x35);
+
+    uint8_t six[] = {0x01, 0x02, 0x00, 0x04, 0, 0, 0, 0, 0};
+    feed(six, sizeof(six));
+    CHECK(keyboard_reports == 2);
+    CHECK(last_keys.keycode[0] == 0x04);
+
+    /* The sixth has no layout, so it must not borrow the first one's */
+    uint8_t dropped[] = {0x12, 0x02, 0x00, 0x04, 0, 0, 0, 0, 0};
+    feed(dropped, sizeof(dropped));
+    CHECK(keyboard_reports == 2);
+}
+
+/* One narrow keyboard-page bit field does not make a 6KRO keyboard NKRO. */
+static void test_narrow_bit_field_keeps_6kro(void) {
+    desc_t d = {0};
+    put_keyboard(&d, 0x02);
+    d.len--;                                        /* reopen the collection */
+    PUT(&d, 0x19, 0x68, 0x29, 0x6F, 0x75, 0x01, 0x95, 0x08, 0x81, 0x02, 0xC0);
+    mount(d.buf, d.len);
+
+    uint8_t report[] = {0x02, 0x02, 0x00, 0x04, 0x05, 0, 0, 0, 0, 0x00};
+    feed(report, sizeof(report));
+    CHECK(keyboard_reports == 1);
+    CHECK(last_keys.modifier == 0x02);
+    CHECK(last_keys.keycode[0] == 0x04);
+    CHECK(last_keys.keycode[1] == 0x05);
+}
+
+/* A 6KRO report shorter than its descriptor reads nothing past its end. */
+static void test_short_6kro_report_stops_at_its_end(void) {
+    desc_t d = {0};
+    put_keyboard(&d, 0x02);
+    mount(d.buf, d.len);
+
+    uint8_t *report = calloc(1, KBD_REPORT_LENGTH); /* ID and 7 of 8 payload bytes */
+    report[0] = 0x02, report[1] = 0x02, report[3] = 0x04;
+    feed(report, KBD_REPORT_LENGTH);
+    free(report);
+    CHECK(keyboard_reports == 1);
+    CHECK(last_keys.modifier == 0x02);
+    CHECK(last_keys.keycode[0] == 0x04);
+}
+
+/* An ordinary keyboard without report IDs, in report and boot protocol. */
+static void test_6kro_and_boot_keyboards_decode(void) {
+    desc_t d = {0};
+    put_keyboard(&d, 0);
+    mount(d.buf, d.len);
+
+    uint8_t report[] = {0x02, 0x00, 0x04, 0x05, 0, 0, 0, 0};
+    feed(report, sizeof(report));
+    CHECK(keyboard_reports == 1);
+    CHECK(last_keys.modifier == 0x02);
+    CHECK(last_keys.keycode[0] == 0x04);
+    CHECK(last_keys.keycode[1] == 0x05);
+
+    iface.protocol = HID_PROTOCOL_BOOT;
+    uint8_t boot[] = {0x01, 0x00, 0x06, 0, 0, 0, 0, 0};
+    feed(boot, sizeof(boot));
+    CHECK(keyboard_reports == 2);
+    CHECK(last_keys.modifier == 0x01);
+    CHECK(last_keys.keycode[0] == 0x06);
+    CHECK(last_keys.keycode[1] == 0x00);
+}
+
 int main(void) {
     test_elements_past_the_usages_repeat_the_last_usage();
     test_fields_past_one_items_usages_repeat_its_last_usage();
@@ -494,6 +664,14 @@ int main(void) {
     test_consumer_array_without_id_decodes();
     test_system_without_id_decodes();
     test_empty_and_truncated_controls_are_dropped();
+    test_nkro_sections_all_decode();
+    test_nkro_keys_past_report_capacity_are_dropped();
+    test_short_nkro_report_stops_at_its_end();
+    test_keyboard_collections_keep_their_own_layout();
+    test_keyboard_collections_past_the_limit_are_dropped();
+    test_narrow_bit_field_keeps_6kro();
+    test_short_6kro_report_stops_at_its_end();
+    test_6kro_and_boot_keyboards_decode();
 
     if (failures) {
         fprintf(stderr, "hid_parser_test: %d failure(s)\n", failures);

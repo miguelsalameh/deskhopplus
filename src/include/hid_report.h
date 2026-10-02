@@ -31,5 +31,5 @@ typedef struct {
     report_val_t *dst;
     value_handler_f handler;
     receiver_e receiver;
-    report_id_getter_f get_id;
+    report_id_getter_f get_id; // NULL when the handler records the ID itself
 } usage_map_t;
