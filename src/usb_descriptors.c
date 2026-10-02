@@ -155,12 +155,12 @@ char const *string_desc_arr[] = {
     "DeskHopPlus",              // 2: Product
 #endif
     "0",                        // 3: Serials, should use chip ID
-    "DeskHop Helper",           // 4: Mouse Helper Interface
-    "DeskHop Config",           // 5: Vendor Interface
-    "DeskHop Disk",             // 6: Disk Interface
-    "DeskHop Channel",          // 7: Helper Channel Interface
+    "DeskHopPlus Helper",       // 4: Mouse Helper Interface
+    "DeskHopPlus Config",       // 5: Vendor Interface
+    "DeskHopPlus Disk",         // 6: Disk Interface
+    "DeskHopPlus Channel",      // 7: Helper Channel Interface
 #ifdef DH_DEBUG
-    "DeskHop Debug",            // 8: Debug Interface
+    "DeskHopPlus Debug",        // 8: Debug Interface
 #endif
 };
 
