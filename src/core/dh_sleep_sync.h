@@ -44,6 +44,9 @@
    the short suspends Windows USB power saving makes (#286). Not a setting. */
 #define DH_SLEEP_SYNC_WAIT_US 5000000u
 
+/* The Sleep when idle value for Immediately (#306). 255 is not a time. */
+#define DH_SLEEP_SYNC_IMMEDIATELY 255u
+
 /* The SLEEP_SYNC_MSG payload byte. */
 enum {
     DH_SLEEP_SYNC_SLEEP = 1,
@@ -65,6 +68,10 @@ typedef struct {
     bool idle_pressed;  /* Sleep when idle pressed for the idle stretch that began at
                            idle_since_us (#303); core 1 */
     uint64_t idle_since_us;
+    bool other_live;     /* other_asleep came from a heartbeat, not a silent peer (#306); core 1 */
+    bool other_watched;  /* Immediately (#306): this board, active with Sleep sync on, hears
+                            the other computer awake since other_awake_since_us; core 1 */
+    uint64_t other_awake_since_us;
 } dh_sleep_sync_t;
 
 /* The helper says its computer went to sleep or woke (#293). A Modern
@@ -134,7 +141,14 @@ static inline void dh_sleep_sync_tell(dh_sleep_sync_t *s, bool on, bool active, 
 static inline bool dh_sleep_sync_heard(dh_sleep_sync_t *s, bool asleep) {
     const bool changed = s->other_asleep != asleep;
     s->other_asleep = asleep;
+    s->other_live = true;
     return changed;
+}
+
+/* The peer went silent; called after dh_sleep_sync_heard(false). Its awake
+   is a guess, so Immediately does not count it as heard awake (#306). */
+static inline void dh_sleep_sync_lost(dh_sleep_sync_t *s) {
+    s->other_live = false;
 }
 
 /* The other computer sleeps, as far as this board knows. Only the active
@@ -153,15 +167,39 @@ static inline bool dh_sleep_sync_other_asleep(const dh_sleep_sync_t *s, bool on,
    counts idle. The time counts from there whenever the other computer went
    to sleep. A maintenance wake of the other
    computer pauses the rule, and the sleep after it presses at once if the
-   time is up. New input starts a new stretch. Times compare signed. */
+   time is up. New input starts a new stretch.
+
+   Immediately (DH_SLEEP_SYNC_IMMEDIATELY, #306) ignores idle: true on the
+   pass where the record turns from awake to asleep, once per such change,
+   so a wake that the other computer misses does not sleep this one again.
+   The awake must have been heard from a live peer, while this board was
+   active with Sleep sync on, for DH_SLEEP_SYNC_WAIT_US: a real sleep is
+   told only after that wait, but a peer sets its bit at once on a switch
+   away from its sleeping computer, or on Sleep sync turned on, and a peer
+   that returns from silence or a board that reboots hears asleep first.
+   Times compare signed. */
 static inline bool dh_sleep_sync_idle(dh_sleep_sync_t *s, bool on, uint8_t minutes, bool active,
                                       bool asleep, uint64_t last_input_us, uint64_t last_switch_us,
                                       uint64_t now_us) {
+    const bool other = dh_sleep_sync_other_asleep(s, on, active);
+    bool fell_asleep = false;
+    if (!on || !active || !s->other_live)
+        s->other_watched = false;
+    else if (!other && !s->other_watched) {
+        s->other_watched = true;
+        s->other_awake_since_us = now_us;
+    } else if (other && s->other_watched) {
+        s->other_watched = false;
+        fell_asleep = (int64_t)(now_us - s->other_awake_since_us) >= (int64_t)DH_SLEEP_SYNC_WAIT_US;
+    }
+    if (minutes == DH_SLEEP_SYNC_IMMEDIATELY)
+        return fell_asleep && !asleep;
+
     const uint64_t idle_since_us =
         (int64_t)(last_input_us - last_switch_us) > 0 ? last_input_us : last_switch_us;
     if (s->idle_pressed && s->idle_since_us == idle_since_us)
         return false;
-    if (!minutes || asleep || !dh_sleep_sync_other_asleep(s, on, active)
+    if (!minutes || asleep || !other
         || (int64_t)(now_us - idle_since_us) < (int64_t)minutes * 60000000)
         return false;
 

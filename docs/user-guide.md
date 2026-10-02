@@ -333,9 +333,10 @@ the computer you use goes to sleep, the other computer goes to sleep too, and it
 - Nothing happens if the other board is unplugged. No helper is needed, except on a Windows PC
   with Modern Standby (below) and on a Mac on a Thunderbolt dock (above).
 
-**Sleep when idle.** This row shows only when Sleep sync is On. Pick Never (the default), 15
-minutes, 30 minutes, 1 hour or 2 hours. If the other computer is already asleep, the computer you
-use sleeps after this long with no key or mouse input through the boards.
+**Sleep when idle.** This row shows only when Sleep sync is On. Pick Never (the default),
+Immediately, 1 minute, 15 minutes, 30 minutes, 1 hour or 2 hours. If the other computer is already
+asleep, the computer you use sleeps after this long with no key or mouse input through the boards.
+Immediately works differently: see below.
 
 - The time counts from your last input, or from your last switch if that came later. Example: the
   PC sleeps at 2:00, your last input on the Mac was at 1:50, and the setting is 30 minutes. The Mac
@@ -345,6 +346,20 @@ use sleeps after this long with no key or mouse input through the boards.
 - If the other computer wakes, nothing happens. If it goes back to sleep and the time is already
   up, the computer you use sleeps at once.
 - A key press or mouse move then wakes both, as below.
+
+**Immediately** does not wait for idle time. The computer you use sleeps as soon as the other
+computer goes to sleep, even while you type. It takes about 6 seconds: the other board waits 5
+seconds to be sure its computer sleeps, then tells this one.
+
+- It sleeps once for each time the other computer goes to sleep. After you wake both, it stays
+  awake, even if the other computer does not wake.
+- A switch onto the computer you use, while the other one sleeps, does not count. Nor does turning
+  Sleep sync On, or the other board coming back after a reboot or an update.
+- If you pick Immediately while the other computer already sleeps, nothing happens until it next
+  goes to sleep.
+- The other computer can also go to sleep by itself: its own idle timer, or a Windows PC that goes
+  back to sleep after a short wake. Each time, the computer you use sleeps too, even while you
+  type.
 
 **Waking.** With Sleep sync On, a key press or mouse move while the computer you use is asleep wakes
 both computers.

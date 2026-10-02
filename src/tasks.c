@@ -215,9 +215,12 @@ void heartbeat_output_task(device_t *state) {
     peer_fw_expire(&state->peer_fw, now);
 
     /* A silent peer board says nothing about its computer, so it cannot
-       leave a stale "other computer asleep" either (#304). */
-    if (state->peer_fw.version == PEER_FW_UNKNOWN)
+       leave a stale "other computer asleep" either (#304). Nor is its
+       "awake" heard, for Sleep when idle's Immediately (#306). */
+    if (state->peer_fw.version == PEER_FW_UNKNOWN) {
         sleep_sync_heard(state, false);
+        dh_sleep_sync_lost(&state->sleep_sync);
+    }
 
     /* Give up on a transfer that has gone quiet, so the board can start it
        again instead of waiting for a power cycle. Restarting a pull rewrites

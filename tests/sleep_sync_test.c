@@ -6,7 +6,8 @@
  * tells its peer to sleep or wake, when the peer obeys sleep, and when it
  * keeps a wake that came while its computer was still going to sleep. Also
  * how the active board learns that the other computer sleeps or wakes (#304),
- * and when it sleeps its own computer after the setting's idle time (#303).
+ * and when it sleeps its own computer after the setting's idle time (#303),
+ * or as soon as the other computer goes to sleep (#306).
  *
  * Style follows status_led_test.c: an assertion macro, a main, a printed
  * failure line, a non-zero exit — no framework.
@@ -510,6 +511,160 @@ static void test_idle_works_both_ways(void) {
     }
 }
 
+/* 1 minute is a time like the others (#306). */
+static void test_idle_one_minute(void) {
+    CHECK(!idle_sleeps(true, 1, true, 0, MINUTE - 1), "idle 1 min", "slept before 1 minute");
+    CHECK(idle_sleeps(true, 1, true, 0, MINUTE), "idle 1 min", "did not sleep after 1 minute");
+}
+
+/* Immediately (#306). A pass of A's rule at `now`, with input a moment ago
+   and the last switch long past. */
+static bool now_sleeps(dh_sleep_sync_t *a, bool on, bool active, bool asleep, uint64_t now) {
+    return dh_sleep_sync_idle(a, on, DH_SLEEP_SYNC_IMMEDIATELY, active, asleep, now - SEC, T0 - 600 * SEC, now);
+}
+
+/* A, active, hears the other computer awake on a heartbeat a second from
+   `from` up to `to`, and runs its rule on each. */
+static void hear_awake(dh_sleep_sync_t *a, uint64_t from, uint64_t to) {
+    for (uint64_t t = from; t <= to; t += SEC) {
+        dh_sleep_sync_heard(a, false);
+        now_sleeps(a, true, true, false, t);
+    }
+}
+
+/* The other computer goes to sleep: A's computer sleeps on that pass, with
+   recent input, and only once however long the other stays asleep. */
+static void test_immediately_fires_once_on_the_edge(void) {
+    dh_sleep_sync_t a = {0};
+    hear_awake(&a, T0 - 60 * SEC, T0);
+    dh_sleep_sync_heard(&a, true);
+    CHECK(now_sleeps(&a, true, true, false, T0 + SEC), "immediately", "did not sleep on the edge");
+    CHECK(!now_sleeps(&a, true, true, false, T0 + 2 * SEC), "immediately", "slept again on the next pass");
+    CHECK(!now_sleeps(&a, true, true, false, T0 + 600 * SEC), "immediately", "slept again later");
+}
+
+/* You wake both; your computer resumes while the other still reads asleep,
+   or never wakes. Yours must stay awake. */
+static void test_immediately_does_not_loop_after_a_wake(void) {
+    dh_sleep_sync_t a = {0};
+    hear_awake(&a, T0 - 60 * SEC, T0);
+    dh_sleep_sync_heard(&a, true);
+    now_sleeps(&a, true, true, false, T0 + SEC);
+    CHECK(!now_sleeps(&a, true, true, true, T0 + 10 * SEC), "immediately wake", "pressed while asleep");
+    CHECK(!now_sleeps(&a, true, true, false, T0 + 60 * SEC), "immediately wake",
+          "slept again after the wake, the other still asleep");
+}
+
+/* A maintenance wake of the other computer, then its re-sleep: a new sleep
+   (#306 story 8). */
+static void test_immediately_fires_again_after_a_maintenance_wake(void) {
+    dh_sleep_sync_t a = {0};
+    hear_awake(&a, T0 - 60 * SEC, T0);
+    dh_sleep_sync_heard(&a, true);
+    now_sleeps(&a, true, true, false, T0 + SEC);
+    hear_awake(&a, T0 + 60 * SEC, T0 + 89 * SEC);
+    CHECK(!now_sleeps(&a, true, true, false, T0 + 89 * SEC), "immediately again", "slept while the other woke");
+    dh_sleep_sync_heard(&a, true);
+    CHECK(now_sleeps(&a, true, true, false, T0 + 90 * SEC), "immediately again", "the re-sleep did not count");
+}
+
+/* An asleep heard less than DH_SLEEP_SYNC_WAIT_US after the other was first
+   heard awake is not a sleep: a real one is told only after the wait. */
+static void test_immediately_needs_the_other_awake_first(void) {
+    dh_sleep_sync_t a = {0};
+    hear_awake(&a, T0, T0 + 4 * SEC);
+    dh_sleep_sync_heard(&a, true);
+    CHECK(!now_sleeps(&a, true, true, false, T0 + 4900000), "immediately awake first",
+          "slept for an asleep heard 4.9 s after awake");
+    dh_sleep_sync_t b = {0};
+    hear_awake(&b, T0, T0 + 4 * SEC);
+    dh_sleep_sync_heard(&b, true);
+    CHECK(now_sleeps(&b, true, true, false, T0 + 5 * SEC), "immediately awake first",
+          "did not sleep for an asleep heard 5 s after awake");
+}
+
+/* You switch to the Mac while the PC sleeps: B sets its bit at once, so A
+   hears asleep a second or two after the switch. Not a sleep. */
+static void test_immediately_ignores_a_switch(void) {
+    dh_sleep_sync_t a = {0}, b = {0};
+    pass(&a, &b, false, true, T0); /* B active, the PC asleep */
+    pass(&a, &b, false, true, T0 + 600 * SEC);
+    now_sleeps(&a, true, false, false, T0 + 600 * SEC);
+    CHECK(!now_sleeps(&a, true, true, false, T0 + 601 * SEC), "immediately switch",
+          "the switch slept the Mac");
+    pass(&a, &b, true, true, T0 + 602 * SEC); /* B hears of the switch */
+    CHECK(!now_sleeps(&a, true, true, false, T0 + 602 * SEC), "immediately switch",
+          "the switch slept the Mac");
+    CHECK(!now_sleeps(&a, true, true, false, T0 + 900 * SEC), "immediately switch",
+          "slept later for the same sleep");
+}
+
+/* Sleep sync turned On while the PC sleeps: B sets its bit at once. Not a
+   sleep. */
+static void test_immediately_ignores_turning_sleep_sync_on(void) {
+    dh_sleep_sync_t a = {0};
+    for (uint64_t t = T0; t < T0 + 60 * SEC; t += SEC) {
+        dh_sleep_sync_heard(&a, false); /* B, Off, says awake */
+        now_sleeps(&a, false, true, false, t);
+    }
+    now_sleeps(&a, true, true, false, T0 + 60 * SEC); /* Save turns it On */
+    dh_sleep_sync_heard(&a, true);
+    CHECK(!now_sleeps(&a, true, true, false, T0 + 61 * SEC), "immediately on", "turning it On slept the Mac");
+}
+
+/* B goes silent (a reflash or reboot) while the PC sleeps, then returns and
+   says asleep again. Not a new sleep. */
+static void test_immediately_ignores_a_silent_peer_returning(void) {
+    dh_sleep_sync_t a = {0};
+    hear_awake(&a, T0 - 60 * SEC, T0);
+    dh_sleep_sync_heard(&a, true);
+    now_sleeps(&a, true, true, false, T0 + SEC);
+    for (uint64_t t = T0 + 10 * SEC; t < T0 + 40 * SEC; t += SEC) {
+        dh_sleep_sync_heard(&a, false); /* the silent-peer path */
+        dh_sleep_sync_lost(&a);
+        now_sleeps(&a, true, true, false, t);
+    }
+    dh_sleep_sync_heard(&a, true);
+    CHECK(!now_sleeps(&a, true, true, false, T0 + 40 * SEC), "immediately silent",
+          "a returning peer slept the Mac");
+}
+
+/* A reboots while the PC sleeps: its first heartbeat says asleep. Not a
+   sleep, however long the boot took. */
+static void test_immediately_ignores_a_reboot(void) {
+    dh_sleep_sync_t a = {0};
+    now_sleeps(&a, true, true, false, 10 * SEC);
+    dh_sleep_sync_heard(&a, true);
+    CHECK(!now_sleeps(&a, true, true, false, 11 * SEC), "immediately reboot", "the reboot slept the Mac");
+}
+
+/* Sleep sync off, the inactive board, or A's computer already asleep. */
+static void test_immediately_needs_on_active_awake(void) {
+    for (int i = 0; i < 3; ++i) {
+        dh_sleep_sync_t a = {0};
+        hear_awake(&a, T0 - 60 * SEC, T0);
+        dh_sleep_sync_heard(&a, true);
+        CHECK(!now_sleeps(&a, i != 0, i != 1, i == 2, T0 + SEC), "immediately off",
+              i == 0 ? "slept with Sleep sync off" : i == 1 ? "the inactive board slept" : "pressed a computer already asleep");
+    }
+}
+
+/* Both directions, the record over the heartbeat. */
+static void test_immediately_works_both_ways(void) {
+    for (int a_active = 0; a_active < 2; ++a_active) {
+        dh_sleep_sync_t a = {0}, b = {0};
+        dh_sleep_sync_t *active = a_active ? &a : &b, *other = a_active ? &b : &a;
+        for (uint64_t t = T0 - 60 * SEC; t < T0; t += SEC) {
+            dh_sleep_sync_heard(active, tell(other, true, false, false, t));
+            now_sleeps(active, true, true, false, t);
+        }
+        tell(other, true, false, true, T0);
+        dh_sleep_sync_heard(active, tell(other, true, false, true, T0 + 5 * SEC));
+        CHECK(now_sleeps(active, true, true, false, T0 + 6 * SEC), "immediately both",
+              a_active ? "A did not sleep for B" : "B did not sleep for A");
+    }
+}
+
 int main(void) {
     test_sleep_is_sent_after_five_seconds();
     test_off_does_nothing();
@@ -553,6 +708,17 @@ int main(void) {
     test_idle_leaves_a_sleeping_computer_alone();
     test_a_maintenance_wake_pauses_idle();
     test_idle_works_both_ways();
+    test_idle_one_minute();
+    test_immediately_fires_once_on_the_edge();
+    test_immediately_does_not_loop_after_a_wake();
+    test_immediately_fires_again_after_a_maintenance_wake();
+    test_immediately_needs_the_other_awake_first();
+    test_immediately_ignores_a_switch();
+    test_immediately_ignores_turning_sleep_sync_on();
+    test_immediately_ignores_a_silent_peer_returning();
+    test_immediately_ignores_a_reboot();
+    test_immediately_needs_on_active_awake();
+    test_immediately_works_both_ways();
 
     if (failures) {
         printf("sleep_sync_test: %d failure(s)\n", failures);

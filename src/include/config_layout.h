@@ -170,8 +170,9 @@ typedef struct {
 
     /*
      * Sleep when idle (#303): minutes with no input before the active output
-     * sleeps its own computer while the other one sleeps; 0 is Never
-     * (dh_sleep_sync_idle). Both boards hold the same value; the page writes
+     * sleeps its own computer while the other one sleeps; 0 is Never, and
+     * DH_SLEEP_SYNC_IMMEDIATELY (255) sleeps it as soon as the other one
+     * goes to sleep, #306 (dh_sleep_sync_idle). Both boards hold the same value; the page writes
      * it to both. It took the byte after sleep_sync, which every
      * configuration already written holds as zero, so no
      * CURRENT_CONFIG_VERSION bump is owed.

@@ -19,7 +19,7 @@ const packetType = {
    9 a key waited 1 s (bit0 mounted, bit1 suspended; mounted alone = endpoint busy),
    10 mount (1) or unmount (0). Other computer (#304): 11 asleep, 12 awake
    (1 = this board is the active output). Sleep when idle (#303): 13 System Sleep
-   pressed here (value = the setting's minutes). */
+   pressed here (value = the setting's minutes, 255 Immediately). */
 const cursorTraceEvents = ["", "input", "decision", "query", "response", "place", "switch", "cancel", "timeout", "boot", "hid-mount", "hid-unmount", "dev-mount", "dev-unmount", "replug", "sleep-sync"];
 const cursorTraceState = { output: 0, screen: 1, direction: 4, phase: 7, relative: 10, transition: 11 };
 let cursorTraceParts = new Map();

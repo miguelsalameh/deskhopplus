@@ -3,8 +3,8 @@
 
 // The Power group on the config page: Sleep sync (#287), an Off/On select in
 // Keyboard & Mouse after the Status LED group, and Sleep when idle (#303),
-// shown only while Sleep sync is On. A stored zero reads as Off and Never,
-// and Save alone writes both to both boards.
+// shown only while Sleep sync is On, with Immediately and 1 minute (#306). A
+// stored zero reads as Off and Never, and Save alone writes both to both boards.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
@@ -14,7 +14,7 @@ const keyboard = html.match(/<section data-section="keyboard"[\s\S]*?<\/section>
 assert.ok(keyboard, 'the Keyboard & Mouse section is rendered');
 assert.match(keyboard, /<h3 class="sub">Status LED<\/h3>[\s\S]*<h3 class="sub">Power<\/h3>/,
   'the Power group follows the Status LED group');
-assert.match(keyboard, /Sleep when idle: if the other computer is already asleep, the computer\s+you're using sleeps after this long with no input\./);
+assert.match(keyboard, /Sleep when idle: if the other computer is asleep, the computer\s+you're using sleeps after this long with no input\.\s+Immediately: it sleeps as soon as\s+the other computer goes to sleep\./);
 
 // A select as the browser keeps it: a value the options lack reads as ''.
 function select(key) {
@@ -45,7 +45,7 @@ assert.equal(sync.label, 'Sleep sync');
 assert.equal(idle.label, 'Sleep when idle');
 assert.deepEqual(sync.options.filter(o => o.value).map(o => [o.value, o.text]), [['0', 'Off'], ['1', 'On']]);
 assert.deepEqual(idle.options.filter(o => o.value).map(o => [o.value, o.text]),
-  [['0', 'Never'], ['15', '15 minutes'], ['30', '30 minutes'], ['60', '1 hour'], ['120', '2 hours']]);
+  [['0', 'Never'], ['255', 'Immediately'], ['1', '1 minute'], ['15', '15 minutes'], ['30', '30 minutes'], ['60', '1 hour'], ['120', '2 hours']]);
 
 const fields = new Map([[103, sync], [104, idle]]);
 const context = {console, Uint8Array, ArrayBuffer, DataView, Event: function() {},
@@ -88,5 +88,10 @@ function read(key, number) {
     return [write.getUint8(0), write.getUint8(1), x.both];
   });
   assert.deepEqual(writes, [[103, 1, true], [104, 30, true]], 'Save writes each field once, to both boards');
+  sent.length = 0;
+  idle.value = '255';
+  await context.saveHandler();
+  assert.deepEqual(sent.filter(x => x.type === 21).map(x => new DataView(x.payload.buffer).getUint8(1)), [255],
+    'Save writes Immediately as 255');
   console.log('webconfig_sleep_sync_test: fields, Off and Never readings, row and Save passed');
 })().catch(error => { console.error(error); process.exit(1); });

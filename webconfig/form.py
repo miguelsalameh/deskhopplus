@@ -108,10 +108,10 @@ CONFIG_ = [
     # checkbox: the page's checkboxes send on change, and this waits for Save.
     FormField(1010, "Power", elem="label"),
     FormField(103, "Sleep sync", 0, {0: "Off", 1: "On"}, "uint8"),
-    # Sleep when idle (#303), in minutes; 0 is Never. Shown only while Sleep
-    # sync is On (page.js).
-    FormField(104, "Sleep when idle", 0, {0: "Never", 15: "15 minutes", 30: "30 minutes",
-                                          60: "1 hour", 120: "2 hours"}, "uint8"),
+    # Sleep when idle (#303), in minutes; 0 is Never, 255 Immediately
+    # (DH_SLEEP_SYNC_IMMEDIATELY, #306). Shown only while Sleep sync is On (page.js).
+    FormField(104, "Sleep when idle", 0, {0: "Never", 255: "Immediately", 1: "1 minute", 15: "15 minutes",
+                                          30: "30 minutes", 60: "1 hour", 120: "2 hours"}, "uint8"),
 
     # Clipboard sharing, one toggle per direction (#52). Named for the *block*
     # rather than the permission because that is how the board stores them —

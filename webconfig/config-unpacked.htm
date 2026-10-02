@@ -2636,6 +2636,10 @@ pre {
 
       <option value="0">Never</option>
 
+      <option value="255">Immediately</option>
+
+      <option value="1">1 minute</option>
+
       <option value="15">15 minutes</option>
 
       <option value="30">30 minutes</option>
@@ -2655,8 +2659,9 @@ pre {
 
 
         <p class="hint">Sleep sync: when the computer you're using goes to sleep, the other one
-          sleeps too. Sleep when idle: if the other computer is already asleep, the computer
-          you're using sleeps after this long with no input.</p>
+          sleeps too. Sleep when idle: if the other computer is asleep, the computer
+          you're using sleeps after this long with no input. Immediately: it sleeps as soon as
+          the other computer goes to sleep.</p>
       </section>
 
       <section data-section="hotkeys" aria-labelledby="hotkeys-title" hidden>
@@ -3913,7 +3918,7 @@ const packetType = {
    9 a key waited 1 s (bit0 mounted, bit1 suspended; mounted alone = endpoint busy),
    10 mount (1) or unmount (0). Other computer (#304): 11 asleep, 12 awake
    (1 = this board is the active output). Sleep when idle (#303): 13 System Sleep
-   pressed here (value = the setting's minutes). */
+   pressed here (value = the setting's minutes, 255 Immediately). */
 const cursorTraceEvents = ["", "input", "decision", "query", "response", "place", "switch", "cancel", "timeout", "boot", "hid-mount", "hid-unmount", "dev-mount", "dev-unmount", "replug", "sleep-sync"];
 const cursorTraceState = { output: 0, screen: 1, direction: 4, phase: 7, relative: 10, transition: 11 };
 let cursorTraceParts = new Map();
