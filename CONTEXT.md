@@ -247,7 +247,7 @@ _Avoid_: arrangement, screen setup, map, grid (the grid is what the layout snaps
 
 **Status LED**:
 The green LED on each board, lit on the board whose computer is the active output. It can be set
-to go dark after a time, and config mode always blinks it.
+to go dark after a time or to stay dark, and config mode always blinks it.
 _Avoid_: status light, indicator (the keyboard's caps-lock light can also act as one), power light
 
 **Sleep sync**:
