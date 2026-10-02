@@ -22,6 +22,7 @@ bool channel_place_cursor_correlated(uint8_t o, uint8_t s, uint8_t c,
                                      uint8_t b, uint16_t p, uint8_t q) {
     (void)o; (void)s; (void)c; (void)b; (void)p; (void)q; return false;
 }
+bool channel_output_helper_present(uint8_t o) { (void)o; return true; }
 
 #define CHECK(condition, message) do { if (!(condition)) { \
     fprintf(stderr, "FAIL: %s\n", message); failures++; } } while (0)

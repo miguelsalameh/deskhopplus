@@ -68,6 +68,9 @@ void handle_channel_relay_msg(uart_packet_t *, device_t *);
 /* Is a helper live on this board's channel? The configuration UI shows it
    per side (#50) — the surface that survives the helper being disabled. */
 bool channel_helper_present(void);
+/* Whether output's helper can place the cursor: this board's session, or
+   the peer board's as its last heartbeat said (stale for up to 3 s). */
+bool channel_output_helper_present(uint8_t output);
 
 /* The active output just changed, on this board or the peer. Both boards call
    it on every switch; the one whose computer is now active sends its helper an

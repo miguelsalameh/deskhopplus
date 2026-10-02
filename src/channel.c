@@ -217,6 +217,11 @@ bool channel_helper_present(void) {
     return channel.lifecycle.session.present;
 }
 
+bool channel_output_helper_present(uint8_t output) {
+    return output == BOARD_ROLE ? channel_helper_present()
+                                : channel.lifecycle.peer_board_session;
+}
+
 void channel_output_changed(uint8_t new_output) {
     channel_lifecycle_arrive(&channel.lifecycle, (uint8_t)BOARD_ROLE, new_output);
 }

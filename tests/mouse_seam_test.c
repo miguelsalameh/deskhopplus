@@ -69,6 +69,12 @@ bool channel_place_cursor_correlated(uint8_t output, uint8_t screen, uint8_t cha
     return placement_query_available;
 }
 
+static bool helper_absent[2];
+
+bool channel_output_helper_present(uint8_t output) {
+    return !helper_absent[output];
+}
+
 static int failures;
 #define CHECK(condition, message) do { \
     if (!(condition)) { fprintf(stderr, "FAIL mouse_seam: %s\n", message); failures++; } \
@@ -1200,9 +1206,146 @@ static void test_crossing_emits_source_park_and_maps_legacy_entry(void) {
           "crossing did not complete the real legacy entry mapping");
 }
 
+/* #310's layout: [Mac TL][Mac TR*] over [Win BL][Win BR*]. Each chain runs
+   left from its main screen, and each screen touches the one above or below. */
+static device_t two_by_two_state(void) {
+    device_t state;
+    memset(&state, 0, sizeof state);
+    state.config.jump_threshold = 5;
+    for (uint8_t output = 0; output <= 1; output++) {
+        state.config.output[output] = (output_t){
+            .number = output, .screen_count = 2, .screen_index = 1,
+            .speed_x = 1, .speed_y = 1,
+            .border = {MIN_SCREEN_COORD, MAX_SCREEN_COORD},
+            .os = output == 0 ? WINDOWS : MACOS,
+            .chain_direction = DH_DIRECTION_LEFT,
+            .border_direction = output == 0 ? DH_DIRECTION_TOP : DH_DIRECTION_BOTTOM,
+        };
+        for (uint8_t screen = 1; screen <= 2; screen++)
+            state.config.output[output].seam_ranges[screen - 1] = (dh_seam_range_t){
+                .screen_index = screen, .start = 0, .end = DH_SEAM_POSITION_MAX,
+            };
+    }
+    return state;
+}
+
+/* True when output's reports from `from` on are an absolute report at the
+   edge, then relative nudges, toward direction: one helper-free walk step. */
+static bool emitted_walk(uint8_t output, int from, enum screen_pos_e direction) {
+    int i = from;
+    while (i < emitted_count && emitted_outputs[i] != output)
+        i++;
+    if (i + 1 >= emitted_count || emitted_reports[i].mode != ABSOLUTE ||
+        emitted_reports[i].x != (direction == LEFT ? MIN_SCREEN_COORD : MAX_SCREEN_COORD))
+        return false;
+    const mouse_report_t *nudge = &emitted_reports[i + 1];
+    return emitted_outputs[i + 1] == output && nudge->mode == RELATIVE && nudge->y == 0 &&
+           (direction == LEFT ? nudge->x < 0 : nudge->x > 0);
+}
+
+/* macOS puts an absolute report on the display its cursor is on. With no
+   helper to place it, the board must walk from the screen it left (#310). */
+static void test_helper_free_mac_arrival_walks_to_the_mapped_screen(void) {
+    device_t state = two_by_two_state();
+    state.config.output[0].screen_index = 2;          /* on Windows BL */
+    state.relative_mouse = true;
+    state.pointer_x = MAX_SCREEN_COORD / 2;
+    state.pointer_y = MIN_SCREEN_COORD;
+    helper_absent[1] = true;
+    global_state = state;
+    emitted_count = 0;
+    placements = 0;
+
+    do_screen_switch(&state, TOP);
+
+    CHECK(state.active_output == 1 && state.config.output[1].screen_index == 2,
+          "helper-free crossing up from Windows BL did not select Mac TL");
+    CHECK(emitted_walk(1, 0, LEFT),
+          "helper-free Mac arrival did not walk from TR, where its cursor was, to TL");
+
+    /* And back: TL was left last, so arriving on TR walks right. */
+    state.active_output = 0;
+    state.config.output[0].screen_index = 1;          /* on Windows BR */
+    state.relative_mouse = false;
+    state.output_arrival_guard = DH_DIRECTION_NONE;
+    state.pointer_y = MIN_SCREEN_COORD;
+    emitted_count = 0;
+    do_screen_switch(&state, TOP);
+    CHECK(state.config.output[1].screen_index == 1 && emitted_walk(1, 0, RIGHT),
+          "helper-free Mac arrival did not walk from TL back to TR");
+    helper_absent[1] = false;
+}
+
+/* Windows puts an absolute report on its main screen, and the source park is
+   absolute, so a helper-free arrival on Windows BL walks from BR (#310). */
+static void test_helper_free_windows_arrival_walks_from_the_main_screen(void) {
+    device_t state = two_by_two_state();
+    state.active_output = 1;
+    state.config.output[1].screen_index = 2;          /* on Mac TL */
+    state.config.output[0].screen_index = 2;          /* Windows' last guess */
+    state.pointer_x = MAX_SCREEN_COORD / 2;
+    state.pointer_y = MAX_SCREEN_COORD;
+    helper_absent[0] = true;
+    global_state = state;
+    emitted_count = 0;
+
+    do_screen_switch(&state, BOTTOM);
+
+    CHECK(state.active_output == 0 && state.config.output[0].screen_index == 2 &&
+              state.relative_mouse,
+          "helper-free crossing down from Mac TL did not select Windows BL");
+    CHECK(emitted_walk(0, 0, LEFT),
+          "helper-free Windows arrival did not walk from BR to BL");
+    CHECK(state.pointer_x == MAX_SCREEN_COORD && state.pointer_y == MAX_SCREEN_COORD / 2,
+          "board's Windows pointer is not where the walk left the relative cursor");
+    helper_absent[0] = false;
+}
+
+/* With no seam map the board keeps Windows' remembered screen, but the source
+   park put the cursor on the main one, so a legacy arrival walks too (#310). */
+static void test_helper_free_legacy_windows_arrival_walks_from_the_main_screen(void) {
+    device_t state = two_by_two_state();
+    memset(state.config.output[0].seam_ranges, 0, sizeof state.config.output[0].seam_ranges);
+    memset(state.config.output[1].seam_ranges, 0, sizeof state.config.output[1].seam_ranges);
+    state.active_output = 1;
+    state.config.output[0].screen_index = 2;
+    state.pointer_x = MAX_SCREEN_COORD / 2;
+    state.pointer_y = MAX_SCREEN_COORD;
+    helper_absent[0] = true;
+    global_state = state;
+    emitted_count = 0;
+
+    do_screen_switch(&state, BOTTOM);
+
+    CHECK(state.active_output == 0 && state.config.output[0].screen_index == 2 &&
+              emitted_walk(0, 0, LEFT),
+          "helper-free legacy Windows arrival did not walk from BR to BL");
+    helper_absent[0] = false;
+}
+
+/* With a helper, PLACE does the work; a walk would fight it. */
+static void test_helper_arrival_does_not_walk(void) {
+    device_t state = two_by_two_state();
+    state.config.output[0].screen_index = 2;
+    state.relative_mouse = true;
+    state.pointer_x = MAX_SCREEN_COORD / 2;
+    global_state = state;
+    emitted_count = 0;
+    placements = 0;
+
+    do_screen_switch(&state, TOP);
+
+    CHECK(placements == 1 && emitted_count == 1,
+          "a helper-placed arrival also walked");
+}
+
 int main(void) {
     test_boot_mouse_stops_at_configured_computer_seam();
     test_crossing_emits_source_park_and_maps_legacy_entry();
+    test_helper_free_mac_arrival_walks_to_the_mapped_screen();
+    test_helper_free_windows_arrival_walks_from_the_main_screen();
+    test_helper_free_legacy_windows_arrival_walks_from_the_main_screen();
+    test_helper_arrival_does_not_walk();
     test_update_and_switch_at_the_public_mouse_seam();
     test_virtual_desktops_remain_local();
     test_windows_chain_back_waits_for_the_os_cursor_edge();

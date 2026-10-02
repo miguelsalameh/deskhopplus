@@ -182,6 +182,11 @@ config mode** means there is no usable helper channel; multi-monitor hops may th
 monitor. Click **Exit** when finished, or the board leaves config mode after five minutes. Each
 entry and exit reboots the board and starts a fresh helper session.
 
+Without its helper, a computer with more than one screen gets the cursor by a walk: the board
+moves it to a screen edge and nudges it across, from the screen where it left it. A trackpad or
+a second mouse that moved the cursor in between makes the walk land on the wrong screen. Keep
+the helper running on any computer with more than one screen.
+
 **On a Mac, eject `DESKHOP` in Finder before you leave config mode** — before Exit, before the
 chord, and before the five minutes run out. macOS can hang its disk mounter when a mounted drive
 vanishes ([#178](https://github.com/myn/deskhopplus/issues/178)). The board withdraws the drive

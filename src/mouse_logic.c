@@ -8,8 +8,8 @@
 #include "main.h"
 #include <math.h>
 
-#define MACOS_SWITCH_MOVE_X 10
-#define MACOS_SWITCH_MOVE_COUNT 5
+#define WALK_NUDGE_X 10
+#define WALK_NUDGE_COUNT 5
 
 static bool position_is_at_pending_edge(const device_t *state, int16_t x, int16_t y) {
     const int threshold = state->cursor_crossing.kind == CURSOR_CROSSING_CHAIN_REANCHOR
@@ -150,19 +150,14 @@ static void switch_to_another_pc(
             state->pointer_y, output->number, 1 - output->number, state);
 }
 
-static void switch_virtual_desktop_macos(device_t *state, int direction) {
-    /*
-     * Fix for MACOS: Before sending new absolute report setting X to 0:
-     * 1. Move the cursor to the edge of the screen directly in the middle to handle screens
-     *    of different heights
-     * 2. Send relative mouse movement one or two pixels in the direction of movement to get
-     *    the cursor onto the next screen
-     */
+/* Walk the OS cursor one screen in direction, starting from `from`:
+ * 1. An absolute report puts the cursor on the edge of the screen it is on now.
+ * 2. Relative nudges make the OS itself move it onto the next screen.
+ * The board cannot pick a screen with an absolute report on macOS (current screen)
+ * or Windows (main screen), so this is the only helper-free way across (#310). */
+static void walk_one_screen(device_t *state, dh_mouse_coordinates_t from, int direction) {
     const dh_mouse_coordinates_t edge = dh_mouse_edge_coordinates(
-        (dh_direction_t)direction,
-        (dh_mouse_coordinates_t){.x = state->pointer_x, .y = state->pointer_y},
-        MIN_SCREEN_COORD,
-        MAX_SCREEN_COORD);
+        (dh_direction_t)direction, from, MIN_SCREEN_COORD, MAX_SCREEN_COORD);
     mouse_report_t edge_position = {
         .x = (int16_t)edge.x,
         .y = (int16_t)edge.y,
@@ -171,7 +166,7 @@ static void switch_virtual_desktop_macos(device_t *state, int direction) {
     };
 
     const dh_mouse_coordinates_t nudge =
-        dh_mouse_nudge((dh_direction_t)direction, MACOS_SWITCH_MOVE_X);
+        dh_mouse_nudge((dh_direction_t)direction, WALK_NUDGE_X);
     mouse_report_t move_relative_one = {
         .x = (int16_t)nudge.x,
         .y = (int16_t)nudge.y,
@@ -185,14 +180,16 @@ static void switch_virtual_desktop_macos(device_t *state, int direction) {
     output_mouse_report(&edge_position, state);
 
     /* Once doesn't seem reliable enough, do it a few times */
-    for (int i = 0; i < MACOS_SWITCH_MOVE_COUNT; i++)
+    for (int i = 0; i < WALK_NUDGE_COUNT; i++)
         output_mouse_report(&move_relative_one, state);
 }
 
 static void switch_virtual_desktop(device_t *state, output_t *output, int new_index, int direction) {
     switch (output->os) {
         case MACOS:
-            switch_virtual_desktop_macos(state, direction);
+            walk_one_screen(state,
+                            (dh_mouse_coordinates_t){.x = state->pointer_x, .y = state->pointer_y},
+                            direction);
             break;
 
         case WINDOWS:
@@ -506,6 +503,35 @@ enum screen_pos_e update_mouse_position(device_t *state, mouse_values_t *values)
     return direction;
 }
 
+/* With no helper to place it, an arriving cursor is on the screen the OS put
+ * it on: os_screen, the one it was left on (macOS), or the main one (Windows,
+ * as the source park is absolute). Walk it from there to the mapped screen
+ * (#310). The walk runs along the middle of each edge, where screens of
+ * different sizes still touch. macOS then takes the next absolute report on
+ * the new screen, so the board's pointer stays at the entry point. Windows
+ * past its main screen is relative and stays where the walk left it, so the
+ * board's pointer moves there instead.
+ * ponytail: that is mid-edge, not the entry point; a helper places it exactly. */
+static void walk_to_arrival_screen(device_t *state, const output_t *target,
+                                   uint8_t os_screen, uint8_t screen) {
+    if (target->os == WINDOWS)
+        os_screen = 1;
+    else if (target->os != MACOS)
+        return;
+    const int forward = target->chain_direction;
+    const int back = dh_opposite_direction((dh_direction_t)forward);
+    const int direction = os_screen < screen ? forward : back;
+    const dh_mouse_coordinates_t middle = {MAX_SCREEN_COORD / 2, MAX_SCREEN_COORD / 2};
+    for (; os_screen != screen; os_screen += os_screen < screen ? 1 : -1)
+        walk_one_screen(state, middle, direction);
+    if (target->os == WINDOWS && screen > 1) {
+        const dh_mouse_coordinates_t landed = dh_mouse_entry_coordinates(
+            (dh_direction_t)direction, middle, MIN_SCREEN_COORD, MAX_SCREEN_COORD);
+        state->pointer_x = (int16_t)landed.x;
+        state->pointer_y = (int16_t)landed.y;
+    }
+}
+
 static void cross_screen(device_t *state, int direction, bool source_resolved) {
     output_t *output = &state->config.output[state->active_output];
     const dh_mouse_transition_t transition = actionable_transition_for(
@@ -547,6 +573,8 @@ static void cross_screen(device_t *state, int direction, bool source_resolved) {
                 state->output_arrival_reverse = 0;
                 cursor_trace_event(state, DH_CURSOR_TRACE_SWITCH, 0, 0, 0,
                                    (uint8_t)direction, (uint8_t)transition);
+                const uint8_t os_screen = target->screen_index;
+                const bool helper = channel_output_helper_present((uint8_t)target->number);
                 if (crossing == DH_SEAM_CROSSING_MAPPED) {
                     const int entry = (int)(((uint32_t)mapped_entry.position * MAX_SCREEN_COORD +
                                              DH_SEAM_POSITION_MAX / 2) /
@@ -558,14 +586,20 @@ static void cross_screen(device_t *state, int direction, bool source_resolved) {
                     if (!select_cursor_screen(state, (uint8_t)target->number,
                                               mapped_entry.screen_index))
                         break;
-                    channel_place_cursor((uint8_t)target->number,
-                                         mapped_entry.screen_index,
-                                         target->chain_direction,
-                                         target->border_direction,
-                                         mapped_entry.position);
-                    cursor_trace_event(state, DH_CURSOR_TRACE_PLACE, 0, 0, 0,
-                                       (uint8_t)direction, (uint8_t)transition);
+                    if (helper) {
+                        channel_place_cursor((uint8_t)target->number,
+                                             mapped_entry.screen_index,
+                                             target->chain_direction,
+                                             target->border_direction,
+                                             mapped_entry.position);
+                        cursor_trace_event(state, DH_CURSOR_TRACE_PLACE, 0, 0, 0,
+                                           (uint8_t)direction, (uint8_t)transition);
+                    }
                 }
+                /* A legacy crossing keeps the remembered screen, which on
+                   Windows still needs the walk off the main screen. */
+                if (!helper)
+                    walk_to_arrival_screen(state, target, os_screen, target->screen_index);
             break;
         case DH_MOUSE_TRANSITION_CHAIN_BACK:
         case DH_MOUSE_TRANSITION_CHAIN_FORWARD:

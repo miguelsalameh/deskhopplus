@@ -103,6 +103,7 @@ extern device_t global_state;
 void channel_place_cursor(uint8_t, uint8_t, uint8_t, uint8_t, uint16_t);
 cursor_query_result_t channel_query_cursor(uint8_t, uint8_t);
 bool channel_place_cursor_correlated(uint8_t, uint8_t, uint8_t, uint8_t, uint16_t, uint8_t);
+bool channel_output_helper_present(uint8_t);
 void mouse_crossing_task(device_t *, uint32_t);
 void mouse_crossing_query_unavailable(device_t *, uint8_t, uint8_t);
 bool apply_helper_cursor_position(device_t *, uint8_t, uint8_t, int16_t, int16_t, uint8_t);
