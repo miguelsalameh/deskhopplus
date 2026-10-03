@@ -269,9 +269,8 @@ estimate reaches the seam.
 _Avoid_: guess, position (the helper reports a real position), tracking
 
 **Part-pixel**:
-The fraction of a pixel a mouse report's counts × multiplier leave over. Below ×1 (pointer speeds
-1–9) Windows keeps it and adds it to the next report; from ×1 up it drops it. The board keeps the
-same one for its **Estimate**.
+The fraction of a pixel a mouse report's counts × multiplier leave over. Windows keeps it and adds
+it to the next report, at every pointer speed. The board keeps the same one for its **Estimate**.
 _Avoid_: remainder, sub-pixel, fraction (in code and docs about this rule)
 
 ### The boards

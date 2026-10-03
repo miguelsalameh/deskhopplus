@@ -5,9 +5,9 @@
  * The board's copy of Windows' pointer maths (#312, #314): how far one
  * relative report moves the estimate on a Windows monitor the board cannot
  * place, in the board's 0–32767 units. Worked examples on a 1920-pixel axis,
- * where pixel p is board unit ceil(p × 32768 ÷ 1920). Below ×1 (pointer
- * speeds 1–9) Windows keeps each report's part-pixel for the next one; from
- * ×1 up it drops it (the hardware, #312).
+ * where pixel p is board unit ceil(p × 32768 ÷ 1920). Windows keeps each
+ * report's part-pixel for the next one, at every pointer speed (the
+ * hardware, #312).
  */
 #include <stdio.h>
 
@@ -50,14 +50,16 @@ int main(void) {
     /* Speed 1 is ×1/32: 31 counts do not move a pixel, 32 do. */
     expect(0, 31, 1, 1920, 17, 0, "too few counts move nothing");
     expect(0, 32, 1, 1920, 17, 18, "32 counts at speed 1 move one pixel");
-    /* Below ×1 the part-pixel carries: ten 1-count reports at ×1/2 move 5
+    /* The part-pixel carries: ten 1-count reports at ×1/2 move 5
        pixels (unit 86), the way a slow hand still creeps the cursor. */
     expect_reports(0, 1, 10, 6, 86, "speed 6 keeps the half for the next report");
     /* Backward too: four -1-count reports at ×1/2 from pixel 100 reach 98 (unit 1673). */
     expect_reports(1707, -1, 4, 6, 1673, "speed 6 keeps a negative half");
-    /* From ×1 up the part-pixel is dropped: four 1-count reports at ×1.25 move
-       4 pixels (unit 69), not 5. */
-    expect_reports(0, 1, 4, 11, 69, "speed 11 drops the quarter");
+    /* Above ×1 too: four 1-count reports at ×1.25 move 5 pixels (unit 86),
+       not 4. */
+    expect_reports(0, 1, 4, 11, 86, "speed 11 keeps the quarter");
+    /* Two 1-count reports at ×3.5 move 7 pixels (unit 120), not 6. */
+    expect_reports(0, 1, 2, 20, 120, "speed 20 keeps the half");
     /* A move too small for a pixel leaves an estimate between pixels alone. */
     expect(1700, 1, 6, 1920, 17, 0, "no pixel moved, no offset");
     /* A position between pixels is the pixel it is in: unit 1700 is pixel 99. */
@@ -85,6 +87,25 @@ int main(void) {
         if (got != need[i].counts) {
             fprintf(stderr, "FAIL %d pixels at speed %d: got %d counts, want %d\n",
                     (int)need[i].pixels, need[i].step, (int)got, (int)need[i].counts);
+            failures++;
+        }
+    }
+    /* The counts that land nearest so many pixels, with a part-pixel already
+       kept (1/32 px); 0 with no step. */
+    static const struct {int32_t pixels; uint8_t step; int8_t part; int32_t counts;} near[] = {
+        {8, 20, 0, 2},     /* 2 counts move 7, 3 move 10 */
+        {9, 20, 0, 3},     /* ... and 9 is nearer 10 */
+        {4, 20, 16, 1},    /* 3.5 + the kept half is 4 */
+        {-8, 20, 0, -2},   /* left: -7, not -10 */
+        {5, 6, 0, 10},     /* ×1/2: exact */
+        {5, 6, 16, 9},     /* the kept half is the last half-pixel */
+        {5, 0, 0, 0},
+    };
+    for (size_t i = 0; i < sizeof near / sizeof near[0]; i++) {
+        const int32_t got = dh_windows_counts_nearest(near[i].pixels, near[i].step, near[i].part);
+        if (got != near[i].counts) {
+            fprintf(stderr, "FAIL nearest %d pixels at speed %d with %d/32 kept: got %d counts, want %d\n",
+                    (int)near[i].pixels, near[i].step, near[i].part, (int)got, (int)near[i].counts);
             failures++;
         }
     }

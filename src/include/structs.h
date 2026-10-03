@@ -192,8 +192,8 @@ typedef struct {
     bool onboard_led_state;  // True when LED is ON
     bool led_dark;           // True while the Status LED is set to go dark (#283)
     bool relative_mouse;     // True when relative mouse mode is used
-    /* The part-pixel each Windows computer keeps per axis (x, y) below ×1,
-       in 1/32 pixel, as the board copies its maths (#312). */
+    /* The part-pixel each Windows computer keeps per axis (x, y), in 1/32
+       pixel, as the board copies its maths (#312). */
     int8_t windows_part_pixel[NUM_SCREENS][2];
     bool gaming_mode;        // True when gaming mode is on (relative passthru + lock)
     bool boot_mouse_mode[NUM_SCREENS]; // Computer-facing boot mouse protocol, one bit per board

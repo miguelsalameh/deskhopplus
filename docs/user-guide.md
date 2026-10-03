@@ -580,12 +580,11 @@ early or too late is almost always a setting:
    **Save** after setting all three. **Read** shows what the board holds.
 
 The board copies Windows' maths: each mouse report moves the cursor by its counts × the pointer
-speed's multiplier, in whole pixels. Below ×1 (pointer speeds 1–9) Windows keeps the part-pixel
-for the next report, so a slow hand still creeps the cursor; from ×1 up it drops it. On the main
-screen the board places the cursor itself, with Speed = 32768 ÷ pixels × the multiplier, rounded,
-once for the width (Speed X) and once for the height (Speed Y). At pointer speed 10, 1920 × 1080
-gives 17 and 30, and 2560 × 1440 gives 13 and 23. The multipliers, with Enhance pointer precision
-off:
+speed's multiplier, in whole pixels, and keeps the part-pixel for the next report, so a slow hand
+still creeps the cursor. On the main screen the board places the cursor itself, with Speed =
+32768 ÷ pixels × the multiplier, rounded, once for the width (Speed X) and once for the height
+(Speed Y). At pointer speed 10, 1920 × 1080 gives 17 and 30, and 2560 × 1440 gives 13 and 23.
+The multipliers, with Enhance pointer precision off:
 
 | Pointer speed | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 |---|---|---|---|---|---|---|---|---|---|---|

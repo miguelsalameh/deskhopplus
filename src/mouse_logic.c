@@ -724,12 +724,12 @@ static void walk_to_arrival_screen(device_t *state, const output_t *target,
     }
     int32_t back = distance / along_speed;
     if (along_pixels) {
-        /* Whole pixels, rounded up: Windows moves no fraction of one. */
+        /* The counts that land nearest, with the part-pixel Windows keeps. */
         const int32_t pixels = (int32_t)((int64_t)(*at + distance) * along_pixels / (MAX_SCREEN_COORD + 1) -
                                          (int64_t)*at * along_pixels / (MAX_SCREEN_COORD + 1));
-        back = dh_windows_counts_for_pixels(pixels < 0 ? -pixels : pixels, target->pointer_speed);
-        if (pixels < 0)
-            back = -back;
+        back = dh_windows_counts_nearest(
+            pixels, target->pointer_speed,
+            state->windows_part_pixel[target - state->config.output][!seam_vertical]);
     }
     *at = (int16_t)send_relative(state, target, back < 0 ? dh_opposite_direction(along) : along,
                                  *at, back < 0 ? -back : back);

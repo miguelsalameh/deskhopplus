@@ -25,8 +25,8 @@
  * are on, as on hardware.
  *
  * Pixel mode (#312) is the exception: there Windows moves in real pixels by
- * its pointer speed's multiplier, keeping or dropping each report's
- * part-pixel as the hardware does, and the
+ * its pointer speed's multiplier, keeping each report's part-pixel for the
+ * next as the hardware does, and the
  * board, with that pointer speed and monitor size saved, must keep its
  * estimate in the pixel the cursor is in, at every pointer speed, monitor
  * size and hand speed.
@@ -54,7 +54,7 @@ typedef struct {
     int screen;
     int x, y;
     /* Pixel mode only: the real cursor in 1/32 px, and the part-pixel
-       Windows keeps below ×1 for each axis. */
+       Windows keeps for each axis. */
     long px32_x, px32_y;
     long keep32_x, keep32_y;
 } computer_t;
@@ -80,9 +80,8 @@ static uint8_t pending_output;
 static int windows_gain = 100;
 #define ENHANCED_PRECISION -1    /* windows_gain: depends on each report's speed */
 /* Pixel mode (#312): Windows moves its cursor in real pixels, counts × its
-   pointer speed's multiplier, on screens of pixel_w × pixel_h. Below ×1 it
-   keeps each report's part-pixel for the next; from ×1 up it drops it, as
-   the hardware showed. 0: off. */
+   pointer speed's multiplier, on screens of pixel_w × pixel_h, keeping each
+   report's part-pixel for the next, as the hardware showed. 0: off. */
 static int pixel_w, pixel_h;
 static int pixel_mult32;         /* the multiplier, in 1/32 */
 static long last_rel_px32_x, last_rel_px32_y;  /* after the last relative report */
@@ -139,12 +138,9 @@ static void move_axis_px(computer_t *c, long *coord32, long delta32, int span, i
 
 /* Pixel mode: whole pixels (in 1/32) that `counts` move, toward zero. */
 static long whole_pixels32(int counts, long *keep32) {
-    long d32 = (long)counts * pixel_mult32;
-    if (pixel_mult32 < 32)
-        d32 += *keep32;
+    const long d32 = (long)counts * pixel_mult32 + *keep32;
     const long whole = d32 / 32 * 32;
-    if (pixel_mult32 < 32)
-        *keep32 = d32 - whole;
+    *keep32 = d32 - whole;
     return whole;
 }
 

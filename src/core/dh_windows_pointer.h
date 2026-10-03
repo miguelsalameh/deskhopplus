@@ -5,9 +5,9 @@
  * monitor past the main one, with no helper, Windows moves the cursor and the
  * board keeps an estimate of where it went. Windows moves each relative
  * report by counts × its pointer speed's multiplier, in whole pixels, toward
- * zero. Below ×1 (pointer speeds 1–9) it keeps the part-pixel and adds it to
- * the next report, so a slow hand still creeps the cursor; from ×1 up it
- * drops it. Both are what the hardware showed. */
+ * zero, and keeps the part-pixel for the next report, so a slow hand still
+ * creeps the cursor at a low pointer speed and keeps its full speed at a high
+ * one. That is what the hardware showed. */
 #pragma once
 
 #include <stdbool.h>
@@ -38,5 +38,11 @@ int32_t dh_windows_estimate_offset(int32_t position, int32_t counts, uint8_t ste
                                    uint16_t pixels, int32_t speed, int8_t *part_pixel);
 
 /* The fewest counts that move Windows' cursor at least `pixels` pixels at
- * pointer speed `step`, or 0 when `step` is not 1–20. */
+ * pointer speed `step` from no part-pixel (a kept one the other way can cost
+ * a pixel), or 0 when `step` is not 1–20. */
 int32_t dh_windows_counts_for_pixels(int32_t pixels, uint8_t step);
+
+/* The counts whose move comes nearest `pixels` (signed) at pointer speed
+ * `step`, with `part_pixel` (1/32 pixel) already kept, or 0 when `step` is
+ * not 1–20. One count can move several pixels, so it can still miss. */
+int32_t dh_windows_counts_nearest(int32_t pixels, uint8_t step, int8_t part_pixel);
