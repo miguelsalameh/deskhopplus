@@ -2,8 +2,8 @@
 // Copyright (c) 2026 Derek Reynolds
 
 // The config page's pointer speed calculation (#311): Speed X / Y from the
-// output's OS, screen count, screen size and the Windows pointer slider notch,
-// and the notch read back from a saved Speed X / Y.
+// output's OS, screen count, screen size and Windows' pointer speed (1–20, as
+// Windows 11 Settings shows it), and the step read back from a saved Speed X / Y.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
@@ -21,35 +21,37 @@ const windows = (width, height, notch, epp = true) => ({os: 3, screens: 2, width
 const plain = result => ({x: result.x, y: result.y, warnings: [...result.warnings]});
 
 // Worked by hand: round(32768 / pixels × Windows' multiplier), clamped to 1–128.
-assert.deepEqual(plain(speedFor(windows(1920, 1080, 6))), {x: 17, y: 30, warnings: []});
-assert.deepEqual(plain(speedFor(windows(2560, 1440, 6))), {x: 13, y: 23, warnings: []});
-assert.deepEqual(plain(speedFor(windows(2560, 1440, 7))), {x: 19, y: 34, warnings: []});
+assert.deepEqual(plain(speedFor(windows(1920, 1080, 10))), {x: 17, y: 30, warnings: []});
+assert.deepEqual(plain(speedFor(windows(2560, 1440, 10))), {x: 13, y: 23, warnings: []});
+assert.deepEqual(plain(speedFor(windows(2560, 1440, 12))), {x: 19, y: 34, warnings: []});
+assert.deepEqual(plain(speedFor(windows(1920, 1080, 9))), {x: 15, y: 27, warnings: []}, 'step 9 is 7/8');
+assert.deepEqual(plain(speedFor(windows(1920, 1080, 11))), {x: 21, y: 38, warnings: []}, 'step 11 is 1.25');
 assert.deepEqual(plain(speedFor(windows(1920, 1080, 1))), {x: 1, y: 1, warnings: ['below']},
-  'notch 1 needs less than 1, so it cannot be matched');
-assert.deepEqual(plain(speedFor(windows(1280, 720, 11))), {x: 90, y: 128, warnings: ['above']},
-  '720 rows at notch 11 need 159, capped at 128');
-assert.deepEqual(plain(speedFor(windows(1920, 1080, 6, false))), {x: 17, y: 30, warnings: ['epp']},
+  'step 1 needs less than 1, so it cannot be matched');
+assert.deepEqual(plain(speedFor(windows(1280, 720, 20))), {x: 90, y: 128, warnings: ['above']},
+  '720 rows at step 20 need 159, capped at 128');
+assert.deepEqual(plain(speedFor(windows(1920, 1080, 10, false))), {x: 17, y: 30, warnings: ['epp']},
   'Enhance pointer precision not ticked off is a warning, not a different value');
 
 // Every screen absolute: X is the feel and Y follows the screen shape.
 assert.deepEqual(plain(speedFor({os: 2, screens: 2, width: 1920, height: 1080, x: 16})), {x: 16, y: 28, warnings: []});
-assert.deepEqual(plain(speedFor({os: 3, screens: 1, width: 1920, height: 1080, x: 16, notch: 6})),
+assert.deepEqual(plain(speedFor({os: 3, screens: 1, width: 1920, height: 1080, x: 16, notch: 10})),
   {x: 16, y: 28, warnings: []}, 'a one-screen Windows output is absolute too');
 assert.deepEqual(plain(speedFor({os: 2, screens: 1, width: 1920, height: 1080, x: 16, y: 9, linked: false})),
   {x: 16, y: 9, warnings: []}, 'unlinked keeps its own Y');
 assert.deepEqual(plain(speedFor({os: 2, screens: 1, width: 1280, height: 720, x: 100})),
   {x: 100, y: 128, warnings: []}, 'a derived Y stays in range');
 
-// Read back: the notch a saved Speed X / Y came from, or 0 for Custom.
+// Read back: the step a saved Speed X / Y came from, or 0 for Custom.
 for (const [width, height] of [[1920, 1080], [2560, 1440], [3840, 2160]])
-  for (let notch = 1; notch <= 11; notch++) {
+  for (let notch = 1; notch <= 20; notch++) {
     const saved = speedFor(windows(width, height, notch));
     const found = notchFor({...windows(width, height), x: saved.x, y: saved.y});
     assert.ok(found, `${width} × ${height} notch ${notch} is found`);
     const again = speedFor(windows(width, height, found));
     assert.deepEqual([again.x, again.y], [saved.x, saved.y], `${width} × ${height} notch ${notch} round-trips`);
   }
-assert.equal(notchFor({...windows(1920, 1080), x: 17, y: 30}), 6);
+assert.equal(notchFor({...windows(1920, 1080), x: 17, y: 30}), 10);
 assert.equal(notchFor({...windows(1920, 1080), x: 16, y: 28}), 0, 'the firmware default is Custom at 1080p');
 
-console.log('webconfig_speed_test: Windows notches, absolute feel and read-back passed');
+console.log('webconfig_speed_test: Windows steps, absolute feel and read-back passed');

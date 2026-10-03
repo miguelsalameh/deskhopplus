@@ -189,10 +189,10 @@ the helper running on any computer with more than one screen.
 
 Without its helper, Windows' second screens also run on the board's estimate of the cursor. The
 **Pointer speed** group under a Windows output with two or more screens sets it up: move its
-**Speed** slider to the same notch as Windows' pointer speed slider (Settings → Mouse →
-Additional mouse settings → Pointer Options), check the **Screen size**, turn off **Enhance
-pointer precision** in that same Windows panel, and tick **“Enhance pointer precision” is off**
-on the page. The page then works out Speed X and Speed Y. Otherwise the cursor
+**Speed** slider to the number Windows shows for **Mouse pointer speed** (Settings → Bluetooth &
+devices → Mouse; drag its slider to see the number), check the **Screen size**, turn off
+**Enhance pointer precision** (on that same Windows page: Additional mouse settings → Pointer
+Options), and tick **“Enhance pointer precision” is off** on the page. The page then works out Speed X and Speed Y. Otherwise the cursor
 crosses early or late, and lands along the seam a little off. See
 [Crossings early or late?](#crossings-early-or-late-check-these-3-settings)
 
@@ -263,8 +263,8 @@ redraws the picture. Values the picture cannot draw exactly show a note. Each ou
 
 - **Screen Count** — how many monitors that computer drives (1 to 7).
 - **Speed X** and **Speed Y** — how far the cursor moves per mouse count, 1 to 128 (defaults
-  16 and 28). The **Pointer speed** group sets them; a value set here shows there as a notch, or
-  as **Custom** when no notch matches.
+  16 and 28). The **Pointer speed** group sets them; a value set here shows there as a Windows
+  pointer speed, or as **Custom** when none matches.
 - **Border Direction** — where the *other* computer is: Left, Right, Top or Bottom.
 - **Chain Direction** — which way this computer's own monitors run from its main monitor: Left,
   Right, Top or Bottom. Screen 1 is the main monitor; screen 2 is the next one along that
@@ -570,21 +570,28 @@ itself ([#229](https://github.com/myn/deskhopplus/issues/229)).
 On a Windows computer with two or more screens and no helper running, a crossing that comes too
 early or too late is almost always a setting:
 
-1. **Enhance pointer precision** is off in Windows (Settings → Mouse → Additional mouse
-   settings → Pointer Options). With it on, no speed matches.
-2. The **Speed** slider in the config page's **Pointer speed** group sits on the same notch as
-   Windows' slider.
+1. **Enhance pointer precision** is off in Windows (Settings → Bluetooth & devices → Mouse →
+   Additional mouse settings → Pointer Options). With it on, no speed matches.
+2. The **Speed** slider in the config page's **Pointer speed** group shows the same number as
+   Windows' **Mouse pointer speed** (Settings → Bluetooth & devices → Mouse).
 3. The **Screen size** on the config page is that computer's real resolution.
 
 The page uses Speed = 32768 ÷ pixels × Windows' multiplier, rounded, once for the width
-(Speed X) and once for the height (Speed Y). At notch 6, 1920 × 1080 gives 17 and 30, and
-2560 × 1440 gives 13 and 23. The multipliers, with Enhance pointer precision off:
+(Speed X) and once for the height (Speed Y). At pointer speed 10, 1920 × 1080 gives 17
+and 30, and 2560 × 1440 gives 13 and 23. The multipliers, with Enhance pointer precision off:
 
-| Notch | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| Multiplier | 1/32 | 1/16 | 1/4 | 1/2 | 3/4 | 1 | 1.5 | 2 | 2.5 | 3 | 3.5 |
+| Pointer speed | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Multiplier | 1/32 | 1/16 | 1/8 | 1/4 | 3/8 | 1/2 | 5/8 | 3/4 | 7/8 | 1 |
 
-A speed must be 1 to 128. A notch that needs less than 1, or more than 128, cannot be matched,
+| Pointer speed | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Multiplier | 1.25 | 1.5 | 1.75 | 2 | 2.25 | 2.5 | 2.75 | 3 | 3.25 | 3.5 |
+
+The older Pointer Options slider has 11 ticks. They are pointer speeds 1, 2, 4, 6 … 20, so its
+middle tick is 10.
+
+A speed must be 1 to 128. A pointer speed that needs less than 1, or more than 128, cannot be matched,
 and the page says so. **Enable Acceleration** changes only the main Windows screen, so with it
 on the main screen can feel different from the others. Screens of different sizes on one Windows
 computer cannot all be matched.
