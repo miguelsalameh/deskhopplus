@@ -83,6 +83,7 @@ if __name__ == "__main__":
         keymap_override_count_offset=keymap_value("DH_KEYMAP_OVERRIDE_COUNT_OFFSET"),
         keymap_passthrough_offset=keymap_value("DH_KEYMAP_PASSTHROUGH_OFFSET"),
         keymap_passthrough_count_offset=keymap_value("DH_KEYMAP_PASSTHROUGH_COUNT_OFFSET"),
+        speed_sizes=SPEED_SIZES,
         seam_field_bases=[seam_value("DH_SEAM_CONFIG_FIELD_A_BASE"), seam_value("DH_SEAM_CONFIG_FIELD_B_BASE")],
     )
     # Jinja preserves indentation on control-only lines. Keep the generated

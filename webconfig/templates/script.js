@@ -164,7 +164,8 @@ function updateElement(key, event) {
     return;
   }
 
-  var element = document.querySelector(`[data-key="${key}"]`);
+  /* .api: a slider's number readout carries the same key and comes first. */
+  var element = document.querySelector(`.api[data-key="${key}"]`);
 
   if (key >= {{ hotkey_field_base }} && key < {{ hotkey_last_field }}) {
     updateHotkeyChunk(key, event);

@@ -419,3 +419,13 @@ pre {
 @media (prefers-reduced-motion: reduce) {
   .switch, .switch::after, .layout-monitor { transition: none; }
 }
+
+/* Pointer speed (#311): the note under the group. Its warning is quiet: ink,
+   not yellow, which DESIGN.md keeps for what must stop the user. */
+.slider output { min-width: 48px; text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.speed-size { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.speed-size .detected { color: var(--ink-2); font-size: 12px; }
+.speed-note { display: block; }
+.speed-note .hint { margin: 4px 0; }
+.speed-note .hint:empty { display: none; }
+.speed-note .warn { color: var(--ink); }

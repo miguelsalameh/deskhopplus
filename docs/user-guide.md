@@ -187,12 +187,18 @@ moves it to a screen edge and nudges it across, from the screen where it left it
 a second mouse that moved the cursor in between makes the walk land on the wrong screen. Keep
 the helper running on any computer with more than one screen.
 
-Without its helper, Windows' second screens also run on the board's estimate of the cursor. It is
-exact only when Windows moves one pixel per mouse count: turn off **Enhance pointer precision**
-(Settings → Mouse → Additional mouse settings → Pointer Options), leave the pointer speed in the
-middle, and set that output's speed to 32768 ÷ the screen size in pixels (17 and 30 for
-1920 × 1080, 13 and 23 for 2560 × 1440). Otherwise the cursor crosses early or late, and lands
-along the seam a little off.
+Without its helper, Windows' second screens also run on the board's estimate of the cursor. The
+**Pointer speed** group under a Windows output with two or more screens sets it up: move its
+**Speed** slider to the same notch as Windows' pointer speed slider (Settings → Mouse →
+Additional mouse settings → Pointer Options), check the **Screen size**, turn off **Enhance
+pointer precision** in that same Windows panel, and tick **“Enhance pointer precision” is off**
+on the page. The page then works out Speed X and Speed Y. Otherwise the cursor
+crosses early or late, and lands along the seam a little off. See
+[Crossings early or late?](#crossings-early-or-late-check-these-3-settings)
+
+On a Mac, or on Windows with one screen, the **Speed** slider sets only how fast the cursor
+moves. Speed Y follows the screen shape, so both directions feel the same. Untick **Same speed
+both directions** to set Speed Y on its own.
 
 **On a Mac, eject `DESKHOP` in Finder before you leave config mode** — before Exit, before the
 chord, and before the five minutes run out. macOS can hang its disk mounter when a mounted drive
@@ -256,6 +262,9 @@ sets for that computer; click the other computer in the picture to see its field
 redraws the picture. Values the picture cannot draw exactly show a note. Each output has:
 
 - **Screen Count** — how many monitors that computer drives (1 to 7).
+- **Speed X** and **Speed Y** — how far the cursor moves per mouse count, 1 to 128 (defaults
+  16 and 28). The **Pointer speed** group sets them; a value set here shows there as a notch, or
+  as **Custom** when no notch matches.
 - **Border Direction** — where the *other* computer is: Left, Right, Top or Bottom.
 - **Chain Direction** — which way this computer's own monitors run from its main monitor: Left,
   Right, Top or Bottom. Screen 1 is the main monitor; screen 2 is the next one along that
@@ -555,6 +564,30 @@ mounter is stuck. Nothing else will mount either until the Mac reboots. Reboot t
 [#178](https://github.com/myn/deskhopplus/issues/178). To stop it happening again, eject
 `DESKHOP` in Finder before every exit from config mode; the board cannot make macOS let go by
 itself ([#229](https://github.com/myn/deskhopplus/issues/229)).
+
+### Crossings early or late? Check these 3 settings
+
+On a Windows computer with two or more screens and no helper running, a crossing that comes too
+early or too late is almost always a setting:
+
+1. **Enhance pointer precision** is off in Windows (Settings → Mouse → Additional mouse
+   settings → Pointer Options). With it on, no speed matches.
+2. The **Speed** slider in the config page's **Pointer speed** group sits on the same notch as
+   Windows' slider.
+3. The **Screen size** on the config page is that computer's real resolution.
+
+The page uses Speed = 32768 ÷ pixels × Windows' multiplier, rounded, once for the width
+(Speed X) and once for the height (Speed Y). At notch 6, 1920 × 1080 gives 17 and 30, and
+2560 × 1440 gives 13 and 23. The multipliers, with Enhance pointer precision off:
+
+| Notch | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Multiplier | 1/32 | 1/16 | 1/4 | 1/2 | 3/4 | 1 | 1.5 | 2 | 2.5 | 3 | 3.5 |
+
+A speed must be 1 to 128. A notch that needs less than 1, or more than 128, cannot be matched,
+and the page says so. **Enable Acceleration** changes only the main Windows screen, so with it
+on the main screen can feel different from the others. Screens of different sizes on one Windows
+computer cannot all be matched.
 
 ### The cursor jumps to the middle of the screen, or the clipboard fills with screenshots
 

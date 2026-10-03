@@ -97,6 +97,7 @@ function refreshSleepIdle() {
 
 // What every edit, report and toolbar action refreshes.
 function refresh() {
+  refreshSpeed();
   refreshUnsaved();
   refreshTitles();
   refreshStatusLed();
@@ -104,6 +105,8 @@ function refresh() {
 }
 
 document.getElementById('main').addEventListener('input', event => {
+  const speed = event.target.closest('[data-speed]');
+  if (speed) writeSpeed(speed, event.target);
   if (event.target.getAttribute('aria-invalid')) {
     event.target.removeAttribute('aria-invalid');
     event.target.closest('.row').querySelector('small').textContent = '';
@@ -196,3 +199,120 @@ document.getElementById('service-buttons').addEventListener('click', event => {
   if (button.dataset.armed) {button.textContent = button.dataset.armed; delete button.dataset.armed;}
   window[button.dataset.handler]();
 });
+
+// Pointer speed (#311): the page works out Speed X / Y, the board's fields.
+// A Windows output with two or more screens matches Windows' pointer slider:
+// its other screens get relative counts that Windows scales by the slider, and
+// the board's estimate of that cursor is exact only at 32768 ÷ pixels × the
+// slider's multiplier, with Enhance pointer precision off. Elsewhere every
+// screen is absolute, so X is only the feel and Y follows the screen shape.
+const windowsNotches = [1/32, 1/16, 1/4, 1/2, 3/4, 1, 1.5, 2, 2.5, 3, 3.5];
+const speedSizes = {{ speed_sizes | map('list') | list }};
+const clampSpeed = v => Math.max(1, Math.min(128, Math.round(v)));
+const matchesWindows = (os, screens) => os == 3 && screens >= 2;
+
+// {x, y, warnings}; warnings: 'below' or 'above' (a notch the 1–128 range
+// cannot match) and 'epp' (Enhance pointer precision not ticked off).
+function speedFor({os, screens, width, height, notch, x, y, linked = true, epp = true}) {
+  if (!matchesWindows(os, screens))
+    return {x: clampSpeed(x), y: clampSpeed(linked ? x * width / height : y), warnings: []};
+  const exact = [width, height].map(px => 32768 / px * windowsNotches[notch - 1]);
+  const warnings = [];
+  if (exact.some(v => v < 1)) warnings.push('below');
+  if (exact.some(v => v > 128)) warnings.push('above');
+  if (!epp) warnings.push('epp');
+  return {x: clampSpeed(exact[0]), y: clampSpeed(exact[1]), warnings};
+}
+
+// The notch a saved Speed X / Y came from, or 0 (Custom). Low notches can
+// share a value; the highest is taken.
+function notchFor(output) {
+  for (let notch = 11; notch; notch--) {
+    const s = speedFor({...output, notch});
+    if (s.x == output.x && s.y == output.y) return notch;
+  }
+  return 0;
+}
+
+// The computer this page runs on, as the Operating System field numbers it.
+const pageOs = /Windows/.test(navigator.userAgent) ? 3 : /Mac/.test(navigator.userAgent) ? 2 : 0;
+
+// One output's speed inputs, as the group's controls and fields hold them.
+function speedInputs(group) {
+  const base = Number(group.dataset.speed), raw = n => document.querySelector(`.api[data-key="${base + n}"]`);
+  const ui = name => group.querySelector(name), size = ui('.size');
+  const [width, height] = size.value === 'other' ? [ui('.size-w').value, ui('.size-h').value].map(Number) : size.value.split('x').map(Number);
+  return {os: Number(raw(6).value), screens: Number(raw(1).value), width, height, notch: Number(ui('.feel').value),
+    x: Number(raw(2).value), y: Number(raw(3).value), linked: ui('.link').checked, epp: ui('.epp').checked,
+    rawX: raw(2), rawY: raw(3), ui};
+}
+
+// A gesture on a group's controls writes Speed X / Y; Save sends them. On a
+// Windows output only the slider replaces a Custom value.
+function writeSpeed(group, target) {
+  const s = speedInputs(group), windows = matchesWindows(s.os, s.screens);
+  if (target.matches('.size')) target.dataset.touched = '1';
+  if (target.matches('.link')) group.dataset.unlinked = target.checked ? '' : '1';
+  if (target.matches('.size-w, .size-h')) s.ui('.size').dataset.touched = '1';
+  if (!(s.width > 0 && s.height > 0) || (windows && !target.matches('.feel') && group.dataset.custom)) return;
+  const result = speedFor({...s, x: windows ? s.x : Number(s.ui('.feel').value), y: Number(s.ui('.feel-y').value)});
+  // Both values before either event: a refresh between them would see a
+  // half-written pair and break the link.
+  s.rawX.value = result.x;
+  s.rawY.value = result.y;
+  for (const field of [s.rawX, s.rawY]) field.dispatchEvent(new Event('input', {bubbles: true}));
+}
+
+// Shows each group as its fields say: the Windows notch or the plain speed,
+// the screen size (detected on this computer, until the user picks one), and
+// the Speed X / Y the board will get. Never writes a field; marks a group
+// Custom (data-custom) for writeSpeed.
+function refreshSpeed() {
+  const groups = [...document.querySelectorAll('[data-speed]')];
+  const here = groups.filter(g => speedInputs(g).os === pageOs);
+  for (const group of groups) {
+    const ui = name => group.querySelector(name), size = ui('.size'), row = name => ui(name).closest('.row');
+    const detect = here.length === 1 && here[0] === group;
+    if (!size.dataset.touched) {
+      const px = [screen.width, screen.height].map(v => Math.round(v * devicePixelRatio));
+      const near = speedSizes.find(s => s.every((v, i) => Math.abs(v - px[i]) <= v / 50));
+      size.value = !detect ? '1920x1080' : near ? near.join('x') : 'other';
+      if (detect && !near) [ui('.size-w').value, ui('.size-h').value] = px;
+      ui('.detected').textContent = detect ? `Detected: ${(near || px).join(' × ')}` : '';
+    }
+    ui('.size-w').hidden = ui('.size-h').hidden = size.value !== 'other';
+    const s = speedInputs(group), windows = matchesWindows(s.os, s.screens), feel = ui('.feel');
+    let note, result = `Speed X ${s.x} · Speed Y ${s.y}.`, warnings = [];
+    if (windows) {
+      feel.max = 11;
+      const matched = speedFor(s);
+      const notch = matched.x === s.x && matched.y === s.y ? s.notch : notchFor(s);
+      if (notch) {feel.value = notch; warnings = speedFor({...s, notch}).warnings;}
+      else if (!s.epp) warnings = ['epp'];
+      group.dataset.custom = notch ? '' : '1';
+      feel.previousElementSibling.textContent = notch ? 'notch ' + notch : 'Custom';
+      note = 'Set this to the same notch as Windows (Settings → Mouse → Additional mouse settings → Pointer Options), ' +
+        'and turn off Enhance pointer precision there. Windows uses one speed for both directions. ' +
+        'Enable Acceleration changes only the main screen.';
+      result = notch ? `→ ${result}${warnings.length ? '' : ' Crossings land on the edge.'}`
+        : `Custom: ${result} Move the slider to match Windows.`;
+    } else {
+      feel.max = 128;
+      feel.value = s.x;
+      feel.previousElementSibling.textContent = s.x;
+      // Linked while Y fits the shape, unless the user unlinked. Derived each
+      // time: Read lands Speed X before Speed Y, so a half-read pair is off.
+      ui('.link').checked = !group.dataset.unlinked && speedFor({...s, linked: true}).y === s.y;
+      ui('.feel-y').value = ui('.feel-y').previousElementSibling.textContent = s.y;
+      note = ui('.link').checked ? 'Speed Y follows the screen shape, so both directions feel the same.' : '';
+    }
+    row('.epp').hidden = !windows;
+    row('.link').hidden = windows;
+    row('.feel-y').hidden = windows || ui('.link').checked;
+    ui('.speed-note .hint').textContent = note;
+    ui('.result').textContent = result;
+    ui('.warn').textContent = [...warnings.map(w => ({below: 'This notch needs a speed below 1, so it uses 1.',
+      above: 'This notch needs a speed above 128, so it uses 128.'})[w]),
+      warnings.length && 'Crossings can be early or late.'].filter(Boolean).join(' ');
+  }
+}

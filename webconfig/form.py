@@ -139,10 +139,16 @@ HOTKEY_NAMES = re.findall(r"X\([^,]+,\s*([^\)]+)\)", _CATALOG)
 CONFIG_.extend(FormField(HOTKEY_FIELD_BASE + 2 * action, name.strip(), elem="hotkey", action=action)
                for action, name in enumerate(HOTKEY_NAMES))
 
+# The screen sizes the Pointer speed group lists (#311); the page also snaps a
+# detected size to them.
+SPEED_SIZES = [(1920, 1080), (2560, 1440), (3840, 2160)]
+
 OUTPUT_ = [
     FormField(1, "Screen Count", 1, {n: str(n) for n in range(1, 8)}, "uint32"),
-    FormField(2, "Speed X", 16, {"min": 1, "max": 100}, "int32", "range"),
-    FormField(3, "Speed Y", 16, {"min": 1, "max": 100}, "int32", "range"),
+    # The firmware's defaults and range. The page sets them from the Pointer
+    # speed group below (#311); these raw fields sit in Advanced.
+    FormField(2, "Speed X", 16, {"min": 1, "max": 128}, "int32", "range"),
+    FormField(3, "Speed Y", 28, {"min": 1, "max": 128}, "int32", "range"),
     FormField(4, "Legacy seam fallback start (not layout offset)", None, {}, "int32"),
     FormField(5, "Legacy seam fallback end (not layout offset)", None, {}, "int32"),
     FormField(6, "Operating System", 1, {1: "Linux", 2: "MacOS", 3: "Windows", 4: "Android", 255: "Other"}, "uint8"),
@@ -152,6 +158,9 @@ OUTPUT_ = [
               {1: "Left", 2: "Right", 4: "Top", 5: "Bottom"}, "uint8",
               output_keys=(98, 99)),
     FormField(8, "Cursor Park Position", 0, {0: "Top", 1: "Bottom", 3: "Previous"}, "uint8"),
+    # Page-only controls that write Speed X / Y (#311); its key is Speed X's.
+    FormField(1011, "Pointer speed", elem="label"),
+    FormField(2, "Speed", elem="speed"),
     FormField(1003, "Screensaver", elem="label"),
     FormField(9, "Mode", 0, {0: "Disabled", 1: "Pong", 2: "Jitter"}, "uint8"),
     FormField(10, "Only If Inactive", None, {}, "uint8", "checkbox"),
@@ -185,7 +194,7 @@ def generate_output(base, data, output_index=None):
             output.append({
             "name": field.name,
             "advanced": field.name in (
-                "Screen Count", "Border Direction", "Chain Direction",
+                "Screen Count", "Speed X", "Speed Y", "Border Direction", "Chain Direction",
                 "Seam ranges — Start/End show layout offset",
                 "Legacy seam fallback start (not layout offset)",
                 "Legacy seam fallback end (not layout offset)",

@@ -434,6 +434,16 @@ pre {
 @media (prefers-reduced-motion: reduce) {
   .switch, .switch::after, .layout-monitor { transition: none; }
 }
+
+/* Pointer speed (#311): the note under the group. Its warning is quiet: ink,
+   not yellow, which DESIGN.md keeps for what must stop the user. */
+.slider output { min-width: 48px; text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.speed-size { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.speed-size .detected { color: var(--ink-2); font-size: 12px; }
+.speed-note { display: block; }
+.speed-note .hint { margin: 4px 0; }
+.speed-note .hint:empty { display: none; }
+.speed-note .warn { color: var(--ink); }
   </style>
 
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cstyle%3Esvg{fill:%231d1d1f}@media(prefers-color-scheme:dark){svg{fill:%23f2f2f7}}%3C/style%3E%3Crect x='1' y='4' width='6' height='8' rx='1'/%3E%3Crect x='9' y='4' width='6' height='8' rx='1'/%3E%3Crect x='7' y='7.25' width='2' height='1.5'/%3E%3C/svg%3E">
@@ -530,84 +540,6 @@ pre {
 
 
 
-    <form class="row">
-
-<label for="f12">Speed X</label>
-
-      <span class="slider">
-
-<input class="readout" type="number" name="aInput12" data-type="int32" data-key="12"
-  onchange="valueChangedHandler(this)"
-
-          readonly oninput="this.form.aRange12.value=this.value" tabindex="-1" />
-
-<input class="range api" type="range" name="aRange12" data-type="int32" data-key="12"
-  onchange="valueChangedHandler(this)"
- id="f12"
-          min="1" max="100" oninput="this.form.aInput12.value=this.value" />
-      </span>
-    </form>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    <form class="row">
-
-<label for="f13">Speed Y</label>
-
-      <span class="slider">
-
-<input class="readout" type="number" name="aInput13" data-type="int32" data-key="13"
-  onchange="valueChangedHandler(this)"
-
-          readonly oninput="this.form.aRange13.value=this.value" tabindex="-1" />
-
-<input class="range api" type="range" name="aRange13" data-type="int32" data-key="13"
-  onchange="valueChangedHandler(this)"
- id="f13"
-          min="1" max="100" oninput="this.form.aInput13.value=this.value" />
-      </span>
-    </form>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     <div class="row">
 
 <label for="f16">Operating System</label>
@@ -663,6 +595,65 @@ pre {
       <option value="3">Previous</option>
 
       </select>
+    </div>
+
+
+
+
+
+
+      </div>
+      <h3 class="sub">Pointer speed</h3>
+      <div class="group">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <div data-speed="10">
+      <div class="row">
+        <label for="p12">Speed</label>
+        <span class="slider"><output></output><input id="p12" class="range feel" type="range" min="1" max="11" /></span>
+      </div>
+      <div class="row" hidden>
+        <label for="py12">Speed Y</label>
+        <span class="slider"><output></output><input id="py12" class="range feel-y" type="range" min="1" max="128" /></span>
+      </div>
+      <div class="row">
+        <label for="ps12">Screen size</label>
+        <span class="speed-size"><span class="detected"></span>
+          <select id="ps12" class="size">
+            <option value="1920x1080">1920 × 1080</option>
+            <option value="2560x1440">2560 × 1440</option>
+            <option value="3840x2160">3840 × 2160</option>
+            <option value="other">Other</option>
+          </select>
+          <input class="size-w" type="number" min="1" max="16384" aria-label="Width in pixels" hidden />
+          <input class="size-h" type="number" min="1" max="16384" aria-label="Height in pixels" hidden /></span>
+      </div>
+      <div class="row">
+        <label for="pe12">“Enhance pointer precision” is off</label>
+        <input id="pe12" class="epp switch" type="checkbox" />
+      </div>
+      <div class="row">
+        <label for="pl12">Same speed both directions</label>
+        <input id="pl12" class="link switch" type="checkbox" checked />
+      </div>
+      <div class="row speed-note"><p class="hint"></p><p class="hint result" aria-live="polite"></p><p class="hint warn"></p></div>
     </div>
 
 
@@ -932,84 +923,6 @@ pre {
 
 
 
-    <form class="row">
-
-<label for="f42">Speed X</label>
-
-      <span class="slider">
-
-<input class="readout" type="number" name="aInput42" data-type="int32" data-key="42"
-  onchange="valueChangedHandler(this)"
-
-          readonly oninput="this.form.aRange42.value=this.value" tabindex="-1" />
-
-<input class="range api" type="range" name="aRange42" data-type="int32" data-key="42"
-  onchange="valueChangedHandler(this)"
- id="f42"
-          min="1" max="100" oninput="this.form.aInput42.value=this.value" />
-      </span>
-    </form>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    <form class="row">
-
-<label for="f43">Speed Y</label>
-
-      <span class="slider">
-
-<input class="readout" type="number" name="aInput43" data-type="int32" data-key="43"
-  onchange="valueChangedHandler(this)"
-
-          readonly oninput="this.form.aRange43.value=this.value" tabindex="-1" />
-
-<input class="range api" type="range" name="aRange43" data-type="int32" data-key="43"
-  onchange="valueChangedHandler(this)"
- id="f43"
-          min="1" max="100" oninput="this.form.aInput43.value=this.value" />
-      </span>
-    </form>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     <div class="row">
 
 <label for="f46">Operating System</label>
@@ -1065,6 +978,65 @@ pre {
       <option value="3">Previous</option>
 
       </select>
+    </div>
+
+
+
+
+
+
+      </div>
+      <h3 class="sub">Pointer speed</h3>
+      <div class="group">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <div data-speed="40">
+      <div class="row">
+        <label for="p42">Speed</label>
+        <span class="slider"><output></output><input id="p42" class="range feel" type="range" min="1" max="11" /></span>
+      </div>
+      <div class="row" hidden>
+        <label for="py42">Speed Y</label>
+        <span class="slider"><output></output><input id="py42" class="range feel-y" type="range" min="1" max="128" /></span>
+      </div>
+      <div class="row">
+        <label for="ps42">Screen size</label>
+        <span class="speed-size"><span class="detected"></span>
+          <select id="ps42" class="size">
+            <option value="1920x1080">1920 × 1080</option>
+            <option value="2560x1440">2560 × 1440</option>
+            <option value="3840x2160">3840 × 2160</option>
+            <option value="other">Other</option>
+          </select>
+          <input class="size-w" type="number" min="1" max="16384" aria-label="Width in pixels" hidden />
+          <input class="size-h" type="number" min="1" max="16384" aria-label="Height in pixels" hidden /></span>
+      </div>
+      <div class="row">
+        <label for="pe42">“Enhance pointer precision” is off</label>
+        <input id="pe42" class="epp switch" type="checkbox" />
+      </div>
+      <div class="row">
+        <label for="pl42">Same speed both directions</label>
+        <input id="pl42" class="link switch" type="checkbox" checked />
+      </div>
+      <div class="row speed-note"><p class="hint"></p><p class="hint result" aria-live="polite"></p><p class="hint warn"></p></div>
     </div>
 
 
@@ -1360,6 +1332,86 @@ pre {
 
       </select>
     </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <form class="row">
+
+<label for="f12">Speed X</label>
+
+      <span class="slider">
+
+<input class="readout" type="number" name="aInput12" data-type="int32" data-key="12"
+  onchange="valueChangedHandler(this)"
+
+          readonly oninput="this.form.aRange12.value=this.value" tabindex="-1" value="16" />
+
+<input class="range api" type="range" name="aRange12" data-type="int32" data-key="12"
+  onchange="valueChangedHandler(this)"
+ id="f12" value="16"
+          min="1" max="128" oninput="this.form.aInput12.value=this.value" />
+      </span>
+    </form>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <form class="row">
+
+<label for="f13">Speed Y</label>
+
+      <span class="slider">
+
+<input class="readout" type="number" name="aInput13" data-type="int32" data-key="13"
+  onchange="valueChangedHandler(this)"
+
+          readonly oninput="this.form.aRange13.value=this.value" tabindex="-1" value="28" />
+
+<input class="range api" type="range" name="aRange13" data-type="int32" data-key="13"
+  onchange="valueChangedHandler(this)"
+ id="f13" value="28"
+          min="1" max="128" oninput="this.form.aInput13.value=this.value" />
+      </span>
+    </form>
+
 
 
 
@@ -1719,6 +1771,86 @@ pre {
 
       </select>
     </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <form class="row">
+
+<label for="f42">Speed X</label>
+
+      <span class="slider">
+
+<input class="readout" type="number" name="aInput42" data-type="int32" data-key="42"
+  onchange="valueChangedHandler(this)"
+
+          readonly oninput="this.form.aRange42.value=this.value" tabindex="-1" value="16" />
+
+<input class="range api" type="range" name="aRange42" data-type="int32" data-key="42"
+  onchange="valueChangedHandler(this)"
+ id="f42" value="16"
+          min="1" max="128" oninput="this.form.aInput42.value=this.value" />
+      </span>
+    </form>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <form class="row">
+
+<label for="f43">Speed Y</label>
+
+      <span class="slider">
+
+<input class="readout" type="number" name="aInput43" data-type="int32" data-key="43"
+  onchange="valueChangedHandler(this)"
+
+          readonly oninput="this.form.aRange43.value=this.value" tabindex="-1" value="28" />
+
+<input class="range api" type="range" name="aRange43" data-type="int32" data-key="43"
+  onchange="valueChangedHandler(this)"
+ id="f43" value="28"
+          min="1" max="128" oninput="this.form.aInput43.value=this.value" />
+      </span>
+    </form>
+
 
 
 
@@ -2257,14 +2389,15 @@ pre {
 <input class="readout" type="number" name="aInput77" data-type="uint16" data-key="77"
   onchange="valueChangedHandler(this)"
 
-          readonly oninput="this.form.aRange77.value=this.value" tabindex="-1" />
+          readonly oninput="this.form.aRange77.value=this.value" tabindex="-1" value="0" />
 
 <input class="range api" type="range" name="aRange77" data-type="uint16" data-key="77"
   onchange="valueChangedHandler(this)"
- id="f77"
+ id="f77" value="0"
           min="0" max="3000" oninput="this.form.aInput77.value=this.value" />
       </span>
     </form>
+
 
 
 
@@ -3364,14 +3497,15 @@ pre {
 <input class="readout" type="number" name="aInput100" data-type="uint8" data-key="100"
   onchange="valueChangedHandler(this)"
 
-          readonly oninput="this.form.aRange100.value=this.value" tabindex="-1" />
+          readonly oninput="this.form.aRange100.value=this.value" tabindex="-1" value="10" />
 
 <input class="range api" type="range" name="aRange100" data-type="uint8" data-key="100"
   onchange="valueChangedHandler(this)"
- id="f100"
+ id="f100" value="10"
           min="1" max="64" oninput="this.form.aInput100.value=this.value" />
       </span>
     </form>
+
 
 
 
@@ -4065,7 +4199,8 @@ function updateElement(key, event) {
     return;
   }
 
-  var element = document.querySelector(`[data-key="${key}"]`);
+  /* .api: a slider's number readout carries the same key and comes first. */
+  var element = document.querySelector(`.api[data-key="${key}"]`);
 
   if (key >= 110 && key < 136) {
     updateHotkeyChunk(key, event);
@@ -4873,6 +5008,7 @@ function refreshSleepIdle() {
 
 // What every edit, report and toolbar action refreshes.
 function refresh() {
+  refreshSpeed();
   refreshUnsaved();
   refreshTitles();
   refreshStatusLed();
@@ -4880,6 +5016,8 @@ function refresh() {
 }
 
 document.getElementById('main').addEventListener('input', event => {
+  const speed = event.target.closest('[data-speed]');
+  if (speed) writeSpeed(speed, event.target);
   if (event.target.getAttribute('aria-invalid')) {
     event.target.removeAttribute('aria-invalid');
     event.target.closest('.row').querySelector('small').textContent = '';
@@ -4972,6 +5110,123 @@ document.getElementById('service-buttons').addEventListener('click', event => {
   if (button.dataset.armed) {button.textContent = button.dataset.armed; delete button.dataset.armed;}
   window[button.dataset.handler]();
 });
+
+// Pointer speed (#311): the page works out Speed X / Y, the board's fields.
+// A Windows output with two or more screens matches Windows' pointer slider:
+// its other screens get relative counts that Windows scales by the slider, and
+// the board's estimate of that cursor is exact only at 32768 ÷ pixels × the
+// slider's multiplier, with Enhance pointer precision off. Elsewhere every
+// screen is absolute, so X is only the feel and Y follows the screen shape.
+const windowsNotches = [1/32, 1/16, 1/4, 1/2, 3/4, 1, 1.5, 2, 2.5, 3, 3.5];
+const speedSizes = [[1920, 1080], [2560, 1440], [3840, 2160]];
+const clampSpeed = v => Math.max(1, Math.min(128, Math.round(v)));
+const matchesWindows = (os, screens) => os == 3 && screens >= 2;
+
+// {x, y, warnings}; warnings: 'below' or 'above' (a notch the 1–128 range
+// cannot match) and 'epp' (Enhance pointer precision not ticked off).
+function speedFor({os, screens, width, height, notch, x, y, linked = true, epp = true}) {
+  if (!matchesWindows(os, screens))
+    return {x: clampSpeed(x), y: clampSpeed(linked ? x * width / height : y), warnings: []};
+  const exact = [width, height].map(px => 32768 / px * windowsNotches[notch - 1]);
+  const warnings = [];
+  if (exact.some(v => v < 1)) warnings.push('below');
+  if (exact.some(v => v > 128)) warnings.push('above');
+  if (!epp) warnings.push('epp');
+  return {x: clampSpeed(exact[0]), y: clampSpeed(exact[1]), warnings};
+}
+
+// The notch a saved Speed X / Y came from, or 0 (Custom). Low notches can
+// share a value; the highest is taken.
+function notchFor(output) {
+  for (let notch = 11; notch; notch--) {
+    const s = speedFor({...output, notch});
+    if (s.x == output.x && s.y == output.y) return notch;
+  }
+  return 0;
+}
+
+// The computer this page runs on, as the Operating System field numbers it.
+const pageOs = /Windows/.test(navigator.userAgent) ? 3 : /Mac/.test(navigator.userAgent) ? 2 : 0;
+
+// One output's speed inputs, as the group's controls and fields hold them.
+function speedInputs(group) {
+  const base = Number(group.dataset.speed), raw = n => document.querySelector(`.api[data-key="${base + n}"]`);
+  const ui = name => group.querySelector(name), size = ui('.size');
+  const [width, height] = size.value === 'other' ? [ui('.size-w').value, ui('.size-h').value].map(Number) : size.value.split('x').map(Number);
+  return {os: Number(raw(6).value), screens: Number(raw(1).value), width, height, notch: Number(ui('.feel').value),
+    x: Number(raw(2).value), y: Number(raw(3).value), linked: ui('.link').checked, epp: ui('.epp').checked,
+    rawX: raw(2), rawY: raw(3), ui};
+}
+
+// A gesture on a group's controls writes Speed X / Y; Save sends them. On a
+// Windows output only the slider replaces a Custom value.
+function writeSpeed(group, target) {
+  const s = speedInputs(group), windows = matchesWindows(s.os, s.screens);
+  if (target.matches('.size')) target.dataset.touched = '1';
+  if (target.matches('.link')) group.dataset.unlinked = target.checked ? '' : '1';
+  if (target.matches('.size-w, .size-h')) s.ui('.size').dataset.touched = '1';
+  if (!(s.width > 0 && s.height > 0) || (windows && !target.matches('.feel') && group.dataset.custom)) return;
+  const result = speedFor({...s, x: windows ? s.x : Number(s.ui('.feel').value), y: Number(s.ui('.feel-y').value)});
+  // Both values before either event: a refresh between them would see a
+  // half-written pair and break the link.
+  s.rawX.value = result.x;
+  s.rawY.value = result.y;
+  for (const field of [s.rawX, s.rawY]) field.dispatchEvent(new Event('input', {bubbles: true}));
+}
+
+// Shows each group as its fields say: the Windows notch or the plain speed,
+// the screen size (detected on this computer, until the user picks one), and
+// the Speed X / Y the board will get. Never writes a field; marks a group
+// Custom (data-custom) for writeSpeed.
+function refreshSpeed() {
+  const groups = [...document.querySelectorAll('[data-speed]')];
+  const here = groups.filter(g => speedInputs(g).os === pageOs);
+  for (const group of groups) {
+    const ui = name => group.querySelector(name), size = ui('.size'), row = name => ui(name).closest('.row');
+    const detect = here.length === 1 && here[0] === group;
+    if (!size.dataset.touched) {
+      const px = [screen.width, screen.height].map(v => Math.round(v * devicePixelRatio));
+      const near = speedSizes.find(s => s.every((v, i) => Math.abs(v - px[i]) <= v / 50));
+      size.value = !detect ? '1920x1080' : near ? near.join('x') : 'other';
+      if (detect && !near) [ui('.size-w').value, ui('.size-h').value] = px;
+      ui('.detected').textContent = detect ? `Detected: ${(near || px).join(' × ')}` : '';
+    }
+    ui('.size-w').hidden = ui('.size-h').hidden = size.value !== 'other';
+    const s = speedInputs(group), windows = matchesWindows(s.os, s.screens), feel = ui('.feel');
+    let note, result = `Speed X ${s.x} · Speed Y ${s.y}.`, warnings = [];
+    if (windows) {
+      feel.max = 11;
+      const matched = speedFor(s);
+      const notch = matched.x === s.x && matched.y === s.y ? s.notch : notchFor(s);
+      if (notch) {feel.value = notch; warnings = speedFor({...s, notch}).warnings;}
+      else if (!s.epp) warnings = ['epp'];
+      group.dataset.custom = notch ? '' : '1';
+      feel.previousElementSibling.textContent = notch ? 'notch ' + notch : 'Custom';
+      note = 'Set this to the same notch as Windows (Settings → Mouse → Additional mouse settings → Pointer Options), ' +
+        'and turn off Enhance pointer precision there. Windows uses one speed for both directions. ' +
+        'Enable Acceleration changes only the main screen.';
+      result = notch ? `→ ${result}${warnings.length ? '' : ' Crossings land on the edge.'}`
+        : `Custom: ${result} Move the slider to match Windows.`;
+    } else {
+      feel.max = 128;
+      feel.value = s.x;
+      feel.previousElementSibling.textContent = s.x;
+      // Linked while Y fits the shape, unless the user unlinked. Derived each
+      // time: Read lands Speed X before Speed Y, so a half-read pair is off.
+      ui('.link').checked = !group.dataset.unlinked && speedFor({...s, linked: true}).y === s.y;
+      ui('.feel-y').value = ui('.feel-y').previousElementSibling.textContent = s.y;
+      note = ui('.link').checked ? 'Speed Y follows the screen shape, so both directions feel the same.' : '';
+    }
+    row('.epp').hidden = !windows;
+    row('.link').hidden = windows;
+    row('.feel-y').hidden = windows || ui('.link').checked;
+    ui('.speed-note .hint').textContent = note;
+    ui('.result').textContent = result;
+    ui('.warn').textContent = [...warnings.map(w => ({below: 'This notch needs a speed below 1, so it uses 1.',
+      above: 'This notch needs a speed above 128, so it uses 128.'})[w]),
+      warnings.length && 'Crossings can be early or late.'].filter(Boolean).join(' ');
+  }
+}
   </script>
 </body>
 

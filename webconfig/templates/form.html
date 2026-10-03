@@ -86,11 +86,44 @@
       {{ label(item) }}
       <span class="slider">
         {{ input(item, class='readout', type='number', name='aInput') }}
-          readonly oninput="this.form.aRange{{ key }}.value=this.value" tabindex="-1" />
-        {{ input(item, class='range api', type='range', name='aRange') }} id="f{{ key }}"
+          readonly oninput="this.form.aRange{{ key }}.value=this.value" tabindex="-1" value="{{ item.default }}" />
+        {{ input(item, class='range api', type='range', name='aRange') }} id="f{{ key }}" value="{{ item.default }}"
           min="{{ item['values'].min }}" max="{{ item['values'].max }}" oninput="this.form.aInput{{key}}.value=this.value" />
       </span>
     </form>
+
+  {# Pointer speed (#311): page-only controls, read and written by page.js,
+     that set this output's Speed X / Y. No data-key: Save sends the raw fields. #}
+  {% elif item.get("elem") == "speed" %}
+    <div data-speed="{{ key - 2 }}">
+      <div class="row">
+        <label for="p{{ key }}">Speed</label>
+        <span class="slider"><output></output><input id="p{{ key }}" class="range feel" type="range" min="1" max="11" /></span>
+      </div>
+      <div class="row" hidden>
+        <label for="py{{ key }}">Speed Y</label>
+        <span class="slider"><output></output><input id="py{{ key }}" class="range feel-y" type="range" min="1" max="128" /></span>
+      </div>
+      <div class="row">
+        <label for="ps{{ key }}">Screen size</label>
+        <span class="speed-size"><span class="detected"></span>
+          <select id="ps{{ key }}" class="size">{% for w, h in speed_sizes %}
+            <option value="{{ w }}x{{ h }}">{{ w }} × {{ h }}</option>{% endfor %}
+            <option value="other">Other</option>
+          </select>
+          <input class="size-w" type="number" min="1" max="16384" aria-label="Width in pixels" hidden />
+          <input class="size-h" type="number" min="1" max="16384" aria-label="Height in pixels" hidden /></span>
+      </div>
+      <div class="row">
+        <label for="pe{{ key }}">“Enhance pointer precision” is off</label>
+        <input id="pe{{ key }}" class="epp switch" type="checkbox" />
+      </div>
+      <div class="row">
+        <label for="pl{{ key }}">Same speed both directions</label>
+        <input id="pl{{ key }}" class="link switch" type="checkbox" checked />
+      </div>
+      <div class="row speed-note"><p class="hint"></p><p class="hint result" aria-live="polite"></p><p class="hint warn"></p></div>
+    </div>
 
   {% elif item.get("elem") == "checkbox" %}
     <div class="row">

@@ -17,7 +17,7 @@ let html = fs.readFileSync(process.argv[2], 'utf8');
 html = html.replace('<head>', `<head><script>window.addEventListener('error', () => document.documentElement.dataset.error = 'true');</script>`);
 html = html.replace('</body>', `<script>
 (async () => {
-  const fields = {11:2,41:2,14:0,15:32767,44:0,45:32767,16:2,46:3,17:5,47:4,98:1,99:2,
+  const fields = {11:2,41:2,42:16,43:28,14:0,15:32767,44:0,45:32767,16:2,46:3,17:5,47:4,98:1,99:2,
     140:2,141:0,142:65535,143:1,144:0,145:65535,
     152:1,153:0,154:65535,155:2,156:0,157:65535};
   for (let key=140; key<164; key++) fields[key] ??= 0;
@@ -114,6 +114,7 @@ html = html.replace('</body>', `<script>
     const pane = panel.closest('section').getBoundingClientRect();
     check(column.left >= pane.left && column.right <= pane.right, 'computer panel escapes its section');
     for (const input of panel.querySelectorAll('input, select')) {
+      if (!input.checkVisibility()) continue;
       const rect = input.getBoundingClientRect(), style = getComputedStyle(input);
       const key = input.dataset.key;
       check(rect.left >= column.left && rect.right <= column.right, 'field '+key+' escapes output column');
@@ -325,6 +326,73 @@ html = html.replace('</body>', `<script>
     throw Error('An edit did not show one unsaved field: '+unsaved.textContent);
   await readHandler();
   if (!unsaved.hidden || sidebar[0].hasAttribute('data-unsaved')) throw Error('Read did not clear the unsaved count');
+  // #311: Pointer speed. B is Windows with two screens, so it matches Windows'
+  // slider; A is a Mac, so one speed sets the feel and Y follows the screen shape.
+  const raw = key => document.querySelector('.api[data-key="'+key+'"]');
+  const speed = letter => document.querySelector('.computer[data-computer="'+letter+'"] [data-speed]');
+  const shown = (group, name) => group.querySelector(name).checkVisibility();
+  const gesture = (control, value) => {
+    if (control.type === 'checkbox') control.checked = value; else control.value = value;
+    control.dispatchEvent(new Event('input', {bubbles:true}));
+  };
+  for (const [key, value] of [[12,'16'],[13,'28'],[42,'16'],[43,'28']])
+    if (raw(key).value !== value || raw(key).min !== '1' || raw(key).max !== '128' || !raw(key).closest('#advanced'))
+      throw Error('Raw Speed field '+key+' is not in Advanced at 1–128 with default '+value+': '+raw(key).value);
+  selectComputer('B');
+  const speedB = speed('B'), notch = speedB.querySelector('.feel');
+  gesture(speedB.querySelector('.size'), '1920x1080');
+  if (notch.max !== '11' || !shown(speedB, '.epp') || shown(speedB, '.link') || shown(speedB, '.feel-y') ||
+      !/^Custom: Speed X 16 · Speed Y 28\./.test(speedB.querySelector('.result').textContent) ||
+      !/one speed for both directions/.test(speedB.textContent))
+    throw Error('Windows with two screens does not match Windows, locked: '+speedB.textContent);
+  gesture(speedB.querySelector('.epp'), true);
+  if (raw(42).value !== '16' || raw(43).value !== '28') throw Error('The tick box wrote over a Custom value');
+  gesture(notch, '6');
+  if (raw(42).value !== '17' || raw(43).value !== '30' || speedB.querySelector('output').textContent !== 'notch 6' ||
+      speedB.querySelector('.warn').textContent || sets !== 0 ||
+      !/^→ Speed X 17 · Speed Y 30\. Crossings land on the edge\./.test(speedB.querySelector('.result').textContent))
+    throw Error('Notch 6 at 1080p did not write 17 / 30 and wait for Save: '+raw(42).value+'/'+raw(43).value+' sent '+sets);
+  await tick();
+  if (unsaved.textContent !== '2') throw Error('Speed X / Y did not count as two unsaved fields: '+unsaved.textContent);
+  gesture(speedB.querySelector('.epp'), false);
+  if (speedB.querySelector('.warn').textContent !== 'Crossings can be early or late.')
+    throw Error('Enhance pointer precision unticked did not warn: '+speedB.textContent);
+  gesture(speedB.querySelector('.size'), '2560x1440');
+  if (raw(42).value !== '13' || raw(43).value !== '23') throw Error('A new size did not keep the notch: '+raw(42).value+'/'+raw(43).value);
+  // At 1440p notches 1 and 2 both give 1 / 1: the notch the user picked stays.
+  gesture(notch, '1');
+  if (speedB.querySelector('output').textContent !== 'notch 1' || !/below 1/.test(speedB.querySelector('.warn').textContent))
+    throw Error('Notch 1 at 1440p moved or did not warn: '+speedB.textContent);
+  gesture(notch, '6');
+  gesture(raw(43), '24');
+  if (speedB.querySelector('output').textContent !== 'Custom') throw Error('An Advanced edit off every notch did not show Custom');
+  gesture(raw(43), '34'); gesture(raw(42), '19');
+  if (speedB.querySelector('output').textContent !== 'notch 7') throw Error('An Advanced edit on a notch did not find it');
+  gesture(field(41), '1');
+  if (notch.max !== '128' || shown(speedB, '.epp') || !shown(speedB, '.link')) throw Error('Windows with one screen did not get the plain slider');
+  gesture(speedB.querySelector('.link'), false);
+  gesture(field(41), '2');
+  if (shown(speedB, '.feel-y') || !shown(speedB, '.epp')) throw Error('Two Windows screens did not lock X and Y together');
+  // A: the Mac. Y follows X and the screen shape until unlinked.
+  selectComputer('A');
+  const speedA = speed('A');
+  gesture(speedA.querySelector('.size'), '1920x1080');
+  // Read unticks the link when Y does not fit the shape, as on a detected Mac screen.
+  gesture(speedA.querySelector('.link'), true);
+  gesture(speedA.querySelector('.feel'), '20');
+  if (raw(12).value !== '20' || raw(13).value !== '36' || shown(speedA, '.epp') || shown(speedA, '.feel-y'))
+    throw Error('Mac speed 20 at 1080p did not write 20 / 36: '+raw(12).value+'/'+raw(13).value+' epp '+shown(speedA, '.epp')+' y '+shown(speedA, '.feel-y'));
+  // Read lands Speed X before Speed Y: the half-read pair must not break the link.
+  gesture(raw(12), '16'); gesture(raw(13), '28');
+  if (!speedA.querySelector('.link').checked || shown(speedA, '.feel-y')) throw Error('A linked pair read X first lost its link');
+  gesture(raw(13), '9');
+  if (speedA.querySelector('.link').checked || !shown(speedA, '.feel-y')) throw Error('A Y off the screen shape did not break the link');
+  gesture(speedA.querySelector('.link'), true);
+  gesture(speedA.querySelector('.link'), false);
+  gesture(speedA.querySelector('.feel-y'), '9');
+  if (!shown(speedA, '.feel-y') || raw(13).value !== '9' || raw(12).value !== '16') throw Error('Unlinked Y did not set Speed Y alone');
+  if (sets !== 0) throw Error('Pointer speed sent '+sets+' values before Save');
+  await readHandler();
   // A bad hotkey: Save sends nothing, the strip names the field and lands on it; a fix clears it.
   document.querySelectorAll('.hotkey-text').forEach(h => {h.value = 'lctrl+rshift+c+o'; h.setAttribute('fetched-value', h.value);});
   document.querySelectorAll('.keymap-text').forEach(k => k.setAttribute('fetched-value', ''));
