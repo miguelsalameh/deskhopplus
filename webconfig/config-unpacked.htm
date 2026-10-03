@@ -624,7 +624,8 @@ pre {
 
 
 
-    <div data-speed="10">
+    <input class="api" type="number" hidden data-type="uint8" data-key="164" /><input class="api" type="number" hidden data-type="uint16" data-key="165" /><input class="api" type="number" hidden data-type="uint16" data-key="166" />
+    <div data-speed="10" data-pointer="164">
       <div class="row">
         <label for="p12">Speed</label>
         <span class="slider"><output></output><input id="p12" class="range feel" type="range" min="1" max="20" /></span>
@@ -634,7 +635,7 @@ pre {
         <span class="slider"><output></output><input id="py12" class="range feel-y" type="range" min="1" max="128" /></span>
       </div>
       <div class="row">
-        <label for="ps12">Screen size</label>
+        <label for="ps12">Monitor size</label>
         <span class="speed-size"><span class="detected"></span>
           <select id="ps12" class="size">
             <option value="1920x1080">1920 × 1080</option>
@@ -1007,7 +1008,8 @@ pre {
 
 
 
-    <div data-speed="40">
+    <input class="api" type="number" hidden data-type="uint8" data-key="167" /><input class="api" type="number" hidden data-type="uint16" data-key="168" /><input class="api" type="number" hidden data-type="uint16" data-key="169" />
+    <div data-speed="40" data-pointer="167">
       <div class="row">
         <label for="p42">Speed</label>
         <span class="slider"><output></output><input id="p42" class="range feel" type="range" min="1" max="20" /></span>
@@ -1017,7 +1019,7 @@ pre {
         <span class="slider"><output></output><input id="py42" class="range feel-y" type="range" min="1" max="128" /></span>
       </div>
       <div class="row">
-        <label for="ps42">Screen size</label>
+        <label for="ps42">Monitor size</label>
         <span class="speed-size"><span class="detected"></span>
           <select id="ps42" class="size">
             <option value="1920x1080">1920 × 1080</option>
@@ -4647,8 +4649,6 @@ async function wipeConfigHandler() {
   await sendReport(packetType.wipeConfigMsg, [], true);
 }
 
-// Coordinates are monitor widths; half-widths are the layout grid.
-// Directions are the board's: 1 Left, 2 Right, 4 Top, 5 Bottom.
 const vectors = {1:[-1,0], 2:[1,0], 4:[0,-1], 5:[0,1]};
 const opposite = {1:2, 2:1, 4:5, 5:4};
 const at = (m, axis) => axis ? m.y : m.x;
@@ -4679,7 +4679,6 @@ function layoutFromFields(fields) {
   let custom = !vectors[border] || outputs[1].border !== opposite[border] ||
     outputs.some(o => o.monitors.length > 1 && o.chain === o.border);
   const a = outputs[0].monitors, b = outputs[1].monitors;
-  // Start with left/top-aligned lines on the side selected by Output A.
   let shift = normal.map((v, axis) => v > 0 ? Math.max(...a.map(m => at(m, axis)))+1 :
     v < 0 ? -Math.max(...b.map(m => at(m, axis)))-1 : 0);
   const edge = (m, side, fraction) => [m.x, m.y].map((v, axis) =>
@@ -4723,12 +4722,8 @@ function layoutFromFields(fields) {
     custom ? 'Custom values are set in Advanced. Moving a monitor here replaces them.' : ''};
 }
 
-// Derives every field the layout owns from where the boxes sit: counts, chain
-// and border directions, and the segments in seam order. Returns {fields}, or
-// {refused} with the one-line reason the board cannot run this layout.
 function fieldsFromLayout(layout) {
   const [a, b] = layout.outputs.map(o => o.monitors);
-  // A straight line of equal boxes fills its bounding box, so the boxes are the box.
   const bounds = ms => [0,1].map(axis => [Math.min(...ms.map(m => at(m, axis))), Math.max(...ms.map(m => at(m, axis)))+1]);
   const [boxA, boxB] = [bounds(a), bounds(b)];
   const overlap = [0,1].map(axis => Math.min(boxA[axis][1], boxB[axis][1]) - Math.max(boxA[axis][0], boxB[axis][0]));
@@ -4747,7 +4742,6 @@ function fieldsFromLayout(layout) {
     if (ms.length > 1) {
       const dx = ms[1].x-ms[0].x, dy = ms[1].y-ms[0].y;
       chain = dx < 0 ? 1 : dx > 0 ? 2 : dy < 0 ? 4 : 5;
-      // The board lets only Main cross when the line points at the other computer.
       if (chain === borders[i]) return {refused:'Not moved: put the main monitor next to the other computer.'};
     }
     fields[base+1] = ms.length; fields[98+i] = chain; fields[base+7] = borders[i];
@@ -4771,14 +4765,6 @@ function fieldsFromLayout(layout) {
   return {fields};
 }
 
-// Applies one gesture to one output and returns {layout, fields}, or
-// {layout, refused} with the layout unchanged. Gestures:
-//   {dx, dy}           move the computer as a block by dx, dy boxes;
-//   {monitor, dx, dy}  drop one box: Main onto its line's far end flips the line
-//                      (the boxes stay put, renumbered from Main); another
-//                      box turns the line to point from Main toward its cell;
-//                      the only box of a one-monitor computer moves the block;
-//   {add: 1 | -1}      append a box at the end of the line, or remove the last.
 function moveMonitor(layout, gesture) {
   const o = layout.outputs.find(o => o.letter === gesture.output), ms = o.monitors;
   const main = ms[0], last = ms[ms.length-1];
@@ -4800,7 +4786,6 @@ function moveMonitor(layout, gesture) {
   } else {
     const m = ms[gesture.monitor-1];
     const d = [m.x+gesture.dx-main.x, m.y+gesture.dy-main.y];
-    // A cell off the line turns the line across its axis; a cell on it turns it along.
     const along = dir[0] ? 0 : 1, axis = d[1-along] ? 1-along : along;
     if (!d[axis]) return {layout, refused:'Not moved: drop a monitor beside, above or below the main monitor.'};
     monitors = line(main, axis ? [0, Math.sign(d[1])] : [Math.sign(d[0]), 0], ms.length);
@@ -4820,9 +4805,6 @@ function renderLayout(layout) {
   const height = Math.max(...monitors.map(m => m.y))+1;
   const spareRow = height < 2 ? 1 : 0;
   const canvasHeight = (height+2*spareRow)*100+20;
-  // Each cell is 100 units: the label bar sits in the top 18, then a gap, then
-  // the monitor box. The bar spans the block and is the handle that moves it;
-  // each box is a focusable handle of its own.
   const groups = layout.outputs.map(o => {
     const left = Math.min(...o.monitors.map(m => m.x))*100+12, top = Math.min(...o.monitors.map(m => m.y))*100+12;
     const right = Math.max(...o.monitors.map(m => m.x))*100+88;
@@ -4849,9 +4831,6 @@ function redrawLayout() {
   showLayoutStatus();
 }
 
-// Every gesture ends here. A valid one writes the derived values into the
-// Advanced fields, the same as picking them by hand: Save sends them to the
-// board, Read throws them away. A refused one shows its reason and touches nothing.
 function applyGesture(gesture) {
   const result = moveMonitor(layoutFromFields(readFields()), gesture);
   if (result.refused) {showLayoutStatus(result.refused); return;}
@@ -4860,9 +4839,6 @@ function applyGesture(gesture) {
   redrawLayout();
 }
 
-// Pointer glue: a label bar drags the computer in half-box steps, a box drags
-// in whole boxes, so each lands where it is shown. The only box of a
-// one-monitor computer is its label.
 document.getElementById('layout').addEventListener('pointerdown', event => {
   const target = event.target.closest('.layout-handle, .layout-box');
   if (!target || event.button !== 0 || !event.isPrimary) return;
@@ -4890,7 +4866,6 @@ document.getElementById('layout').addEventListener('pointerdown', event => {
     if (!samePointer(e)) return;
     stop();
     const current = gesture(e);
-    // A click on a box only focuses it.
     if (target.dataset.monitor && !current.dx && !current.dy) return target.focus();
     applyGesture(current);
   };
@@ -4899,7 +4874,6 @@ document.getElementById('layout').addEventListener('pointerdown', event => {
   window.addEventListener('pointercancel', cancel);
 });
 
-// Arrow keys on a focused box are a one-step drop; the box keeps focus.
 document.getElementById('layout').addEventListener('keydown', event => {
   const box = event.target.closest('.layout-box');
   const step = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]}[event.key];
@@ -4909,10 +4883,6 @@ document.getElementById('layout').addEventListener('keydown', event => {
   applyGesture({output, monitor:Number(monitor), dx:step[0], dy:step[1]});
   document.querySelector(`.layout-box[data-output="${output}"][data-monitor="${monitor}"]`).focus();
 });
-// Page glue for the settings window (#225): which section is shown, which
-// computer's rows are under the picture, the connection words, the unsaved
-// count and the refusal strip. Presentation only: no field is duplicated and
-// nothing here talks to the board.
 
 function showSection(id) {
   document.querySelectorAll('section[data-section]').forEach(s => {s.hidden = s.dataset.section !== id;});
@@ -4926,15 +4896,12 @@ document.getElementById('sidebar').addEventListener('click', event => {
   if (button) showSection(button.dataset.section);
 });
 
-// Click a computer in the picture and its rows appear under it, the way the
-// OS shows the settings of the monitor you click.
 function selectComputer(letter) {
   document.getElementById('layout').dataset.selected = letter;
   document.querySelectorAll('.computer[data-computer]').forEach(c => {c.hidden = c.dataset.computer !== letter;});
   refreshTitles();
 }
 
-// "Output A · MacOS": the group title carries the OS the picture's label shows.
 function refreshTitles() {
   document.querySelectorAll('[data-os-of]').forEach(span => {
     const os = [...document.querySelectorAll(`.computer[data-computer="${span.dataset.osOf}"] .row`)]
@@ -4950,19 +4917,12 @@ for (const type of ['pointerdown', 'focusin', 'keydown'])
     if (computer) selectComputer(computer.dataset.output);
   });
 
-// Every gesture ends in a redraw of the picture, and a drop writes its fields
-// without an event, so the redraw is where the unsaved count follows a drop.
-// The same pass keeps a wide desk (up to seven monitors a side) readable: at
-// least 0.9px per picture unit, and the picture scrolls inside the well
-// instead of shrinking to a strip.
 new MutationObserver(() => {
   const svg = document.querySelector('#layout svg');
   if (svg) svg.style.minWidth = Math.round(svg.viewBox.baseVal.width * 0.9) + 'px';
   refresh();
 }).observe(document.getElementById('layout'), {childList: true});
 
-// Connect flips every board-facing control on; the words in the toolbar say
-// so. The markup starts disabled, so nothing runs at load.
 const connected = () => document.getElementById('connection').dataset.on === '1';
 
 function setConnected(on) {
@@ -4971,13 +4931,9 @@ function setConnected(on) {
   words.dataset.on = on ? '1' : '';
   document.getElementById('fields').disabled = !on;
   document.querySelectorAll('.online').forEach(b => {b.disabled = !on;});
-  // Off: the picture goes back to its connect text, so nothing can be dragged.
   if (!on) redrawLayout();
 }
 
-// Unsaved: derived, never stored. A field is unsaved when its value differs
-// from what the last Read fetched. Save shows the count; a section with one
-// or more carries a dot.
 function unsavedFields() {
   return [...document.querySelectorAll('.api, .hotkey-text, .keymap-text')].filter(f =>
     !f.readOnly && f.type !== 'hidden' && f.hasAttribute('fetched-value') && f.getAttribute('fetched-value') != getValue(f));
@@ -4992,21 +4948,18 @@ function refreshUnsaved() {
   document.querySelectorAll('#sidebar button').forEach(b => b.toggleAttribute('data-unsaved', sections.has(b.dataset.section)));
 }
 
-// Status LED: After means nothing while Turn off is Never (#283) or Always (#309).
 function refreshStatusLed() {
   const mode = document.querySelector('[data-key="101"]');
   const after = document.querySelector('[data-key="102"]');
   if (mode && after) after.disabled = !Number(mode.value) || mode.value === '3';
 }
 
-// Power: Sleep when idle shows only while Sleep sync is On (#303).
 function refreshSleepIdle() {
   const sync = document.querySelector('[data-key="103"]');
   const row = document.querySelector('[data-key="104"]')?.closest('.row');
   if (sync && row) row.hidden = !Number(sync.value);
 }
 
-// What every edit, report and toolbar action refreshes.
 function refresh() {
   refreshSpeed();
   refreshUnsaved();
@@ -5026,17 +4979,10 @@ document.getElementById('main').addEventListener('input', event => {
 });
 document.getElementById('main').addEventListener('change', refresh);
 
-// Exit reboots the board, which drops the device: the toolbar says so. A
-// page that already reported why (an action threw first) keeps its reason.
 navigator.hid?.addEventListener('disconnect', event => {
   if (event.device === device && connected()) setConnected(false);
 });
 
-// Toolbar actions run one at a time: the toolbar is disabled while one runs,
-// so a second click on Save cannot start a second Save loop. A refused Save
-// bands the top of the window with the fields that need a fix. An action that
-// throws means the board is gone or was never chosen: the page says so and
-// keeps the user's values for a later Read or Save.
 document.getElementById('menu-buttons').addEventListener('click', async event => {
   const handler = event.target.closest('button')?.dataset.handler;
   if (!handler) return;
@@ -5044,11 +4990,12 @@ document.getElementById('menu-buttons').addEventListener('click', async event =>
   buttons.forEach(b => {b.disabled = true;});
   try {
     const result = await window[handler]();
-    // Back to the rule, not to a snapshot: Connect may just have turned the page on.
     buttons.forEach(b => {b.disabled = b.classList.contains('online') && !connected();});
     if (handler === 'saveHandler') showRefusal(result === false);
-    // Read replaces the values the last Save refused, so its errors go too.
-    if (handler === 'readHandler') clearErrors();
+    if (handler === 'readHandler') {
+      clearErrors();
+      document.querySelectorAll('.size').forEach(size => delete size.dataset.touched);
+    }
   } catch (error) {
     console.error(error);
     setConnected(false);
@@ -5093,8 +5040,6 @@ function showRefusal(refused) {
   revealField(control(rows[0]));
 }
 
-// Service: a button that wipes or reboots takes two clicks. The first arms it
-// and says so; the second acts; a click anywhere else disarms it.
 window.addEventListener('click', event => {
   const armed = document.querySelector('#service-buttons button[data-armed]');
   if (armed && !armed.contains(event.target)) {armed.textContent = armed.dataset.armed; delete armed.dataset.armed;}
@@ -5111,22 +5056,11 @@ document.getElementById('service-buttons').addEventListener('click', event => {
   window[button.dataset.handler]();
 });
 
-// Pointer speed (#311): the page works out Speed X / Y, the board's fields.
-// A Windows output with two or more screens matches Windows' pointer speed:
-// its other screens get relative counts that Windows scales by that speed, and
-// the board's estimate of that cursor is exact only at 32768 ÷ pixels × the
-// speed's multiplier, with Enhance pointer precision off. The steps are
-// Windows 11 Settings' 1–20 (MouseSensitivity); the old Pointer Options
-// slider's 11 ticks are the even steps and 1. Elsewhere every
-// screen is absolute, so X is only the feel and Y follows the screen shape.
-const windowsSteps = [1/32, 1/16, 1/8, 2/8, 3/8, 4/8, 5/8, 6/8, 7/8, 1,
-  1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5];
+const windowsSteps = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112].map(n => n / 32);
 const speedSizes = [[1920, 1080], [2560, 1440], [3840, 2160]];
 const clampSpeed = v => Math.max(1, Math.min(128, Math.round(v)));
 const matchesWindows = (os, screens) => os == 3 && screens >= 2;
 
-// {x, y, warnings}; warnings: 'below' or 'above' (a step the 1–128 range
-// cannot match) and 'epp' (Enhance pointer precision not ticked off).
 function speedFor({os, screens, width, height, step, x, y, linked = true, epp = true}) {
   if (!matchesWindows(os, screens))
     return {x: clampSpeed(x), y: clampSpeed(linked ? x * width / height : y), warnings: []};
@@ -5138,8 +5072,6 @@ function speedFor({os, screens, width, height, step, x, y, linked = true, epp = 
   return {x: clampSpeed(exact[0]), y: clampSpeed(exact[1]), warnings};
 }
 
-// The step a saved Speed X / Y came from, or 0 (Custom). Low steps can
-// share a value; the highest is taken.
 function stepFor(output) {
   for (let step = windowsSteps.length; step; step--) {
     const s = speedFor({...output, step});
@@ -5148,50 +5080,49 @@ function stepFor(output) {
   return 0;
 }
 
-// The computer this page runs on, as the Operating System field numbers it.
 const pageOs = /Windows/.test(navigator.userAgent) ? 3 : /Mac/.test(navigator.userAgent) ? 2 : 0;
 
-// One output's speed inputs, as the group's controls and fields hold them.
 function speedInputs(group) {
   const base = Number(group.dataset.speed), raw = n => document.querySelector(`.api[data-key="${base + n}"]`);
   const ui = name => group.querySelector(name), size = ui('.size');
   const [width, height] = size.value === 'other' ? [ui('.size-w').value, ui('.size-h').value].map(Number) : size.value.split('x').map(Number);
+  const saved = [0, 1, 2].map(n => document.querySelector(`.api[data-key="${Number(group.dataset.pointer) + n}"]`));
   return {os: Number(raw(6).value), screens: Number(raw(1).value), width, height, step: Number(ui('.feel').value),
     x: Number(raw(2).value), y: Number(raw(3).value), linked: ui('.link').checked, epp: ui('.epp').checked,
-    rawX: raw(2), rawY: raw(3), ui};
+    rawX: raw(2), rawY: raw(3), saved, ui};
 }
 
-// A gesture on a group's controls writes Speed X / Y; Save sends them. On a
-// Windows output only the slider replaces a Custom value.
 function writeSpeed(group, target) {
   const s = speedInputs(group), windows = matchesWindows(s.os, s.screens);
   if (target.matches('.size')) target.dataset.touched = '1';
   if (target.matches('.link')) group.dataset.unlinked = target.checked ? '' : '1';
   if (target.matches('.size-w, .size-h')) s.ui('.size').dataset.touched = '1';
-  if (!(s.width > 0 && s.height > 0) || (windows && !target.matches('.feel') && group.dataset.custom)) return;
-  const result = speedFor({...s, x: windows ? s.x : Number(s.ui('.feel').value), y: Number(s.ui('.feel-y').value)});
-  // Both values before either event: a refresh between them would see a
-  // half-written pair and break the link.
-  s.rawX.value = result.x;
-  s.rawY.value = result.y;
-  for (const field of [s.rawX, s.rawY]) field.dispatchEvent(new Event('input', {bubbles: true}));
+  if (!(s.width > 0 && s.height > 0)) return;
+  const [step, width, height] = s.saved, fields = [width, height];
+  width.value = s.width;
+  height.value = s.height;
+  if (!windows || target.matches('.feel') || !group.dataset.custom) {
+    const result = speedFor({...s, x: windows ? s.x : Number(s.ui('.feel').value), y: Number(s.ui('.feel-y').value)});
+    s.rawX.value = result.x;
+    s.rawY.value = result.y;
+    fields.push(s.rawX, s.rawY);
+    if (windows) fields.push(Object.assign(step, {value: s.step}));
+  }
+  for (const field of fields) field.dispatchEvent(new Event('input', {bubbles: true}));
 }
 
-// Shows each group as its fields say: the Windows pointer speed or the plain speed,
-// the screen size (detected on this computer, until the user picks one), and
-// the Speed X / Y the board will get. Never writes a field; marks a group
-// Custom (data-custom) for writeSpeed.
 function refreshSpeed() {
   const groups = [...document.querySelectorAll('[data-speed]')];
   const here = groups.filter(g => speedInputs(g).os === pageOs);
   for (const group of groups) {
     const ui = name => group.querySelector(name), size = ui('.size'), row = name => ui(name).closest('.row');
-    const detect = here.length === 1 && here[0] === group;
+    const [savedStep, ...savedSize] = speedInputs(group).saved.map(f => Number(f.value));
+    const saved = savedSize.every(v => v > 0), detect = !saved && here.length === 1 && here[0] === group;
     if (!size.dataset.touched) {
-      const px = [screen.width, screen.height].map(v => Math.round(v * devicePixelRatio));
-      const near = speedSizes.find(s => s.every((v, i) => Math.abs(v - px[i]) <= v / 50));
-      size.value = !detect ? '1920x1080' : near ? near.join('x') : 'other';
-      if (detect && !near) [ui('.size-w').value, ui('.size-h').value] = px;
+      const px = saved ? savedSize : [screen.width, screen.height].map(v => Math.round(v * devicePixelRatio));
+      const near = speedSizes.find(s => s.every((v, i) => Math.abs(v - px[i]) <= (saved ? 0 : v / 50)));
+      size.value = !saved && !detect ? '1920x1080' : near ? near.join('x') : 'other';
+      if ((saved || detect) && !near) [ui('.size-w').value, ui('.size-h').value] = px;
       ui('.detected').textContent = detect ? `Detected: ${(near || px).join(' × ')}` : '';
     }
     ui('.size-w').hidden = ui('.size-h').hidden = size.value !== 'other';
@@ -5200,22 +5131,21 @@ function refreshSpeed() {
     if (windows) {
       feel.max = windowsSteps.length;
       const matched = speedFor(s);
-      const step = matched.x === s.x && matched.y === s.y ? s.step : stepFor(s);
+      const step = windowsSteps[savedStep - 1] ? savedStep : matched.x === s.x && matched.y === s.y ? s.step : stepFor(s);
+      const fits = step && speedFor({...s, step}).x === s.x && speedFor({...s, step}).y === s.y;
       if (step) {feel.value = step; warnings = speedFor({...s, step}).warnings;}
       else if (!s.epp) warnings = ['epp'];
-      group.dataset.custom = step ? '' : '1';
+      group.dataset.custom = fits ? '' : '1';
       feel.previousElementSibling.textContent = step || 'Custom';
       note = 'Set this to the number Windows shows for Mouse pointer speed (Settings → Bluetooth & devices → Mouse). ' +
         'Turn off Enhance pointer precision in Additional mouse settings → Pointer Options. ' +
         'Windows uses one speed for both directions. Enable Acceleration changes only the main screen.';
-      result = step ? `→ ${result}${warnings.length ? '' : ' Crossings land on the edge.'}`
+      result = fits ? `→ ${result}${warnings.length ? '' : ' Crossings land on the edge.'}`
         : `Custom: ${result} Move the slider to match Windows.`;
     } else {
       feel.max = 128;
       feel.value = s.x;
       feel.previousElementSibling.textContent = s.x;
-      // Linked while Y fits the shape, unless the user unlinked. Derived each
-      // time: Read lands Speed X before Speed Y, so a half-read pair is off.
       ui('.link').checked = !group.dataset.unlinked && speedFor({...s, linked: true}).y === s.y;
       ui('.feel-y').value = ui('.feel-y').previousElementSibling.textContent = s.y;
       note = ui('.link').checked ? 'Speed Y follows the screen shape, so both directions feel the same.' : '';

@@ -20,11 +20,12 @@ html = html.replace('</body>', `<script>
   const fields = {11:2,41:2,42:16,43:28,14:0,15:32767,44:0,45:32767,16:2,46:3,17:5,47:4,98:1,99:2,
     140:2,141:0,142:65535,143:1,144:0,145:65535,
     152:1,153:0,154:65535,155:2,156:0,157:65535};
-  for (let key=140; key<164; key++) fields[key] ??= 0;
+  for (let key=140; key<170; key++) fields[key] ??= 0;
   const tick = () => new Promise(resolve => setTimeout(resolve, 0));
   let sets = 0, saves = 0, wipes = 0;
+  const sentKeys = [];
   device = {opened:true, async open() {this.opened = true;}, addEventListener() {}, async sendReport(id, report) {
-    if (report[2] === packetType.setValMsg) sets++;
+    if (report[2] === packetType.setValMsg) {sets++; sentKeys.push(report[3]);}
     if (report[2] === packetType.saveConfigMsg) saves++;
     if (report[2] === packetType.wipeConfigMsg) wipes++;
     if (report[2] !== packetType.getValAllMsg) return;
@@ -352,8 +353,12 @@ html = html.replace('</body>', `<script>
       speedB.querySelector('.warn').textContent || sets !== 0 ||
       !/^→ Speed X 17 · Speed Y 30\. Crossings land on the edge\./.test(speedB.querySelector('.result').textContent))
     throw Error('Step 10 at 1080p did not write 17 / 30 and wait for Save: '+raw(42).value+'/'+raw(43).value+' sent '+sets);
+  // #312: the board copies Windows' maths, so it gets the step and the size too.
+  if ([167,168,169].map(k => raw(k).value).join() !== '10,1920,1080' || raw(167).closest('[data-speed]'))
+    throw Error('Step 10 at 1080p did not write pointer speed and Monitor size: '+[167,168,169].map(k => raw(k).value));
+  if (!/Monitor size/.test(speedB.textContent) || /Screen size/.test(speedB.textContent)) throw Error('The size is not called Monitor size');
   await tick();
-  if (unsaved.textContent !== '2') throw Error('Speed X / Y did not count as two unsaved fields: '+unsaved.textContent);
+  if (unsaved.textContent !== '5') throw Error('Speed X / Y, pointer speed and size did not count as five unsaved fields: '+unsaved.textContent);
   gesture(speedB.querySelector('.epp'), false);
   if (speedB.querySelector('.warn').textContent !== 'Crossings can be early or late.')
     throw Error('Enhance pointer precision unticked did not warn: '+speedB.textContent);
@@ -365,6 +370,10 @@ html = html.replace('</body>', `<script>
     throw Error('Step 1 at 1440p moved or did not warn: '+speedB.textContent);
   gesture(step, '10');
   gesture(raw(43), '24');
+  if (speedB.querySelector('output').textContent !== '10' || !/^Custom: Speed X 13 · Speed Y 24\./.test(speedB.querySelector('.result').textContent))
+    throw Error('An Advanced edit off the saved step did not keep it and show Custom: '+speedB.textContent);
+  // With no pointer speed saved, an Advanced edit finds the step it matches.
+  gesture(raw(167), '0');
   if (speedB.querySelector('output').textContent !== 'Custom') throw Error('An Advanced edit off every step did not show Custom');
   gesture(raw(43), '34'); gesture(raw(42), '19');
   if (speedB.querySelector('output').textContent !== '12') throw Error('An Advanced edit on a step did not find it');
@@ -392,6 +401,15 @@ html = html.replace('</body>', `<script>
   gesture(speedA.querySelector('.feel-y'), '9');
   if (!shown(speedA, '.feel-y') || raw(13).value !== '9' || raw(12).value !== '16') throw Error('Unlinked Y did not set Speed Y alone');
   if (sets !== 0) throw Error('Pointer speed sent '+sets+' values before Save');
+  // #312: Read shows the pointer speed and Monitor size the board holds, over
+  // the detected size; Save sends a changed one to both boards.
+  Object.assign(fields, {165:2560, 166:1440, 167:13, 168:2560, 169:1440});
+  document.querySelector('[data-handler="readHandler"]').click(); await tick();
+  const sizeA = speedA.querySelector('.size'), sizeB = speedB.querySelector('.size');
+  if (step.value !== '13' || speedB.querySelector('output').textContent !== '13' || sizeB.value !== '2560x1440' ||
+      sizeA.value !== '2560x1440' || speedA.querySelector('.detected').textContent)
+    throw Error('Read did not show the saved pointer speed and Monitor size: '+step.value+' '+sizeB.value+' '+sizeA.value);
+  Object.assign(fields, {165:0, 166:0, 167:0, 168:0, 169:0});
   await readHandler();
   // A bad hotkey: Save sends nothing, the strip names the field and lands on it; a fix clears it.
   document.querySelectorAll('.hotkey-text').forEach(h => {h.value = 'lctrl+rshift+c+o'; h.setAttribute('fetched-value', h.value);});
@@ -425,7 +443,11 @@ html = html.replace('</body>', `<script>
   if (!strip.hidden || overrides.hasAttribute('aria-invalid') || overrides.parentElement.querySelector('.keymap-error').textContent)
     throw Error('Read left the last refusal on the page');
   overrides.value = ''; overrides.dispatchEvent(new Event('input', {bubbles:true}));
+  gesture(step, '6');
+  sentKeys.length = 0;
   saveButton.click(); await tick();
+  if (![42,43,167,168,169].every(k => sentKeys.includes(k)) || raw(167).getAttribute('fetched-value') !== '6')
+    throw Error('Save did not send the pointer speed and Monitor size with Speed X / Y: '+sentKeys);
   // The fake board never sent some fields, so this Save fills them in; only the save message is counted.
   if (!strip.hidden || saves !== 1 || !unsaved.hidden) throw Error('A passing Save did not clear the strip and send the save message: '+saves+' strip '+strip.hidden+' unsaved '+unsaved.hidden);
   // #227: two clicks on Save send one save message; the toolbar is disabled while an action runs.

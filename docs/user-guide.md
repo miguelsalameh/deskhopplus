@@ -80,7 +80,7 @@ still lands in the overflow, turn it on once by hand: **Settings › Personaliza
 Other system tray icons**, and turn on **DeskHopPlus Helper**. The helper asks again on every
 start, so the setting follows the exe if you move it.
 
-The first row of the menu is greyed and shows the release, e.g. **DeskHopPlus Helper 1.1**. The
+The first row of the menu is greyed and shows the release, e.g. **DeskHopPlus Helper 1.2**. The
 second row is the state.
 
 | Menu says | What it means | What to do |
@@ -190,11 +190,13 @@ the helper running on any computer with more than one screen.
 Without its helper, Windows' second screens also run on the board's estimate of the cursor. The
 **Pointer speed** group under a Windows output with two or more screens sets it up: move its
 **Speed** slider to the number Windows shows for **Mouse pointer speed** (Settings → Bluetooth &
-devices → Mouse; drag its slider to see the number), check the **Screen size**, turn off
+devices → Mouse; drag its slider to see the number), check the **Monitor size**, turn off
 **Enhance pointer precision** (on that same Windows page: Additional mouse settings → Pointer
-Options), and tick **“Enhance pointer precision” is off** on the page. The page then works out
-Speed X and Speed Y. Otherwise the cursor crosses early or late, and lands along the seam a
-little off. See
+Options), tick **“Enhance pointer precision” is off** on the page, and click **Save**. The board
+saves the pointer speed and monitor size and copies Windows' own pointer maths on those
+screens; the page also works out Speed X and Speed Y for the main screen. Until you move the
+slider and Save once, the board uses Speed X and Speed Y for its estimate, and the cursor crosses
+early or late at most pointer speeds. See
 [Crossings early or late?](#crossings-early-or-late-check-these-3-settings)
 
 On a Mac, or on Windows with one screen, the **Speed** slider sets only how fast the cursor
@@ -263,9 +265,9 @@ sets for that computer; click the other computer in the picture to see its field
 redraws the picture. Values the picture cannot draw exactly show a note. Each output has:
 
 - **Screen Count** — how many monitors that computer drives (1 to 7).
-- **Speed X** and **Speed Y** — how far the cursor moves per mouse count, 1 to 128 (defaults
-  16 and 28). The **Pointer speed** group sets them; a value set here shows there as a Windows
-  pointer speed, or as **Custom** when none matches.
+- **Speed X** and **Speed Y** — how far the cursor moves per mouse count where the board places
+  it, 1 to 128 (defaults 16 and 28). The **Pointer speed** group sets them; a value set here
+  shows there as a Windows pointer speed, or as **Custom** when it does not match.
 - **Border Direction** — where the *other* computer is: Left, Right, Top or Bottom.
 - **Chain Direction** — which way this computer's own monitors run from its main monitor: Left,
   Right, Top or Bottom. Screen 1 is the main monitor; screen 2 is the next one along that
@@ -575,10 +577,13 @@ early or too late is almost always a setting:
    Additional mouse settings → Pointer Options). With it on, no speed matches.
 2. The **Speed** slider in the config page's **Pointer speed** group shows the same number as
    Windows' **Mouse pointer speed** (Settings → Bluetooth & devices → Mouse).
-3. The **Screen size** on the config page is that computer's real resolution.
+3. The **Monitor size** on the config page is that computer's real size in pixels, and you clicked
+   **Save** after setting all three. **Read** shows what the board holds.
 
-The page uses Speed = 32768 ÷ pixels × Windows' multiplier, rounded, once for the width
-(Speed X) and once for the height (Speed Y). At pointer speed 10, 1920 × 1080 gives 17
+The board copies Windows' maths: each mouse report moves the cursor by its counts × the pointer
+speed's multiplier, in whole pixels, and Windows drops the fraction. On the main screen the
+board places the cursor itself, with Speed = 32768 ÷ pixels × the multiplier, rounded, once for
+the width (Speed X) and once for the height (Speed Y). At pointer speed 10, 1920 × 1080 gives 17
 and 30, and 2560 × 1440 gives 13 and 23. The multipliers, with Enhance pointer precision off:
 
 | Pointer speed | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
@@ -593,9 +598,10 @@ The older Pointer Options slider has 11 ticks. They are pointer speeds 1, 2, 4, 
 middle tick is 10.
 
 A speed must be 1 to 128. A pointer speed that needs less than 1, or more than 128, cannot be
-matched, and the page says so. **Enable Acceleration** changes only the main Windows screen, so
-with it on the main screen can feel different from the others. Screens of different sizes on one Windows
-computer cannot all be matched.
+matched on the main screen, and the page says so; crossings still land on the edge, but the main
+screen feels a little different from the others. **Enable Acceleration** changes only the main
+Windows screen too. Screens of different sizes on one Windows computer cannot all be matched
+([#313](https://github.com/myn/deskhopplus/issues/313)).
 
 ### The cursor jumps to the middle of the screen, or the clipboard fills with screenshots
 

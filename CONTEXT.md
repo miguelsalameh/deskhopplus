@@ -243,6 +243,30 @@ axis, border direction, monitor count and segments — is derived from where the
 picture holds nothing of its own. **Advanced** is the same settings shown one field at a time.
 _Avoid_: arrangement, screen setup, map, grid (the grid is what the layout snaps to)
 
+**Pointer speed**:
+Windows' own mouse speed setting, a number from 1 to 20 (Settings → Bluetooth & devices →
+Mouse), with Enhance pointer precision off. 10 moves one pixel per mouse count. The board stores
+it for an output so it can follow the cursor on monitors where Windows, not the board, moves it.
+_Avoid_: notch (the old 11-tick slider's word), sensitivity, multiplier (what a pointer speed
+means, not its name)
+
+**Monitor size**:
+The width and height in pixels of a computer's monitors, saved for an output with its pointer
+speed. One size per output: every monitor on it is taken to be that size.
+_Avoid_: screen size, resolution
+
+**Speed X / Speed Y**:
+The board's own speed for an output: how far one mouse count moves the cursor where the board
+places it, on every Mac monitor and on Windows' main monitor. Two numbers because the board's
+coordinates span every monitor's width and height alike, whatever its shape.
+_Avoid_: pointer speed (that is Windows' setting), sensitivity, DPI
+
+**Estimate**:
+Where the board believes the cursor is on a monitor it cannot place: a Windows monitor past the
+main one, with no helper running. Windows moves the cursor there; the board works out the same
+movement from the counts it sent, and crosses when the estimate reaches the seam.
+_Avoid_: guess, position (the helper reports a real position), tracking
+
 ### The boards
 
 **Status LED**:

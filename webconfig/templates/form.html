@@ -93,9 +93,12 @@
     </form>
 
   {# Pointer speed (#311): page-only controls, read and written by page.js,
-     that set this output's Speed X / Y. No data-key: Save sends the raw fields. #}
+     that set this output's Speed X / Y, and the pointer speed and monitor size
+     the board copies Windows' maths with (#312). No data-key: Save sends the
+     raw fields, which sit outside the group so a Read does not write them back. #}
   {% elif item.get("elem") == "speed" %}
-    <div data-speed="{{ key - 2 }}">
+    {% for type in ['uint8', 'uint16', 'uint16'] %}<input class="api" type="number" hidden data-type="{{ type }}" data-key="{{ item.pointer_key + loop.index0 }}" />{% endfor %}
+    <div data-speed="{{ key - 2 }}" data-pointer="{{ item.pointer_key }}">
       <div class="row">
         <label for="p{{ key }}">Speed</label>
         <span class="slider"><output></output><input id="p{{ key }}" class="range feel" type="range" min="1" max="20" /></span>
@@ -105,7 +108,7 @@
         <span class="slider"><output></output><input id="py{{ key }}" class="range feel-y" type="range" min="1" max="128" /></span>
       </div>
       <div class="row">
-        <label for="ps{{ key }}">Screen size</label>
+        <label for="ps{{ key }}">Monitor size</label>
         <span class="speed-size"><span class="detected"></span>
           <select id="ps{{ key }}" class="size">{% for w, h in speed_sizes %}
             <option value="{{ w }}x{{ h }}">{{ w }} × {{ h }}</option>{% endfor %}

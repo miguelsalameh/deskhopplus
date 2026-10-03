@@ -84,11 +84,15 @@ if __name__ == "__main__":
         keymap_passthrough_offset=keymap_value("DH_KEYMAP_PASSTHROUGH_OFFSET"),
         keymap_passthrough_count_offset=keymap_value("DH_KEYMAP_PASSTHROUGH_COUNT_OFFSET"),
         speed_sizes=SPEED_SIZES,
+        pointer_mult32=POINTER_MULT32,
         seam_field_bases=[seam_value("DH_SEAM_CONFIG_FIELD_A_BASE"), seam_value("DH_SEAM_CONFIG_FIELD_B_BASE")],
     )
     # Jinja preserves indentation on control-only lines. Keep the generated
     # artifact compliant with the repository's no-trailing-whitespace rule.
     webpage = "\n".join(line.rstrip() for line in webpage.split("\n"))
+    # Whole-line // comments are for the template's readers, not the browser:
+    # dropping them keeps the packed page in its budget (#312).
+    webpage = re.sub(r"(?m)^[ \t]*//.*\n", "", webpage)
 
     unpacked_size = len(webpage.encode('utf-8'))
     if unpacked_size > INFLATE_BUFFER:

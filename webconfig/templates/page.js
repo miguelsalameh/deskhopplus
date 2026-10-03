@@ -136,8 +136,12 @@ document.getElementById('menu-buttons').addEventListener('click', async event =>
     // Back to the rule, not to a snapshot: Connect may just have turned the page on.
     buttons.forEach(b => {b.disabled = b.classList.contains('online') && !connected();});
     if (handler === 'saveHandler') showRefusal(result === false);
-    // Read replaces the values the last Save refused, so its errors go too.
-    if (handler === 'readHandler') clearErrors();
+    // Read replaces the values the last Save refused, so its errors go too,
+    // and the board's monitor sizes replace any picked here.
+    if (handler === 'readHandler') {
+      clearErrors();
+      document.querySelectorAll('.size').forEach(size => delete size.dataset.touched);
+    }
   } catch (error) {
     console.error(error);
     setConnected(false);
@@ -208,8 +212,9 @@ document.getElementById('service-buttons').addEventListener('click', event => {
 // Windows 11 Settings' 1–20 (MouseSensitivity); the old Pointer Options
 // slider's 11 ticks are the even steps and 1. Elsewhere every
 // screen is absolute, so X is only the feel and Y follows the screen shape.
-const windowsSteps = [1/32, 1/16, 1/8, 2/8, 3/8, 4/8, 5/8, 6/8, 7/8, 1,
-  1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5];
+// Since #312 the board also saves the step and the monitor size, and copies
+// Windows' maths for those screens itself; Speed X / Y set the main screen.
+const windowsSteps = {{ pointer_mult32 }}.map(n => n / 32);
 const speedSizes = {{ speed_sizes | map('list') | list }};
 const clampSpeed = v => Math.max(1, Math.min(128, Math.round(v)));
 const matchesWindows = (os, screens) => os == 3 && screens >= 2;
@@ -245,42 +250,52 @@ function speedInputs(group) {
   const base = Number(group.dataset.speed), raw = n => document.querySelector(`.api[data-key="${base + n}"]`);
   const ui = name => group.querySelector(name), size = ui('.size');
   const [width, height] = size.value === 'other' ? [ui('.size-w').value, ui('.size-h').value].map(Number) : size.value.split('x').map(Number);
+  const saved = [0, 1, 2].map(n => document.querySelector(`.api[data-key="${Number(group.dataset.pointer) + n}"]`));
   return {os: Number(raw(6).value), screens: Number(raw(1).value), width, height, step: Number(ui('.feel').value),
     x: Number(raw(2).value), y: Number(raw(3).value), linked: ui('.link').checked, epp: ui('.epp').checked,
-    rawX: raw(2), rawY: raw(3), ui};
+    rawX: raw(2), rawY: raw(3), saved, ui};
 }
 
-// A gesture on a group's controls writes Speed X / Y; Save sends them. On a
-// Windows output only the slider replaces a Custom value.
+// A gesture on a group's controls writes Speed X / Y, the monitor size and,
+// on a Windows output, the step; Save sends them. On a Windows output only
+// the slider replaces a Custom value.
 function writeSpeed(group, target) {
   const s = speedInputs(group), windows = matchesWindows(s.os, s.screens);
   if (target.matches('.size')) target.dataset.touched = '1';
   if (target.matches('.link')) group.dataset.unlinked = target.checked ? '' : '1';
   if (target.matches('.size-w, .size-h')) s.ui('.size').dataset.touched = '1';
-  if (!(s.width > 0 && s.height > 0) || (windows && !target.matches('.feel') && group.dataset.custom)) return;
-  const result = speedFor({...s, x: windows ? s.x : Number(s.ui('.feel').value), y: Number(s.ui('.feel-y').value)});
-  // Both values before either event: a refresh between them would see a
-  // half-written pair and break the link.
-  s.rawX.value = result.x;
-  s.rawY.value = result.y;
-  for (const field of [s.rawX, s.rawY]) field.dispatchEvent(new Event('input', {bubbles: true}));
+  if (!(s.width > 0 && s.height > 0)) return;
+  const [step, width, height] = s.saved, fields = [width, height];
+  width.value = s.width;
+  height.value = s.height;
+  if (!windows || target.matches('.feel') || !group.dataset.custom) {
+    const result = speedFor({...s, x: windows ? s.x : Number(s.ui('.feel').value), y: Number(s.ui('.feel-y').value)});
+    // Both values before either event: a refresh between them would see a
+    // half-written pair and break the link.
+    s.rawX.value = result.x;
+    s.rawY.value = result.y;
+    fields.push(s.rawX, s.rawY);
+    if (windows) fields.push(Object.assign(step, {value: s.step}));
+  }
+  for (const field of fields) field.dispatchEvent(new Event('input', {bubbles: true}));
 }
 
 // Shows each group as its fields say: the Windows pointer speed or the plain speed,
-// the screen size (detected on this computer, until the user picks one), and
-// the Speed X / Y the board will get. Never writes a field; marks a group
-// Custom (data-custom) for writeSpeed.
+// the monitor size (saved on the board, else detected on this computer, until
+// the user picks one), and the Speed X / Y the board will get. Never writes a
+// field; marks a group Custom (data-custom) for writeSpeed.
 function refreshSpeed() {
   const groups = [...document.querySelectorAll('[data-speed]')];
   const here = groups.filter(g => speedInputs(g).os === pageOs);
   for (const group of groups) {
     const ui = name => group.querySelector(name), size = ui('.size'), row = name => ui(name).closest('.row');
-    const detect = here.length === 1 && here[0] === group;
+    const [savedStep, ...savedSize] = speedInputs(group).saved.map(f => Number(f.value));
+    const saved = savedSize.every(v => v > 0), detect = !saved && here.length === 1 && here[0] === group;
     if (!size.dataset.touched) {
-      const px = [screen.width, screen.height].map(v => Math.round(v * devicePixelRatio));
-      const near = speedSizes.find(s => s.every((v, i) => Math.abs(v - px[i]) <= v / 50));
-      size.value = !detect ? '1920x1080' : near ? near.join('x') : 'other';
-      if (detect && !near) [ui('.size-w').value, ui('.size-h').value] = px;
+      const px = saved ? savedSize : [screen.width, screen.height].map(v => Math.round(v * devicePixelRatio));
+      const near = speedSizes.find(s => s.every((v, i) => Math.abs(v - px[i]) <= (saved ? 0 : v / 50)));
+      size.value = !saved && !detect ? '1920x1080' : near ? near.join('x') : 'other';
+      if ((saved || detect) && !near) [ui('.size-w').value, ui('.size-h').value] = px;
       ui('.detected').textContent = detect ? `Detected: ${(near || px).join(' × ')}` : '';
     }
     ui('.size-w').hidden = ui('.size-h').hidden = size.value !== 'other';
@@ -289,15 +304,18 @@ function refreshSpeed() {
     if (windows) {
       feel.max = windowsSteps.length;
       const matched = speedFor(s);
-      const step = matched.x === s.x && matched.y === s.y ? s.step : stepFor(s);
+      // A saved step is Windows' own, so it stays on the slider even when
+      // Speed X / Y were set apart from it in Advanced.
+      const step = windowsSteps[savedStep - 1] ? savedStep : matched.x === s.x && matched.y === s.y ? s.step : stepFor(s);
+      const fits = step && speedFor({...s, step}).x === s.x && speedFor({...s, step}).y === s.y;
       if (step) {feel.value = step; warnings = speedFor({...s, step}).warnings;}
       else if (!s.epp) warnings = ['epp'];
-      group.dataset.custom = step ? '' : '1';
+      group.dataset.custom = fits ? '' : '1';
       feel.previousElementSibling.textContent = step || 'Custom';
       note = 'Set this to the number Windows shows for Mouse pointer speed (Settings → Bluetooth & devices → Mouse). ' +
         'Turn off Enhance pointer precision in Additional mouse settings → Pointer Options. ' +
         'Windows uses one speed for both directions. Enable Acceleration changes only the main screen.';
-      result = step ? `→ ${result}${warnings.length ? '' : ' Crossings land on the edge.'}`
+      result = fits ? `→ ${result}${warnings.length ? '' : ' Crossings land on the edge.'}`
         : `Custom: ${result} Move the slider to match Windows.`;
     } else {
       feel.max = 128;

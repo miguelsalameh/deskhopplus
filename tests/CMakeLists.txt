@@ -68,6 +68,10 @@ add_executable(mouse_layout_test mouse_layout_test.c ${CORE}/dh_mouse_layout.c)
 target_include_directories(mouse_layout_test PRIVATE ${CORE})
 add_test(NAME mouse_layout_test COMMAND mouse_layout_test)
 
+add_executable(windows_pointer_test windows_pointer_test.c ${CORE}/dh_windows_pointer.c)
+target_include_directories(windows_pointer_test PRIVATE ${CORE})
+add_test(NAME windows_pointer_test COMMAND windows_pointer_test)
+
 add_executable(cursor_trace_test cursor_trace_test.c ${CORE}/dh_cursor_trace.c)
 target_include_directories(cursor_trace_test PRIVATE ${CORE})
 add_test(NAME cursor_trace_test COMMAND cursor_trace_test)
@@ -85,7 +89,8 @@ add_test(NAME usb_wake_test COMMAND usb_wake_test)
 add_executable(mouse_seam_test mouse_seam_test.c
                cursor_trace_adapter_stub.c
                ${CMAKE_CURRENT_SOURCE_DIR}/../src/mouse_logic.c ${CORE}/dh_mouse_layout.c
-               ${CMAKE_CURRENT_SOURCE_DIR}/../src/cursor_position.c ${CORE}/dh_seam_map.c)
+               ${CMAKE_CURRENT_SOURCE_DIR}/../src/cursor_position.c ${CORE}/dh_seam_map.c
+               ${CORE}/dh_windows_pointer.c)
 target_include_directories(mouse_seam_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stubs ${CORE}
                            ${CMAKE_CURRENT_SOURCE_DIR}/../src/include)
 if(NOT MSVC)
@@ -97,7 +102,8 @@ add_test(NAME mouse_seam_test COMMAND mouse_seam_test)
 add_executable(crossing_model_test crossing_model_test.c
                cursor_trace_adapter_stub.c
                ${CMAKE_CURRENT_SOURCE_DIR}/../src/mouse_logic.c ${CORE}/dh_mouse_layout.c
-               ${CMAKE_CURRENT_SOURCE_DIR}/../src/cursor_position.c ${CORE}/dh_seam_map.c)
+               ${CMAKE_CURRENT_SOURCE_DIR}/../src/cursor_position.c ${CORE}/dh_seam_map.c
+               ${CORE}/dh_windows_pointer.c)
 target_include_directories(crossing_model_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stubs ${CORE}
                            ${CMAKE_CURRENT_SOURCE_DIR}/../src/include)
 if(NOT MSVC)
@@ -119,7 +125,7 @@ add_executable(cursor_position_test cursor_position_test.c
                cursor_trace_adapter_stub.c
                ${CMAKE_CURRENT_SOURCE_DIR}/../src/cursor_position.c
                ${CMAKE_CURRENT_SOURCE_DIR}/../src/mouse_logic.c
-               ${CORE}/dh_mouse_layout.c ${CORE}/dh_seam_map.c)
+               ${CORE}/dh_mouse_layout.c ${CORE}/dh_seam_map.c ${CORE}/dh_windows_pointer.c)
 if(NOT MSVC)
   target_link_libraries(cursor_position_test PRIVATE m)
 endif()

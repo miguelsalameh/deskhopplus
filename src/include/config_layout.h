@@ -62,6 +62,18 @@
 _Static_assert(sizeof(dh_seam_range_t) == 6,
                "dh_seam_range_t must contain no unnamed persisted padding");
 
+/* #312's per-output fields took padding: the byte after swap_ctrl_gui and the
+   word after the keymap. If either moved, the output would grow, every offset
+   after it would shift, and every stored config would read as garbage. */
+_Static_assert(offsetof(output_t, pointer_speed) == offsetof(output_t, swap_ctrl_gui) + 1 &&
+                   offsetof(output_t, seam_ranges) == offsetof(output_t, pointer_speed) + 1,
+               "output_t: pointer_speed must fill the padding after swap_ctrl_gui");
+_Static_assert(offsetof(output_t, monitor_width) ==
+                       offsetof(output_t, keymap) + sizeof(dh_keymap_profile_t) &&
+                   offsetof(output_t, screensaver) == offsetof(output_t, monitor_height) + 2 &&
+                   sizeof(output_t) == 168,
+               "output_t: the monitor size must fill the padding before the screensaver");
+
 typedef struct {
     uint32_t magic_header;
     uint32_t version;

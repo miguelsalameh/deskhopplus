@@ -23,6 +23,12 @@
  * own, and every screen is the same size and lined up. A failure is a logic
  * fault, not a measurement one. The board's own acceleration and mouse zoom
  * are on, as on hardware.
+ *
+ * Pixel mode (#312) is the exception: there Windows moves in real pixels by
+ * its pointer speed's multiplier and drops each report's fraction, and the
+ * board, with that pointer speed and monitor size saved, must keep its
+ * estimate in the pixel the cursor is in, at every pointer speed, monitor
+ * size and hand speed.
  */
 
 #include <stdio.h>
@@ -46,6 +52,8 @@ typedef struct {
     /* The real cursor. */
     int screen;
     int x, y;
+    /* Pixel mode only: the real cursor in 1/32 px, sub-pixel kept. */
+    long px32_x, px32_y;
 } computer_t;
 
 typedef struct {
@@ -68,6 +76,12 @@ static uint8_t pending_output;
    see. 100 is the board's exact guess. */
 static int windows_gain = 100;
 #define ENHANCED_PRECISION -1    /* windows_gain: depends on each report's speed */
+/* Pixel mode (#312): Windows moves its cursor in real pixels, counts × its
+   pointer speed's multiplier with the fraction dropped, on screens of
+   pixel_w × pixel_h. 0: off. */
+static int pixel_w, pixel_h;
+static int pixel_mult32;         /* the multiplier, in 1/32 */
+static long last_rel_px32_x, last_rel_px32_y;  /* after the last relative report */
 static unsigned long checks, layouts_run;
 static int failures;
 static char context[160];
@@ -102,9 +116,55 @@ static void move_axis(computer_t *c, int *coord, int delta, int dx, int dy) {
     }
 }
 
+/* Pixel mode: relative motion along one axis of `span` pixels, in 1/32 px. */
+static void move_axis_px(computer_t *c, long *coord32, long delta32, int span, int dx, int dy) {
+    const long size32 = (long)span * 32;
+    *coord32 += delta32;
+    if (*coord32 >= size32 || *coord32 < 0) {
+        const int sign = *coord32 >= size32 ? 1 : -1;
+        const int next = screen_at(c, c->cell_x[c->screen] + dx * sign,
+                                   c->cell_y[c->screen] + dy * sign);
+        if (next) {
+            c->screen = next;
+            *coord32 -= sign * size32;
+        }
+        if (*coord32 >= size32) *coord32 = size32 - 32;
+        if (*coord32 < 0) *coord32 = 0;
+    }
+}
+
+/* Pixel mode: the board's units for the real cursor's pixel. */
+static void sync_units(computer_t *c) {
+    c->x = (int)(c->px32_x / 32 * (MAX_SCREEN_COORD + 1) / pixel_w);
+    c->y = (int)(c->px32_y / 32 * (MAX_SCREEN_COORD + 1) / pixel_h);
+}
+
+static void place_px(computer_t *c) {
+    c->px32_x = (long)c->x * pixel_w / (MAX_SCREEN_COORD + 1) * 32;
+    c->px32_y = (long)c->y * pixel_h / (MAX_SCREEN_COORD + 1) * 32;
+}
+
 void output_mouse_report(mouse_report_t *report, device_t *state) {
     computer_t *c = &world[state->active_output];
     const output_t *o = &state->config.output[state->active_output];
+    if (pixel_w && c->os == WINDOWS) {
+        if (report->mode == ABSOLUTE) {
+            c->screen = 1;
+            c->x = report->x;
+            c->y = report->y;
+            place_px(c);
+            return;
+        }
+        /* Whole pixels, toward zero: Windows drops each report's fraction. */
+        const long dx32 = (long)report->x * pixel_mult32 / 32 * 32;
+        const long dy32 = (long)report->y * pixel_mult32 / 32 * 32;
+        move_axis_px(c, &c->px32_x, dx32, pixel_w, 1, 0);
+        move_axis_px(c, &c->px32_y, dy32, pixel_h, 0, 1);
+        sync_units(c);
+        last_rel_px32_x = c->px32_x;
+        last_rel_px32_y = c->px32_y;
+        return;
+    }
     if (report->mode == ABSOLUTE) {
         if (c->os == WINDOWS)
             c->screen = 1;
@@ -394,7 +454,7 @@ static void report(int dx, int dy) {
                         ? source_along : -1;
     /* With a wrong gain the estimate drifts by design; a long push is judged
        by check_same_screen_after_push. */
-    if (windows_gain == 100)
+    if (windows_gain == 100 && !pixel_w)
         check();
 }
 
@@ -520,7 +580,163 @@ static void test_issue_310_layout(void) {
         run_wander(&l);
 }
 
+/* ---- Windows in real pixels (#312) ---------------------------------------- */
+
+static const int windows_mult32[DH_WINDOWS_POINTER_STEPS] = DH_WINDOWS_POINTER_MULT32;
+
+/* The config page's Speed for one axis: round(32768 ÷ pixels × multiplier). */
+static int page_speed(int pixels, int mult32) {
+    const int speed = (int)((32768L * mult32 * 2 / pixels / 32 + 1) / 2);
+    return speed < 1 ? 1 : speed > 128 ? 128 : speed;
+}
+
+/* #310's desk without helpers (Mac above, Windows below, both chains left),
+   with the pointer speed and monitor size saved as the page saves them. */
+static void build_pixel_desk(int step, int w, int h) {
+    const layout_t l = {
+        .arrangement = 0, .os = {MACOS, WINDOWS}, .count = {2, 2},
+        .chain = {LEFT, LEFT}, .offset = 0, .mapped = true, .helper = {false, false},
+    };
+    pixel_w = w;
+    pixel_h = h;
+    pixel_mult32 = windows_mult32[step - 1];
+    build(&l);
+    output_t *win = &board.config.output[1];
+    win->speed_x = page_speed(w, pixel_mult32);
+    win->speed_y = page_speed(h, pixel_mult32);
+    win->pointer_speed = (uint8_t)step;
+    win->monitor_width = (uint16_t)w;
+    win->monitor_height = (uint16_t)h;
+}
+
+/* One report, then: on a relative Windows screen the board's estimate is in
+   the pixel the cursor is in, on the same screen. */
+static void pixel_report(int dx, int dy) {
+    report(dx, dy);
+    const computer_t *win = &world[1];
+    if (!board.relative_mouse || board.active_output != 1)
+        return;
+    const long x = (long)board.pointer_x * pixel_w / (MAX_SCREEN_COORD + 1);
+    const long y = (long)board.pointer_y * pixel_h / (MAX_SCREEN_COORD + 1);
+    if ((int)board.config.output[1].screen_index != win->screen || x != win->px32_x / 32 ||
+        y != win->px32_y / 32) {
+        char what[120];
+        snprintf(what, sizeof what, "estimate screen %d pixel %ld,%ld; cursor screen %d pixel %ld,%ld",
+                 board.config.output[1].screen_index, x, y, win->screen, win->px32_x / 32,
+                 win->px32_y / 32);
+        fail(what);
+    }
+}
+
+/* Up from the cursor on Windows into the Mac, in strokes of `stroke` counts.
+   Fails unless the board crosses on the report that takes the cursor to the
+   top edge, or the one after (the cursor can stop exactly on it), and the
+   Mac's cursor lands within 2 pixels of under the Windows one. */
+static void push_up_into_mac(int stroke) {
+    computer_t *win = &world[1];
+    long late_counts = 0;
+    for (int i = 0; i < 100000 && board.active_output == 1; i++) {
+        if (win->px32_y < 32)
+            late_counts += stroke;
+        pixel_report(0, -stroke);
+    }
+    /* Leaving parks the Windows cursor; where the last relative report left it counts. */
+    const long win_y = last_rel_px32_y / 32, win_x = last_rel_px32_x / 32;
+    const long mac_x = (long)board.pointer_x * pixel_w / (MAX_SCREEN_COORD + 1);
+    char what[96];
+    if (board.active_output != 0 || world[0].screen != 2)
+        fail("never crossed into the Mac's screen 2");
+    else if (win_y > 0) {
+        snprintf(what, sizeof what, "crossed %ld px before the top edge", win_y);
+        fail(what);
+    } else if (late_counts > stroke) {
+        snprintf(what, sizeof what, "crossed %ld counts after the top edge", late_counts);
+        fail(what);
+    } else if (labs(mac_x - win_x) > 2) {
+        snprintf(what, sizeof what, "Mac cursor %ld px sideways of the Windows one",
+                 mac_x - win_x);
+        fail(what);
+    }
+}
+
+/* Each report counts: slow strokes, where Windows drops most of a pixel, to
+   fast ones. A stroke too small to move a pixel moves neither Windows nor
+   the estimate, so it is skipped. */
+static const int pixel_strokes[] = {1, 2, 3, 5, 7, 15, 40, 127};
+static const int pixel_sizes[][2] = {{1920, 1080}, {2560, 1440}, {3840, 2160}};
+
+static void for_each_pixel_case(void (*run)(int step, int w, int h, int stroke)) {
+    for (size_t z = 0; z < 3; z++)
+        for (int step = 1; step <= (int)DH_WINDOWS_POINTER_STEPS; step++)
+            for (size_t s = 0; s < sizeof pixel_strokes / sizeof pixel_strokes[0]; s++) {
+                const int stroke = pixel_strokes[s];
+                if (stroke * windows_mult32[step - 1] < 32)
+                    continue;
+                snprintf(context, sizeof context, "pixels %dx%d pointer speed %d stroke %d",
+                         pixel_sizes[z][0], pixel_sizes[z][1], step, stroke);
+                run(step, pixel_sizes[z][0], pixel_sizes[z][1], stroke);
+            }
+    pixel_w = 0;
+}
+
+/* #314: from the middle of Windows' second monitor (BL), sideways a while,
+   then up into the Mac. */
+static void bl_to_mac(int step, int w, int h, int stroke) {
+    build_pixel_desk(step, w, h);
+    start(1, 2, 2, MAX_SCREEN_COORD / 2, MAX_SCREEN_COORD * 3 / 4);
+    place_px(&world[1]);
+    /* A sixth of the monitor right, so the x estimate is tested too. */
+    for (long moved = 0; moved < (long)w / 6 * 32; moved += stroke * pixel_mult32 / 32 * 32)
+        pixel_report(stroke, 0);
+    push_up_into_mac(stroke);
+}
+
+/* #315: from the middle of Windows' main monitor (BR) left onto the second
+   (BL), where the board's walk puts the cursor, a third of the way in, then
+   up into the Mac. */
+static void br_to_bl_to_mac(int step, int w, int h, int stroke) {
+    build_pixel_desk(step, w, h);
+    start(1, 1, 2, MAX_SCREEN_COORD / 2, MAX_SCREEN_COORD * 3 / 4);
+    place_px(&world[1]);
+    computer_t *win = &world[1];
+    for (int i = 0; i < 100000 && !(win->screen == 2 && win->px32_x < (long)w * 32 * 2 / 3); i++)
+        pixel_report(-stroke, 0);
+    if (board.config.output[1].screen_index != 2) {
+        fail("the board did not follow the cursor onto Windows' second monitor");
+        return;
+    }
+    push_up_into_mac(stroke);
+}
+
+/* #315: down from the Mac's second monitor (TL) onto Windows' second (BL).
+   The walk must leave the cursor on BL's top edge, within 2 pixels of under
+   where it left the Mac, with the estimate on it; then a short move down. */
+static void mac_to_bl(int step, int w, int h, int stroke) {
+    build_pixel_desk(step, w, h);
+    const int mac_x = MAX_SCREEN_COORD / 3;
+    start(0, 2, 2, mac_x, MAX_SCREEN_COORD / 2);
+    for (int i = 0; i < 100000 && board.active_output == 0; i++)
+        pixel_report(0, stroke);
+    const computer_t *win = &world[1];
+    const long under = (long)mac_x * w / (MAX_SCREEN_COORD + 1), x = win->px32_x / 32;
+    char what[96];
+    if (board.active_output != 1 || win->screen != 2) {
+        fail("never crossed onto Windows' second monitor");
+        return;
+    }
+    if (labs(x - under) > 2 || win->px32_y / 32 > stroke * pixel_mult32 / 32) {
+        snprintf(what, sizeof what, "landed at pixel %ld,%ld, not on the top edge at x %ld", x,
+                 win->px32_y / 32, under);
+        fail(what);
+    }
+    for (int i = 0; i < 20; i++)
+        pixel_report(0, stroke);
+}
+
 int main(void) {
+    for_each_pixel_case(bl_to_mac);
+    for_each_pixel_case(br_to_bl_to_mac);
+    for_each_pixel_case(mac_to_bl);
     test_issue_310_layout();
     for_each_layout(push_every_way);
     static const int gains[] = {60, 80, 125, 160, ENHANCED_PRECISION};

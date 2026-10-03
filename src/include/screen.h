@@ -16,6 +16,7 @@
 #include "dh_keymap.h"
 #include "dh_mouse_layout.h"
 #include "dh_seam_map.h"
+#include "dh_windows_pointer.h"
 
 
 /*==============================================================================
@@ -63,7 +64,14 @@ typedef struct {
     uint8_t border_direction; // dh_direction_t toward the other computer
     uint8_t mouse_park_pos;    // Where the mouse goes after switch
     uint8_t swap_ctrl_gui;     // Emit physical Ctrl as GUI and GUI as Ctrl
+    /* Windows' pointer speed, 1–20, and the monitor size in pixels: the board
+       copies Windows' maths with them on monitors it cannot place (#312).
+       0 is not set. They fill alignment padding that every saved config
+       holds as zero, so they cost no CURRENT_CONFIG_VERSION bump. */
+    uint8_t pointer_speed;
     dh_seam_range_t seam_ranges[DH_SEAM_RANGE_CAPACITY]; // Corresponding seam segments
     dh_keymap_profile_t keymap; // Physical-key transform for this output
+    uint16_t monitor_width;
+    uint16_t monitor_height;
     screensaver_t screensaver; // Screensaver parameters for this output
 } output_t;

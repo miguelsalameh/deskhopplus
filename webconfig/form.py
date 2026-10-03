@@ -10,6 +10,12 @@ KEYMAP_FIELD_OFFSET = int(re.search(r"DH_KEYMAP_CONFIG_FIELD_OFFSET\s+(\d+)u", _
 _SEAM_HEADER = (Path(__file__).parent.parent / "src/core/dh_seam_map.h").read_text()
 SEAM_FIELD_BASES = tuple(int(re.search(rf"DH_SEAM_CONFIG_FIELD_{name}_BASE\s+(\d+)u",
                                        _SEAM_HEADER).group(1)) for name in ("A", "B"))
+_POINTER_HEADER = (Path(__file__).parent.parent / "src/core/dh_windows_pointer.h").read_text()
+POINTER_FIELD_BASES = tuple(int(re.search(rf"DH_WINDOWS_POINTER_FIELD_{name}_BASE\s+(\d+)u",
+                                          _POINTER_HEADER).group(1)) for name in ("A", "B"))
+# Windows' pointer speed multipliers in 1/32, steps 1–20 (#312).
+POINTER_MULT32 = [int(n) for n in re.search(r"DH_WINDOWS_POINTER_MULT32\s*\\\s*\{([^}]*)\}",
+                                             _POINTER_HEADER).group(1).split(",")]
 
 @dataclass
 class FormField:
@@ -208,6 +214,7 @@ def generate_output(base, data, output_index=None):
             "keymap_kind": field.keymap_kind,
             "keymap_output": output_index if field.keymap_kind else field.keymap_output,
             "scale": field.scale,
+            "pointer_key": POINTER_FIELD_BASES[output_index] if output_index is not None else None,
             })
     return output
 

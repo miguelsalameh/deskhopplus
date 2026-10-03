@@ -360,7 +360,7 @@ static void a_state_reaches_the_tray_in_words() {
    DH_VERSION_MAJOR spelled back out: this is the release the helper claims to
    be, and it moves with src/core/dh_version.h. */
 static void the_helper_names_its_release() {
-    CHECK(words::release_row() == "DeskHopPlus Helper 1.1",
+    CHECK(words::release_row() == "DeskHopPlus Helper 1.2",
           "the menu's first row names the helper and its release");
 }
 

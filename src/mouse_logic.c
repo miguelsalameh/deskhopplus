@@ -11,9 +11,13 @@
 #define WALK_NUDGE_COUNT 5
 
 /* Counts per walk nudge. macOS needs a firm push to change display; Windows
-   crosses on any count, and the whole walk shows as a jump on its screen. */
+   crosses on any count that moves its cursor a pixel (at a low pointer
+   speed, many), and the whole walk shows as a jump on its screen. */
 static int walk_nudge(const output_t *output) {
-    return output->os == WINDOWS ? 2 : 10;
+    if (output->os != WINDOWS)
+        return 10;
+    const int32_t one_pixel = dh_windows_counts_for_pixels(1, output->pointer_speed);
+    return one_pixel > 2 ? one_pixel : 2;
 }
 
 static bool position_is_at_pending_edge(const device_t *state, int16_t x, int16_t y) {
@@ -201,20 +205,63 @@ static int walk_speed(const output_t *output, int direction) {
     return speed > 0 ? speed : 1;
 }
 
-/* Where a walk's nudges leave the cursor on the new screen: their own
- * distance inside the edge it came in by, in the board's units for relative
- * motion. Windows keeps a relative cursor there, so the board's pointer must
- * match it, or the next small move back would cross straight back (#310).
- * ponytail: ignores Windows pointer acceleration; a helper re-anchors exactly. */
+/* The axis's monitor size in pixels when the board copies Windows' pointer
+   maths for this output (#312), else 0. */
+static int32_t windows_pixels(const output_t *output, bool vertical) {
+    if (output->os != WINDOWS || !dh_windows_pointer_speed_is_set(output->pointer_speed) ||
+        !output->monitor_width || !output->monitor_height)
+        return 0;
+    return vertical ? output->monitor_height : output->monitor_width;
+}
+
+/* Where `counts` along one axis move a relative Windows cursor from `at`, in
+   board units: Windows' own maths when saved (#312), else counts × the walk
+   speed. A result past an edge is on the next monitor along. */
+static int32_t windows_moved(const output_t *output, bool vertical, int32_t at, int32_t counts) {
+    return at + dh_windows_estimate_offset(
+                    at, counts, output->pointer_speed, (uint16_t)windows_pixels(output, vertical),
+                    walk_speed(output, vertical ? DH_DIRECTION_TOP : DH_DIRECTION_LEFT));
+}
+
+/* A position past an edge, on the next monitor along. */
+static int32_t on_next_monitor(int32_t at) {
+    const int32_t span = MAX_SCREEN_COORD + 1;
+    return (at % span + span) % span;
+}
+
+/* Sends `counts` along `direction` as relative reports Windows takes, and
+   returns where they move its cursor from `at` on that axis. */
+static int32_t send_relative(device_t *state, const output_t *output, int direction,
+                             int32_t at, int32_t counts) {
+    const bool vertical = dh_direction_is_vertical((dh_direction_t)direction);
+    while (counts > 0) {
+        const int32_t chunk = counts < MAX_SCREEN_COORD ? counts : MAX_SCREEN_COORD;
+        const dh_mouse_coordinates_t move = dh_mouse_nudge((dh_direction_t)direction, chunk);
+        mouse_report_t report = {.x = (int16_t)move.x, .y = (int16_t)move.y, .mode = RELATIVE};
+        output_mouse_report(&report, state);
+        at = windows_moved(output, vertical, at, vertical ? move.y : move.x);
+        counts -= chunk;
+    }
+    return at;
+}
+
+/* Where a walk's nudges leave the cursor on the new screen: Windows moves it
+ * from the edge the walk's absolute report put it on, past that edge. Windows
+ * keeps a relative cursor there, so the board's pointer must match it, or the
+ * next small move back would cross straight back (#310).
+ * ponytail: ignores Enhance pointer precision; a helper re-anchors exactly. */
 static dh_mouse_coordinates_t walk_landing(const output_t *output, int direction,
                                            dh_mouse_coordinates_t from) {
-    const dh_mouse_coordinates_t edge = dh_mouse_entry_coordinates(
+    const bool vertical = dh_direction_is_vertical((dh_direction_t)direction);
+    dh_mouse_coordinates_t at = dh_mouse_edge_coordinates(
         (dh_direction_t)direction, from, MIN_SCREEN_COORD, MAX_SCREEN_COORD);
-    /* The first unit of the nudges only crosses onto the new screen's edge. */
-    const dh_mouse_coordinates_t inside = dh_mouse_nudge(
-        (dh_direction_t)direction,
-        walk_nudge(output) * WALK_NUDGE_COUNT * walk_speed(output, direction) - 1);
-    return (dh_mouse_coordinates_t){.x = edge.x + inside.x, .y = edge.y + inside.y};
+    const dh_mouse_coordinates_t nudge = dh_mouse_nudge((dh_direction_t)direction,
+                                                        walk_nudge(output));
+    int32_t *axis = vertical ? &at.y : &at.x;
+    for (int i = 0; i < WALK_NUDGE_COUNT; i++)
+        *axis = windows_moved(output, vertical, *axis, vertical ? nudge.y : nudge.x);
+    *axis = on_next_monitor(*axis);
+    return at;
 }
 
 static void switch_virtual_desktop(device_t *state, output_t *output, int new_index, int direction) {
@@ -479,6 +526,18 @@ enum screen_pos_e update_mouse_position(device_t *state, mouse_values_t *values)
                                                                    values->move_y);
     int offset_x = round(values->move_x * acceleration * (current->speed_x >> reduce_speed));
     int offset_y = round(values->move_y * acceleration * (current->speed_y >> reduce_speed));
+    /* Windows moves a relative cursor by its own maths; copy it when the
+       pointer speed and monitor size are saved (#312). */
+    if (state->relative_mouse) {
+        offset_x = dh_windows_estimate_offset(state->pointer_x, values->move_x,
+                                              current->pointer_speed,
+                                              (uint16_t)windows_pixels(current, false),
+                                              current->speed_x);
+        offset_y = dh_windows_estimate_offset(state->pointer_y, values->move_y,
+                                              current->pointer_speed,
+                                              (uint16_t)windows_pixels(current, true),
+                                              current->speed_y);
+    }
     const screen_boundary_crossing_t horizontal =
         screen_boundary_crossing(current, state->pointer_x, offset_x, LEFT, RIGHT);
     const screen_boundary_crossing_t vertical =
@@ -607,44 +666,41 @@ static void walk_to_arrival_screen(device_t *state, const output_t *target,
         return;
     }
     const dh_mouse_coordinates_t entry = {.x = state->pointer_x, .y = state->pointer_y};
+    const bool chain_vertical = dh_direction_is_vertical((dh_direction_t)direction);
     const int speed = walk_speed(target, direction);
-    /* One screen, rounded up, within a report's range; `extra` is how far
-       that moves past exactly one screen. */
-    int counts = (MAX_SCREEN_COORD + speed) / speed;
-    if (counts > MAX_SCREEN_COORD)
+    const int32_t chain_pixels = windows_pixels(target, chain_vertical);
+    /* One screen, rounded up; without Windows' maths, within one report. */
+    int32_t counts = chain_pixels
+                         ? dh_windows_counts_for_pixels(chain_pixels, target->pointer_speed)
+                         : (MAX_SCREEN_COORD + speed) / speed;
+    if (!chain_pixels && counts > MAX_SCREEN_COORD)
         counts = MAX_SCREEN_COORD;
-    const dh_mouse_coordinates_t one_screen = dh_mouse_nudge((dh_direction_t)direction, counts);
-    const dh_mouse_coordinates_t extra = dh_mouse_nudge(
-        (dh_direction_t)direction, counts * speed - (MAX_SCREEN_COORD + 1));
-    mouse_report_t move = {.x = (int16_t)one_screen.x, .y = (int16_t)one_screen.y,
-                           .mode = RELATIVE};
-    const dh_mouse_coordinates_t landed = walk_landing(target, direction, middle);
-    state->pointer_x = (int16_t)(landed.x + extra.x * (steps - 1));
-    state->pointer_y = (int16_t)(landed.y + extra.y * (steps - 1));
+    dh_mouse_coordinates_t landed = walk_landing(target, direction, middle);
+    int32_t *chain_at = chain_vertical ? &landed.y : &landed.x;
     if (steps > 1 && screen == target->screen_count) {
         /* The last screen ends the chain: push past its far edge, twice
            over, and Windows stops the cursor there even at half speed. */
-        for (int step = 0; step < 2 * steps; step++)
-            output_mouse_report(&move, state);
+        (void)send_relative(state, target, direction, 0, 2 * steps * counts);
         const dh_mouse_coordinates_t far = dh_mouse_edge_coordinates(
             (dh_direction_t)direction, middle, MIN_SCREEN_COORD, MAX_SCREEN_COORD);
-        if (dh_direction_is_vertical((dh_direction_t)direction))
-            state->pointer_y = (int16_t)far.y;
-        else
-            state->pointer_x = (int16_t)far.x;
+        *chain_at = chain_vertical ? far.y : far.x;
     } else {
-        /* ponytail: a middle screen needs Windows to move the board's
-           estimate per count; a helper places it exactly. */
+        /* ponytail: Enhance pointer precision breaks a middle screen's
+           estimate; a helper places it exactly. */
         for (int step = 1; step < steps; step++)
-            output_mouse_report(&move, state);
+            *chain_at = send_relative(state, target, direction, *chain_at, counts);
+        *chain_at = on_next_monitor(*chain_at);
     }
+    state->pointer_x = (int16_t)landed.x;
+    state->pointer_y = (int16_t)landed.y;
 
     /* Along the seam: back under where the cursor left the other computer.
-       ponytail: exact only when Windows moves the board's estimate per count
-       (pointer speed, Enhance pointer precision); a helper places it exactly. */
+       ponytail: exact only with Windows' maths saved (or Speed X / Y matching
+       it) and Enhance pointer precision off; a helper places it exactly. */
     const bool seam_vertical = dh_direction_is_vertical((dh_direction_t)travel);
     const dh_direction_t along = seam_vertical ? DH_DIRECTION_RIGHT : DH_DIRECTION_BOTTOM;
     const int along_speed = walk_speed(target, along);
+    const int32_t along_pixels = windows_pixels(target, !seam_vertical);
     int16_t *at = seam_vertical ? &state->pointer_x : &state->pointer_y;
     int distance = (seam_vertical ? entry.x : entry.y) - *at;
     if (dh_direction_is_vertical((dh_direction_t)direction) != seam_vertical) {
@@ -661,12 +717,17 @@ static void walk_to_arrival_screen(device_t *state, const output_t *target,
         if (distance > 0 && screen_above && distance > (MAX_SCREEN_COORD - *at) / 3)
             distance = (MAX_SCREEN_COORD - *at) / 3;
     }
-    const int back = distance / along_speed;
-    const dh_mouse_coordinates_t back_move = dh_mouse_nudge(along, back);
-    move = (mouse_report_t){.x = (int16_t)back_move.x, .y = (int16_t)back_move.y,
-                            .mode = RELATIVE};
-    output_mouse_report(&move, state);
-    *at = (int16_t)(*at + back * along_speed);
+    int32_t back = distance / along_speed;
+    if (along_pixels) {
+        /* Whole pixels, rounded up: Windows moves no fraction of one. */
+        const int32_t pixels = (int32_t)((int64_t)(*at + distance) * along_pixels / (MAX_SCREEN_COORD + 1) -
+                                         (int64_t)*at * along_pixels / (MAX_SCREEN_COORD + 1));
+        back = dh_windows_counts_for_pixels(pixels < 0 ? -pixels : pixels, target->pointer_speed);
+        if (pixels < 0)
+            back = -back;
+    }
+    *at = (int16_t)send_relative(state, target, back < 0 ? dh_opposite_direction(along) : along,
+                                 *at, back < 0 ? -back : back);
 
     /* Across the seam: a walk along the seam left the cursor mid-screen.
        The entry edge faces the other computer, so no screen of this one is
@@ -674,14 +735,13 @@ static void walk_to_arrival_screen(device_t *state, const output_t *target,
        whatever its speed. */
     if (dh_direction_is_vertical((dh_direction_t)direction) == seam_vertical)
         return;
-    const int across_speed = walk_speed(target, travel);
-    int past = 2 * (MAX_SCREEN_COORD + 1) / across_speed;
-    if (past > MAX_SCREEN_COORD)
+    const int32_t across_pixels = windows_pixels(target, seam_vertical);
+    int32_t past = across_pixels
+                       ? dh_windows_counts_for_pixels(2 * across_pixels, target->pointer_speed)
+                       : 2 * (MAX_SCREEN_COORD + 1) / walk_speed(target, travel);
+    if (!across_pixels && past > MAX_SCREEN_COORD)
         past = MAX_SCREEN_COORD;
-    const dh_mouse_coordinates_t to_edge = dh_mouse_nudge(
-        dh_opposite_direction((dh_direction_t)travel), past);
-    move = (mouse_report_t){.x = (int16_t)to_edge.x, .y = (int16_t)to_edge.y, .mode = RELATIVE};
-    output_mouse_report(&move, state);
+    (void)send_relative(state, target, dh_opposite_direction((dh_direction_t)travel), 0, past);
     if (seam_vertical)
         state->pointer_y = (int16_t)entry.y;
     else

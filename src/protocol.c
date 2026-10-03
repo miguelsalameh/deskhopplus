@@ -205,6 +205,16 @@ const field_map_t api_field_map[] = {
     SEAM_RANGE_FIELDS(DH_SEAM_CONFIG_FIELD_B_BASE, 1, 3),
 #undef SEAM_RANGE_FIELDS
 
+    /* Windows' pointer speed and monitor size (#312): 0 is not set, and the
+       board keeps today's estimate. */
+#define WINDOWS_POINTER_FIELDS(base, output_idx) \
+    {base, false, UINT8, 1, offsetof(device_t, config.output[output_idx].pointer_speed)}, \
+    {base + 1, false, UINT16, 2, offsetof(device_t, config.output[output_idx].monitor_width)}, \
+    {base + 2, false, UINT16, 2, offsetof(device_t, config.output[output_idx].monitor_height)}
+    WINDOWS_POINTER_FIELDS(DH_WINDOWS_POINTER_FIELD_A_BASE, 0),
+    WINDOWS_POINTER_FIELDS(DH_WINDOWS_POINTER_FIELD_B_BASE, 1),
+#undef WINDOWS_POINTER_FIELDS
+
 #define DH_HOTKEY_ACTION(symbol, name) \
     {DH_HOTKEY_CONFIG_FIELD_BASE + 2 * DH_HOTKEY_ACTION_##symbol, false, UINT64, 6, \
      offsetof(device_t, config.hotkeys[DH_HOTKEY_ACTION_##symbol])}, \
@@ -225,6 +235,10 @@ const field_map_t api_field_map[] = {
    over the seam field ids and both blocks would read and write the same ids. */
 _Static_assert(DH_HOTKEY_CONFIG_FIELD_BASE + 2 * DH_HOTKEY_ACTION_COUNT <= DH_SEAM_CONFIG_FIELD_A_BASE,
                "hotkey config fields run into the seam config fields");
+
+/* The pointer speed fields (#312) follow output B's seam fields. */
+_Static_assert(DH_SEAM_CONFIG_FIELD_B_BASE + 3 * DH_SEAM_RANGE_CAPACITY <= DH_WINDOWS_POINTER_FIELD_A_BASE,
+               "seam config fields run into the pointer speed fields");
 
 /* Fields 86 and 87 cover the helper key id exactly. A wider key id would leave
    its tail unreadable, and the config page would show a truncated value as if
