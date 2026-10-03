@@ -4,8 +4,10 @@
 /* The board's copy of Windows' pointer maths (#312, ADR-0017). On a Windows
  * monitor past the main one, with no helper, Windows moves the cursor and the
  * board keeps an estimate of where it went. Windows moves each relative
- * report by counts × its pointer speed's multiplier, in whole pixels: the
- * fraction is dropped toward zero, never carried to the next report. */
+ * report by counts × its pointer speed's multiplier, in whole pixels, toward
+ * zero. Below ×1 (pointer speeds 1–9) it keeps the part-pixel and adds it to
+ * the next report, so a slow hand still creeps the cursor; from ×1 up it
+ * drops it. Both are what the hardware showed. */
 #pragma once
 
 #include <stdbool.h>
@@ -29,10 +31,11 @@ bool dh_windows_pointer_speed_is_set(uint8_t step);
  * `pixels` long, at Windows pointer speed `step` (1–20), in board units.
  * Monitors repeat past either edge, each 32768 units, so a position or a
  * result past an edge is on the next monitor along, as the real cursor is.
- * With no step (0, or out of range) or no pixels saved, it is today's
- * estimate: counts × `speed`. */
+ * `part_pixel` is the part-pixel Windows keeps for this axis, in 1/32 pixel.
+ * With no step (0, or out of range) or no pixels saved, it
+ * is today's estimate: counts × `speed`. */
 int32_t dh_windows_estimate_offset(int32_t position, int32_t counts, uint8_t step,
-                                   uint16_t pixels, int32_t speed);
+                                   uint16_t pixels, int32_t speed, int8_t *part_pixel);
 
 /* The fewest counts that move Windows' cursor at least `pixels` pixels at
  * pointer speed `step`, or 0 when `step` is not 1–20. */

@@ -72,6 +72,7 @@ typedef struct {
     bool gaming_mode;
     bool boot_mouse_mode[NUM_SCREENS];
     bool relative_mouse;
+    int8_t windows_part_pixel[NUM_SCREENS][2];
     cursor_crossing_t cursor_crossing;
     uint8_t output_arrival_guard;
     uint16_t output_arrival_reverse;

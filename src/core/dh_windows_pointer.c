@@ -19,14 +19,18 @@ static int64_t unit_of(int64_t p, uint16_t pixels) {
 }
 
 int32_t dh_windows_estimate_offset(int32_t position, int32_t counts, uint8_t step,
-                                   uint16_t pixels, int32_t speed) {
+                                   uint16_t pixels, int32_t speed, int8_t *part_pixel) {
     if (!dh_windows_pointer_speed_is_set(step) || pixels == 0)
         return counts * speed;
     /* The pixel `position` is in: floor, also past the near edge. */
     const int64_t n = (int64_t)position * pixels;
     const int64_t pixel = n >= 0 ? n / UNITS : -((-n + UNITS - 1) / UNITS);
+    const bool keeps = mult32[step - 1] < 32;
+    const int64_t moved32 = (int64_t)counts * mult32[step - 1] + (keeps ? *part_pixel : 0);
     /* C division truncates toward zero, as Windows does. */
-    const int64_t moved = (int64_t)counts * mult32[step - 1] / 32;
+    const int64_t moved = moved32 / 32;
+    if (keeps)
+        *part_pixel = (int8_t)(moved32 - moved * 32);
     if (moved == 0)
         return 0;
     return (int32_t)(unit_of(pixel + moved, pixels) - position);

@@ -220,15 +220,14 @@ const clampSpeed = v => Math.max(1, Math.min(128, Math.round(v)));
 const matchesWindows = (os, screens) => os == 3 && screens >= 2;
 
 // {x, y, warnings}; warnings: 'below' or 'above' (a step the 1–128 range
-// cannot match) and 'epp' (Enhance pointer precision not ticked off).
-function speedFor({os, screens, width, height, step, x, y, linked = true, epp = true}) {
+// cannot match).
+function speedFor({os, screens, width, height, step, x, y, linked = true}) {
   if (!matchesWindows(os, screens))
     return {x: clampSpeed(x), y: clampSpeed(linked ? x * width / height : y), warnings: []};
   const exact = [width, height].map(px => 32768 / px * windowsSteps[step - 1]);
   const warnings = [];
   if (exact.some(v => v < 1)) warnings.push('below');
   if (exact.some(v => v > 128)) warnings.push('above');
-  if (!epp) warnings.push('epp');
   return {x: clampSpeed(exact[0]), y: clampSpeed(exact[1]), warnings};
 }
 
@@ -252,7 +251,7 @@ function speedInputs(group) {
   const [width, height] = size.value === 'other' ? [ui('.size-w').value, ui('.size-h').value].map(Number) : size.value.split('x').map(Number);
   const saved = [0, 1, 2].map(n => document.querySelector(`.api[data-key="${Number(group.dataset.pointer) + n}"]`));
   return {os: Number(raw(6).value), screens: Number(raw(1).value), width, height, step: Number(ui('.feel').value),
-    x: Number(raw(2).value), y: Number(raw(3).value), linked: ui('.link').checked, epp: ui('.epp').checked,
+    x: Number(raw(2).value), y: Number(raw(3).value), linked: ui('.link').checked,
     rawX: raw(2), rawY: raw(3), saved, ui};
 }
 
@@ -309,7 +308,6 @@ function refreshSpeed() {
       const step = windowsSteps[savedStep - 1] ? savedStep : matched.x === s.x && matched.y === s.y ? s.step : stepFor(s);
       const fits = step && speedFor({...s, step}).x === s.x && speedFor({...s, step}).y === s.y;
       if (step) {feel.value = step; warnings = speedFor({...s, step}).warnings;}
-      else if (!s.epp) warnings = ['epp'];
       group.dataset.custom = fits ? '' : '1';
       feel.previousElementSibling.textContent = step || 'Custom';
       note = 'Set this to the number Windows shows for Mouse pointer speed (Settings → Bluetooth & devices → Mouse). ' +
@@ -327,13 +325,12 @@ function refreshSpeed() {
       ui('.feel-y').value = ui('.feel-y').previousElementSibling.textContent = s.y;
       note = ui('.link').checked ? 'Speed Y follows the screen shape, so both directions feel the same.' : '';
     }
-    row('.epp').hidden = !windows;
     row('.link').hidden = windows;
     row('.feel-y').hidden = windows || ui('.link').checked;
     ui('.speed-note .hint').textContent = note;
     ui('.result').textContent = result;
     ui('.warn').textContent = [...warnings.map(w => ({below: 'This pointer speed needs less than 1, so the page uses 1.',
       above: 'This pointer speed needs more than 128, so the page uses 128.'})[w]),
-      warnings.length && 'Crossings can be early or late.'].filter(Boolean).join(' ');
+      warnings.length && 'The main screen feels a little different from the others.'].filter(Boolean).join(' ');
   }
 }

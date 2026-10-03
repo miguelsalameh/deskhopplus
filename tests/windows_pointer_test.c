@@ -5,7 +5,9 @@
  * The board's copy of Windows' pointer maths (#312, #314): how far one
  * relative report moves the estimate on a Windows monitor the board cannot
  * place, in the board's 0–32767 units. Worked examples on a 1920-pixel axis,
- * where pixel p is board unit ceil(p × 32768 ÷ 1920).
+ * where pixel p is board unit ceil(p × 32768 ÷ 1920). Below ×1 (pointer
+ * speeds 1–9) Windows keeps each report's part-pixel for the next one; from
+ * ×1 up it drops it (the hardware, #312).
  */
 #include <stdio.h>
 
@@ -13,11 +15,25 @@
 
 static int failures;
 
+/* One report, with no part-pixel kept from before. */
 static void expect(int32_t position, int32_t counts, uint8_t step, uint16_t pixels,
                    int32_t speed, int32_t want, const char *what) {
-    const int32_t got = dh_windows_estimate_offset(position, counts, step, pixels, speed);
+    int8_t part_pixel = 0;
+    const int32_t got = dh_windows_estimate_offset(position, counts, step, pixels, speed, &part_pixel);
     if (got != want) {
         fprintf(stderr, "FAIL %s: got %d, want %d\n", what, (int)got, (int)want);
+        failures++;
+    }
+}
+
+/* `reports` reports of `counts` each, from `position`, carrying the part-pixel. */
+static void expect_reports(int32_t position, int32_t counts, int reports, uint8_t step,
+                           int32_t want, const char *what) {
+    int8_t part_pixel = 0;
+    for (int i = 0; i < reports; i++)
+        position += dh_windows_estimate_offset(position, counts, step, 1920, 17, &part_pixel);
+    if (position != want) {
+        fprintf(stderr, "FAIL %s: estimate at %d, want %d\n", what, (int)position, (int)want);
         failures++;
     }
 }
@@ -25,8 +41,8 @@ static void expect(int32_t position, int32_t counts, uint8_t step, uint16_t pixe
 int main(void) {
     /* Pointer speed 10 is ×1: 5 counts are 5 pixels, 0 → pixel 5 (unit 86). */
     expect(0, 5, 10, 1920, 17, 86, "speed 10 moves one pixel per count");
-    /* Pointer speed 6 is ×1/2: 3 counts are 1.5 pixels, and Windows drops the half. */
-    expect(0, 3, 6, 1920, 17, 18, "speed 6 drops the fraction");
+    /* Pointer speed 6 is ×1/2: 3 counts are 1.5 pixels; one pixel moves now. */
+    expect(0, 3, 6, 1920, 17, 18, "speed 6 moves the whole pixel");
     /* Toward zero, not down: -1.5 pixels is -1. Pixel 100 (unit 1707) → 99 (unit 1690). */
     expect(1707, -3, 6, 1920, 17, -17, "negative counts truncate toward zero");
     /* Speed 13 is ×1.75: -3 counts are -5.25, so -5 pixels. Pixel 100 → 95 (unit 1622). */
@@ -34,14 +50,14 @@ int main(void) {
     /* Speed 1 is ×1/32: 31 counts do not move a pixel, 32 do. */
     expect(0, 31, 1, 1920, 17, 0, "too few counts move nothing");
     expect(0, 32, 1, 1920, 17, 18, "32 counts at speed 1 move one pixel");
-    /* No remainder carries over: ten 1-count reports at ×1/2 move nothing. */
-    int32_t position = 0;
-    for (int i = 0; i < 10; i++)
-        position += dh_windows_estimate_offset(position, 1, 6, 1920, 17);
-    if (position != 0) {
-        fprintf(stderr, "FAIL no remainder is kept: estimate moved to %d\n", (int)position);
-        failures++;
-    }
+    /* Below ×1 the part-pixel carries: ten 1-count reports at ×1/2 move 5
+       pixels (unit 86), the way a slow hand still creeps the cursor. */
+    expect_reports(0, 1, 10, 6, 86, "speed 6 keeps the half for the next report");
+    /* Backward too: four -1-count reports at ×1/2 from pixel 100 reach 98 (unit 1673). */
+    expect_reports(1707, -1, 4, 6, 1673, "speed 6 keeps a negative half");
+    /* From ×1 up the part-pixel is dropped: four 1-count reports at ×1.25 move
+       4 pixels (unit 69), not 5. */
+    expect_reports(0, 1, 4, 11, 69, "speed 11 drops the quarter");
     /* A move too small for a pixel leaves an estimate between pixels alone. */
     expect(1700, 1, 6, 1920, 17, 0, "no pixel moved, no offset");
     /* A position between pixels is the pixel it is in: unit 1700 is pixel 99. */

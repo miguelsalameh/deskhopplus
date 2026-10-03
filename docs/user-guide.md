@@ -192,11 +192,10 @@ Without its helper, Windows' second screens also run on the board's estimate of 
 **Speed** slider to the number Windows shows for **Mouse pointer speed** (Settings → Bluetooth &
 devices → Mouse; drag its slider to see the number), check the **Monitor size**, turn off
 **Enhance pointer precision** (on that same Windows page: Additional mouse settings → Pointer
-Options), tick **“Enhance pointer precision” is off** on the page, and click **Save**. The board
-saves the pointer speed and monitor size and copies Windows' own pointer maths on those
-screens; the page also works out Speed X and Speed Y for the main screen. Until you move the
-slider and Save once, the board uses Speed X and Speed Y for its estimate, and the cursor crosses
-early or late at most pointer speeds. See
+Options), and click **Save**. The board saves the pointer speed and monitor size and copies
+Windows' own pointer maths on those screens; the page also works out Speed X and Speed Y for the
+main screen. Until you move the slider and Save once, the board uses Speed X and Speed Y for its
+estimate, and the cursor crosses early or late at most pointer speeds. See
 [Crossings early or late?](#crossings-early-or-late-check-these-3-settings)
 
 On a Mac, or on Windows with one screen, the **Speed** slider sets only how fast the cursor
@@ -581,10 +580,12 @@ early or too late is almost always a setting:
    **Save** after setting all three. **Read** shows what the board holds.
 
 The board copies Windows' maths: each mouse report moves the cursor by its counts × the pointer
-speed's multiplier, in whole pixels, and Windows drops the fraction. On the main screen the
-board places the cursor itself, with Speed = 32768 ÷ pixels × the multiplier, rounded, once for
-the width (Speed X) and once for the height (Speed Y). At pointer speed 10, 1920 × 1080 gives 17
-and 30, and 2560 × 1440 gives 13 and 23. The multipliers, with Enhance pointer precision off:
+speed's multiplier, in whole pixels. Below ×1 (pointer speeds 1–9) Windows keeps the part-pixel
+for the next report, so a slow hand still creeps the cursor; from ×1 up it drops it. On the main
+screen the board places the cursor itself, with Speed = 32768 ÷ pixels × the multiplier, rounded,
+once for the width (Speed X) and once for the height (Speed Y). At pointer speed 10, 1920 × 1080
+gives 17 and 30, and 2560 × 1440 gives 13 and 23. The multipliers, with Enhance pointer precision
+off:
 
 | Pointer speed | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 |---|---|---|---|---|---|---|---|---|---|---|

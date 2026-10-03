@@ -17,7 +17,7 @@ vm.createContext(context);
 vm.runInContext(html.match(/<script>\s*([\s\S]*?)\s*<\/script>/)[1], context);
 const {speedFor, stepFor} = context;
 
-const windows = (width, height, step, epp = true) => ({os: 3, screens: 2, width, height, step, epp});
+const windows = (width, height, step) => ({os: 3, screens: 2, width, height, step});
 const plain = result => ({x: result.x, y: result.y, warnings: [...result.warnings]});
 
 // Worked by hand: round(32768 / pixels × Windows' multiplier), clamped to 1–128.
@@ -30,8 +30,6 @@ assert.deepEqual(plain(speedFor(windows(1920, 1080, 1))), {x: 1, y: 1, warnings:
   'step 1 needs less than 1, so it cannot be matched');
 assert.deepEqual(plain(speedFor(windows(1280, 720, 20))), {x: 90, y: 128, warnings: ['above']},
   '720 rows at step 20 need 159, capped at 128');
-assert.deepEqual(plain(speedFor(windows(1920, 1080, 10, false))), {x: 17, y: 30, warnings: ['epp']},
-  'Enhance pointer precision not ticked off is a warning, not a different value');
 
 // Every screen absolute: X is the feel and Y follows the screen shape.
 assert.deepEqual(plain(speedFor({os: 2, screens: 2, width: 1920, height: 1080, x: 16})), {x: 16, y: 28, warnings: []});

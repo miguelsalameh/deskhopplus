@@ -25,7 +25,8 @@
  * are on, as on hardware.
  *
  * Pixel mode (#312) is the exception: there Windows moves in real pixels by
- * its pointer speed's multiplier and drops each report's fraction, and the
+ * its pointer speed's multiplier, keeping or dropping each report's
+ * part-pixel as the hardware does, and the
  * board, with that pointer speed and monitor size saved, must keep its
  * estimate in the pixel the cursor is in, at every pointer speed, monitor
  * size and hand speed.
@@ -52,8 +53,10 @@ typedef struct {
     /* The real cursor. */
     int screen;
     int x, y;
-    /* Pixel mode only: the real cursor in 1/32 px, sub-pixel kept. */
+    /* Pixel mode only: the real cursor in 1/32 px, and the part-pixel
+       Windows keeps below ×1 for each axis. */
     long px32_x, px32_y;
+    long keep32_x, keep32_y;
 } computer_t;
 
 typedef struct {
@@ -77,8 +80,9 @@ static uint8_t pending_output;
 static int windows_gain = 100;
 #define ENHANCED_PRECISION -1    /* windows_gain: depends on each report's speed */
 /* Pixel mode (#312): Windows moves its cursor in real pixels, counts × its
-   pointer speed's multiplier with the fraction dropped, on screens of
-   pixel_w × pixel_h. 0: off. */
+   pointer speed's multiplier, on screens of pixel_w × pixel_h. Below ×1 it
+   keeps each report's part-pixel for the next; from ×1 up it drops it, as
+   the hardware showed. 0: off. */
 static int pixel_w, pixel_h;
 static int pixel_mult32;         /* the multiplier, in 1/32 */
 static long last_rel_px32_x, last_rel_px32_y;  /* after the last relative report */
@@ -133,6 +137,17 @@ static void move_axis_px(computer_t *c, long *coord32, long delta32, int span, i
     }
 }
 
+/* Pixel mode: whole pixels (in 1/32) that `counts` move, toward zero. */
+static long whole_pixels32(int counts, long *keep32) {
+    long d32 = (long)counts * pixel_mult32;
+    if (pixel_mult32 < 32)
+        d32 += *keep32;
+    const long whole = d32 / 32 * 32;
+    if (pixel_mult32 < 32)
+        *keep32 = d32 - whole;
+    return whole;
+}
+
 /* Pixel mode: the board's units for the real cursor's pixel. */
 static void sync_units(computer_t *c) {
     c->x = (int)(c->px32_x / 32 * (MAX_SCREEN_COORD + 1) / pixel_w);
@@ -155,9 +170,8 @@ void output_mouse_report(mouse_report_t *report, device_t *state) {
             place_px(c);
             return;
         }
-        /* Whole pixels, toward zero: Windows drops each report's fraction. */
-        const long dx32 = (long)report->x * pixel_mult32 / 32 * 32;
-        const long dy32 = (long)report->y * pixel_mult32 / 32 * 32;
+        const long dx32 = whole_pixels32(report->x, &c->keep32_x);
+        const long dy32 = whole_pixels32(report->y, &c->keep32_y);
         move_axis_px(c, &c->px32_x, dx32, pixel_w, 1, 0);
         move_axis_px(c, &c->px32_y, dy32, pixel_h, 0, 1);
         sync_units(c);
@@ -630,8 +644,10 @@ static void pixel_report(int dx, int dy) {
 
 /* Up from the cursor on Windows into the Mac, in strokes of `stroke` counts.
    Fails unless the board crosses on the report that takes the cursor to the
-   top edge, or the one after (the cursor can stop exactly on it), and the
-   Mac's cursor lands within 2 pixels of under the Windows one. */
+   top edge, or after at most one more report or one more pixel's worth of
+   counts (the cursor can stop exactly on the edge, and below ×1 Windows needs
+   that many to move a pixel), and the Mac's cursor lands within 2 pixels of
+   under the Windows one. */
 static void push_up_into_mac(int stroke) {
     computer_t *win = &world[1];
     long late_counts = 0;
@@ -649,7 +665,7 @@ static void push_up_into_mac(int stroke) {
     else if (win_y > 0) {
         snprintf(what, sizeof what, "crossed %ld px before the top edge", win_y);
         fail(what);
-    } else if (late_counts > stroke) {
+    } else if (late_counts > stroke + (32 + pixel_mult32 - 1) / pixel_mult32) {
         snprintf(what, sizeof what, "crossed %ld counts after the top edge", late_counts);
         fail(what);
     } else if (labs(mac_x - win_x) > 2) {
@@ -659,9 +675,8 @@ static void push_up_into_mac(int stroke) {
     }
 }
 
-/* Each report counts: slow strokes, where Windows drops most of a pixel, to
-   fast ones. A stroke too small to move a pixel moves neither Windows nor
-   the estimate, so it is skipped. */
+/* Each report counts: slow strokes, which move less than a pixel per report
+   at a low pointer speed (the cursor creeps), to fast ones. */
 static const int pixel_strokes[] = {1, 2, 3, 5, 7, 15, 40, 127};
 static const int pixel_sizes[][2] = {{1920, 1080}, {2560, 1440}, {3840, 2160}};
 
@@ -670,8 +685,6 @@ static void for_each_pixel_case(void (*run)(int step, int w, int h, int stroke))
         for (int step = 1; step <= (int)DH_WINDOWS_POINTER_STEPS; step++)
             for (size_t s = 0; s < sizeof pixel_strokes / sizeof pixel_strokes[0]; s++) {
                 const int stroke = pixel_strokes[s];
-                if (stroke * windows_mult32[step - 1] < 32)
-                    continue;
                 snprintf(context, sizeof context, "pixels %dx%d pointer speed %d stroke %d",
                          pixel_sizes[z][0], pixel_sizes[z][1], step, stroke);
                 run(step, pixel_sizes[z][0], pixel_sizes[z][1], stroke);
@@ -686,7 +699,8 @@ static void bl_to_mac(int step, int w, int h, int stroke) {
     start(1, 2, 2, MAX_SCREEN_COORD / 2, MAX_SCREEN_COORD * 3 / 4);
     place_px(&world[1]);
     /* A sixth of the monitor right, so the x estimate is tested too. */
-    for (long moved = 0; moved < (long)w / 6 * 32; moved += stroke * pixel_mult32 / 32 * 32)
+    const long right_of = world[1].px32_x + (long)w / 6 * 32;
+    for (int i = 0; i < 100000 && world[1].px32_x < right_of; i++)
         pixel_report(stroke, 0);
     push_up_into_mac(stroke);
 }

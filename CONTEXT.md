@@ -264,8 +264,15 @@ _Avoid_: pointer speed (that is Windows' setting), sensitivity, DPI
 **Estimate**:
 Where the board believes the cursor is on a monitor it cannot place: a Windows monitor past the
 main one, with no helper running. Windows moves the cursor there; the board works out the same
-movement from the counts it sent, and crosses when the estimate reaches the seam.
+movement from the counts it sent (Windows' pointer maths, ADR-0017), and crosses when the
+estimate reaches the seam.
 _Avoid_: guess, position (the helper reports a real position), tracking
+
+**Part-pixel**:
+The fraction of a pixel a mouse report's counts × multiplier leave over. Below ×1 (pointer speeds
+1–9) Windows keeps it and adds it to the next report; from ×1 up it drops it. The board keeps the
+same one for its **Estimate**.
+_Avoid_: remainder, sub-pixel, fraction (in code and docs about this rule)
 
 ### The boards
 
