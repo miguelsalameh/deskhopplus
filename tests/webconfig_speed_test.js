@@ -15,9 +15,9 @@ const context = {console, Uint8Array, ArrayBuffer, DataView, navigator: {}, wind
     querySelectorAll() { return []; }}};
 vm.createContext(context);
 vm.runInContext(html.match(/<script>\s*([\s\S]*?)\s*<\/script>/)[1], context);
-const {speedFor, notchFor} = context;
+const {speedFor, stepFor} = context;
 
-const windows = (width, height, notch, epp = true) => ({os: 3, screens: 2, width, height, notch, epp});
+const windows = (width, height, step, epp = true) => ({os: 3, screens: 2, width, height, step, epp});
 const plain = result => ({x: result.x, y: result.y, warnings: [...result.warnings]});
 
 // Worked by hand: round(32768 / pixels × Windows' multiplier), clamped to 1–128.
@@ -35,7 +35,7 @@ assert.deepEqual(plain(speedFor(windows(1920, 1080, 10, false))), {x: 17, y: 30,
 
 // Every screen absolute: X is the feel and Y follows the screen shape.
 assert.deepEqual(plain(speedFor({os: 2, screens: 2, width: 1920, height: 1080, x: 16})), {x: 16, y: 28, warnings: []});
-assert.deepEqual(plain(speedFor({os: 3, screens: 1, width: 1920, height: 1080, x: 16, notch: 10})),
+assert.deepEqual(plain(speedFor({os: 3, screens: 1, width: 1920, height: 1080, x: 16, step: 10})),
   {x: 16, y: 28, warnings: []}, 'a one-screen Windows output is absolute too');
 assert.deepEqual(plain(speedFor({os: 2, screens: 1, width: 1920, height: 1080, x: 16, y: 9, linked: false})),
   {x: 16, y: 9, warnings: []}, 'unlinked keeps its own Y');
@@ -44,14 +44,14 @@ assert.deepEqual(plain(speedFor({os: 2, screens: 1, width: 1280, height: 720, x:
 
 // Read back: the step a saved Speed X / Y came from, or 0 for Custom.
 for (const [width, height] of [[1920, 1080], [2560, 1440], [3840, 2160]])
-  for (let notch = 1; notch <= 20; notch++) {
-    const saved = speedFor(windows(width, height, notch));
-    const found = notchFor({...windows(width, height), x: saved.x, y: saved.y});
-    assert.ok(found, `${width} × ${height} notch ${notch} is found`);
+  for (let step = 1; step <= 20; step++) {
+    const saved = speedFor(windows(width, height, step));
+    const found = stepFor({...windows(width, height), x: saved.x, y: saved.y});
+    assert.ok(found, `${width} × ${height} step ${step} is found`);
     const again = speedFor(windows(width, height, found));
-    assert.deepEqual([again.x, again.y], [saved.x, saved.y], `${width} × ${height} notch ${notch} round-trips`);
+    assert.deepEqual([again.x, again.y], [saved.x, saved.y], `${width} × ${height} step ${step} round-trips`);
   }
-assert.equal(notchFor({...windows(1920, 1080), x: 17, y: 30}), 10);
-assert.equal(notchFor({...windows(1920, 1080), x: 16, y: 28}), 0, 'the firmware default is Custom at 1080p');
+assert.equal(stepFor({...windows(1920, 1080), x: 17, y: 30}), 10);
+assert.equal(stepFor({...windows(1920, 1080), x: 16, y: 28}), 0, 'the firmware default is Custom at 1080p');
 
 console.log('webconfig_speed_test: Windows steps, absolute feel and read-back passed');

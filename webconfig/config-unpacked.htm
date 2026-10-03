@@ -5119,7 +5119,7 @@ document.getElementById('service-buttons').addEventListener('click', event => {
 // Windows 11 Settings' 1–20 (MouseSensitivity); the old Pointer Options
 // slider's 11 ticks are the even steps and 1. Elsewhere every
 // screen is absolute, so X is only the feel and Y follows the screen shape.
-const windowsNotches = [1/32, 1/16, 1/8, 2/8, 3/8, 4/8, 5/8, 6/8, 7/8, 1,
+const windowsSteps = [1/32, 1/16, 1/8, 2/8, 3/8, 4/8, 5/8, 6/8, 7/8, 1,
   1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5];
 const speedSizes = [[1920, 1080], [2560, 1440], [3840, 2160]];
 const clampSpeed = v => Math.max(1, Math.min(128, Math.round(v)));
@@ -5127,10 +5127,10 @@ const matchesWindows = (os, screens) => os == 3 && screens >= 2;
 
 // {x, y, warnings}; warnings: 'below' or 'above' (a step the 1–128 range
 // cannot match) and 'epp' (Enhance pointer precision not ticked off).
-function speedFor({os, screens, width, height, notch, x, y, linked = true, epp = true}) {
+function speedFor({os, screens, width, height, step, x, y, linked = true, epp = true}) {
   if (!matchesWindows(os, screens))
     return {x: clampSpeed(x), y: clampSpeed(linked ? x * width / height : y), warnings: []};
-  const exact = [width, height].map(px => 32768 / px * windowsNotches[notch - 1]);
+  const exact = [width, height].map(px => 32768 / px * windowsSteps[step - 1]);
   const warnings = [];
   if (exact.some(v => v < 1)) warnings.push('below');
   if (exact.some(v => v > 128)) warnings.push('above');
@@ -5140,10 +5140,10 @@ function speedFor({os, screens, width, height, notch, x, y, linked = true, epp =
 
 // The step a saved Speed X / Y came from, or 0 (Custom). Low steps can
 // share a value; the highest is taken.
-function notchFor(output) {
-  for (let notch = windowsNotches.length; notch; notch--) {
-    const s = speedFor({...output, notch});
-    if (s.x == output.x && s.y == output.y) return notch;
+function stepFor(output) {
+  for (let step = windowsSteps.length; step; step--) {
+    const s = speedFor({...output, step});
+    if (s.x == output.x && s.y == output.y) return step;
   }
   return 0;
 }
@@ -5156,7 +5156,7 @@ function speedInputs(group) {
   const base = Number(group.dataset.speed), raw = n => document.querySelector(`.api[data-key="${base + n}"]`);
   const ui = name => group.querySelector(name), size = ui('.size');
   const [width, height] = size.value === 'other' ? [ui('.size-w').value, ui('.size-h').value].map(Number) : size.value.split('x').map(Number);
-  return {os: Number(raw(6).value), screens: Number(raw(1).value), width, height, notch: Number(ui('.feel').value),
+  return {os: Number(raw(6).value), screens: Number(raw(1).value), width, height, step: Number(ui('.feel').value),
     x: Number(raw(2).value), y: Number(raw(3).value), linked: ui('.link').checked, epp: ui('.epp').checked,
     rawX: raw(2), rawY: raw(3), ui};
 }
@@ -5198,17 +5198,17 @@ function refreshSpeed() {
     const s = speedInputs(group), windows = matchesWindows(s.os, s.screens), feel = ui('.feel');
     let note, result = `Speed X ${s.x} · Speed Y ${s.y}.`, warnings = [];
     if (windows) {
-      feel.max = windowsNotches.length;
+      feel.max = windowsSteps.length;
       const matched = speedFor(s);
-      const notch = matched.x === s.x && matched.y === s.y ? s.notch : notchFor(s);
-      if (notch) {feel.value = notch; warnings = speedFor({...s, notch}).warnings;}
+      const step = matched.x === s.x && matched.y === s.y ? s.step : stepFor(s);
+      if (step) {feel.value = step; warnings = speedFor({...s, step}).warnings;}
       else if (!s.epp) warnings = ['epp'];
-      group.dataset.custom = notch ? '' : '1';
-      feel.previousElementSibling.textContent = notch || 'Custom';
+      group.dataset.custom = step ? '' : '1';
+      feel.previousElementSibling.textContent = step || 'Custom';
       note = 'Set this to the number Windows shows for Mouse pointer speed (Settings → Bluetooth & devices → Mouse). ' +
         'Turn off Enhance pointer precision in Additional mouse settings → Pointer Options. ' +
         'Windows uses one speed for both directions. Enable Acceleration changes only the main screen.';
-      result = notch ? `→ ${result}${warnings.length ? '' : ' Crossings land on the edge.'}`
+      result = step ? `→ ${result}${warnings.length ? '' : ' Crossings land on the edge.'}`
         : `Custom: ${result} Move the slider to match Windows.`;
     } else {
       feel.max = 128;
@@ -5225,8 +5225,8 @@ function refreshSpeed() {
     row('.feel-y').hidden = windows || ui('.link').checked;
     ui('.speed-note .hint').textContent = note;
     ui('.result').textContent = result;
-    ui('.warn').textContent = [...warnings.map(w => ({below: 'This step needs a speed below 1, so it uses 1.',
-      above: 'This step needs a speed above 128, so it uses 128.'})[w]),
+    ui('.warn').textContent = [...warnings.map(w => ({below: 'This pointer speed needs less than 1, so the page uses 1.',
+      above: 'This pointer speed needs more than 128, so the page uses 128.'})[w]),
       warnings.length && 'Crossings can be early or late.'].filter(Boolean).join(' ');
   }
 }

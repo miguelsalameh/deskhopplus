@@ -339,15 +339,15 @@ html = html.replace('</body>', `<script>
     if (raw(key).value !== value || raw(key).min !== '1' || raw(key).max !== '128' || !raw(key).closest('#advanced'))
       throw Error('Raw Speed field '+key+' is not in Advanced at 1–128 with default '+value+': '+raw(key).value);
   selectComputer('B');
-  const speedB = speed('B'), notch = speedB.querySelector('.feel');
+  const speedB = speed('B'), step = speedB.querySelector('.feel');
   gesture(speedB.querySelector('.size'), '1920x1080');
-  if (notch.max !== '20' || !shown(speedB, '.epp') || shown(speedB, '.link') || shown(speedB, '.feel-y') ||
+  if (step.max !== '20' || !shown(speedB, '.epp') || shown(speedB, '.link') || shown(speedB, '.feel-y') ||
       !/^Custom: Speed X 16 · Speed Y 28\./.test(speedB.querySelector('.result').textContent) ||
       !/one speed for both directions/.test(speedB.textContent))
     throw Error('Windows with two screens does not match Windows, locked: '+speedB.textContent);
   gesture(speedB.querySelector('.epp'), true);
   if (raw(42).value !== '16' || raw(43).value !== '28') throw Error('The tick box wrote over a Custom value');
-  gesture(notch, '10');
+  gesture(step, '10');
   if (raw(42).value !== '17' || raw(43).value !== '30' || speedB.querySelector('output').textContent !== '10' ||
       speedB.querySelector('.warn').textContent || sets !== 0 ||
       !/^→ Speed X 17 · Speed Y 30\. Crossings land on the edge\./.test(speedB.querySelector('.result').textContent))
@@ -360,16 +360,16 @@ html = html.replace('</body>', `<script>
   gesture(speedB.querySelector('.size'), '2560x1440');
   if (raw(42).value !== '13' || raw(43).value !== '23') throw Error('A new size did not keep the step: '+raw(42).value+'/'+raw(43).value);
   // At 1440p steps 1 and 2 both give 1 / 1: the step the user picked stays.
-  gesture(notch, '1');
-  if (speedB.querySelector('output').textContent !== '1' || !/below 1/.test(speedB.querySelector('.warn').textContent))
+  gesture(step, '1');
+  if (speedB.querySelector('output').textContent !== '1' || !/less than 1/.test(speedB.querySelector('.warn').textContent))
     throw Error('Step 1 at 1440p moved or did not warn: '+speedB.textContent);
-  gesture(notch, '10');
+  gesture(step, '10');
   gesture(raw(43), '24');
   if (speedB.querySelector('output').textContent !== 'Custom') throw Error('An Advanced edit off every step did not show Custom');
   gesture(raw(43), '34'); gesture(raw(42), '19');
   if (speedB.querySelector('output').textContent !== '12') throw Error('An Advanced edit on a step did not find it');
   gesture(field(41), '1');
-  if (notch.max !== '128' || shown(speedB, '.epp') || !shown(speedB, '.link')) throw Error('Windows with one screen did not get the plain slider');
+  if (step.max !== '128' || shown(speedB, '.epp') || !shown(speedB, '.link')) throw Error('Windows with one screen did not get the plain slider');
   gesture(speedB.querySelector('.link'), false);
   gesture(field(41), '2');
   if (shown(speedB, '.feel-y') || !shown(speedB, '.epp')) throw Error('Two Windows screens did not lock X and Y together');

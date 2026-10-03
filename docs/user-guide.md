@@ -192,8 +192,9 @@ Without its helper, Windows' second screens also run on the board's estimate of 
 **Speed** slider to the number Windows shows for **Mouse pointer speed** (Settings → Bluetooth &
 devices → Mouse; drag its slider to see the number), check the **Screen size**, turn off
 **Enhance pointer precision** (on that same Windows page: Additional mouse settings → Pointer
-Options), and tick **“Enhance pointer precision” is off** on the page. The page then works out Speed X and Speed Y. Otherwise the cursor
-crosses early or late, and lands along the seam a little off. See
+Options), and tick **“Enhance pointer precision” is off** on the page. The page then works out
+Speed X and Speed Y. Otherwise the cursor crosses early or late, and lands along the seam a
+little off. See
 [Crossings early or late?](#crossings-early-or-late-check-these-3-settings)
 
 On a Mac, or on Windows with one screen, the **Speed** slider sets only how fast the cursor
@@ -591,9 +592,9 @@ and 30, and 2560 × 1440 gives 13 and 23. The multipliers, with Enhance pointer 
 The older Pointer Options slider has 11 ticks. They are pointer speeds 1, 2, 4, 6 … 20, so its
 middle tick is 10.
 
-A speed must be 1 to 128. A pointer speed that needs less than 1, or more than 128, cannot be matched,
-and the page says so. **Enable Acceleration** changes only the main Windows screen, so with it
-on the main screen can feel different from the others. Screens of different sizes on one Windows
+A speed must be 1 to 128. A pointer speed that needs less than 1, or more than 128, cannot be
+matched, and the page says so. **Enable Acceleration** changes only the main Windows screen, so
+with it on the main screen can feel different from the others. Screens of different sizes on one Windows
 computer cannot all be matched.
 
 ### The cursor jumps to the middle of the screen, or the clipboard fills with screenshots
