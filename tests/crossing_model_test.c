@@ -15,8 +15,10 @@
  * After every report it checks the one rule each #310 symptom broke: the
  * screen the board thinks the cursor is on is the screen it is on. It also
  * checks the board's remembered Mac screen, which a helper-free walk starts
- * from. Two drivers: every layout × start × direction pushed straight, and
- * long seeded random runs on every layout.
+ * from. With Windows' helper on, the board's estimate may lag after a chain
+ * crossing that does not walk (#317); check() says how far. Two drivers:
+ * every layout × start × direction pushed straight, and long seeded random
+ * runs on every layout.
  *
  * The model is ideal on purpose: Windows moves a relative count by the
  * output's speed in board units, with no pointer speed or acceleration of its
@@ -86,6 +88,9 @@ static int pixel_w, pixel_h;
 static int pixel_mult32;         /* the multiplier, in 1/32 */
 static long last_rel_px32_x, last_rel_px32_y;  /* after the last relative report */
 static unsigned long checks, layouts_run;
+static int reports_sent;         /* mouse reports the board has sent */
+static bool unanchored;          /* the board's estimate may lag the cursor (#317); see check() */
+static bool answered;            /* settle() applied a helper answer */
 static int failures;
 static char context[160];
 
@@ -158,6 +163,7 @@ static void place_px(computer_t *c) {
 void output_mouse_report(mouse_report_t *report, device_t *state) {
     computer_t *c = &world[state->active_output];
     const output_t *o = &state->config.output[state->active_output];
+    reports_sent++;
     if (pixel_w && c->os == WINDOWS) {
         if (report->mode == ABSOLUTE) {
             c->screen = 1;
@@ -243,6 +249,7 @@ cursor_query_result_t channel_query_cursor(uint8_t output, uint8_t query_id) {
 
 /* The helper's answer, then the board's completion of the crossing. */
 static void settle(void) {
+    answered = pending_query != 0;
     for (int round = 0; round < 4 && pending_query; round++) {
         const uint8_t q = pending_query, out = pending_output;
         pending_query = 0;
@@ -266,6 +273,7 @@ static bool build(const layout_t *l) {
     memset(&board, 0, sizeof board);
     board.config.enable_acceleration = 1;
     pending_query = 0;
+    unanchored = false;
     const int border[2] = {
         l->arrangement == 0 ? BOTTOM : RIGHT,
         l->arrangement == 0 ? TOP : LEFT,
@@ -370,7 +378,15 @@ static void check(void) {
        there wherever a hotkey left it, before anything acts on it. */
     const bool next_report_places =
         switched && world[on].os == WINDOWS && board.config.output[on].screen_index == 1;
-    if (!next_report_places && (int)board.config.output[on].screen_index != world[on].screen) {
+    /* The one exception (#317): with Windows' helper on, a chain crossing off
+       the main screen does not walk. The real cursor stays where the
+       crossing report left it, up to a report short of the edge, and the
+       next report takes it across. The board's estimate on the relative
+       screens can be that far out, so it can see the next chain crossing
+       early or late, until the helper answers a query or the board leaves
+       those screens. The helper reads the cursor before any crossing out. */
+    if (!next_report_places && !unanchored &&
+        (int)board.config.output[on].screen_index != world[on].screen) {
         char what[96];
         snprintf(what, sizeof what, "board thinks %c screen %d, cursor is on screen %d",
                  'A' + on, board.config.output[on].screen_index, world[on].screen);
@@ -393,7 +409,7 @@ static void check(void) {
         fail("absolute screen: cursor is not at the board's pointer");
     /* On a relative screen the board's pointer is its estimate of the
        cursor; the model's Windows moves exactly that estimate. */
-    if (board.relative_mouse &&
+    if (board.relative_mouse && !unanchored &&
         (world[on].x != board.pointer_x || world[on].y != board.pointer_y))
         fail("relative screen: cursor is not at the board's pointer");
     /* Without a helper the walk must still leave the cursor under where it
@@ -451,17 +467,31 @@ static void report(int dx, int dy) {
     mouse_report_t r = create_mouse_report(&board, &values);
     output_mouse_report(&r, &board);
     const int before_output = board.active_output;
+    /* An unanchored estimate is not where the cursor left: the source query
+       reads where it really did. */
+    const computer_t *source = &world[before_output];
+    const int left_along = !unanchored ? source_along
+                           : direction == TOP || direction == BOTTOM ? source->x : source->y;
     const int before_screen = board.config.output[before_output].screen_index;
+    const bool was_unanchored = unanchored;
     if (direction != NONE)
         do_screen_switch(&board, direction);
     settle();
     attempted = direction != NONE;
     switched = board.active_output != before_output ||
                (int)board.config.output[before_output].screen_index != before_screen;
+    if (answered || !board.relative_mouse || board.active_output != before_output)
+        unanchored = false;
+    /* Set by a chain crossing off the main screen that the cursor has not
+       made; kept by a later one it has not made, from an estimate already out. */
+    if (switched && board.active_output == before_output && world[before_output].os == WINDOWS &&
+        world[before_output].helper && world[before_output].screen == before_screen &&
+        (before_screen == 1 || was_unanchored))
+        unanchored = true;
     board_crossed_vertically = direction == TOP || direction == BOTTOM;
     arrived_direction = direction;
     arrived_along = board.active_output != before_output && board.relative_mouse
-                        ? source_along : -1;
+                        ? left_along : -1;
     /* With a wrong gain the estimate drifts by design; a long push is judged
        by check_same_screen_after_push. */
     if (windows_gain == 100 && !pixel_w)
@@ -588,6 +618,47 @@ static void test_issue_310_layout(void) {
     push_every_way(&l);
     if (windows_gain == 100)
         run_wander(&l);
+}
+
+/* #317: #310's desk with Windows' helper on, from the middle of BR, left
+   until the board crosses onto BL. */
+static void cross_br_to_bl_with_helper(void) {
+    const layout_t l = {
+        .arrangement = 0, .os = {MACOS, WINDOWS}, .count = {2, 2},
+        .chain = {LEFT, LEFT}, .offset = 0, .mapped = true, .helper = {false, true},
+    };
+    build(&l);
+    start(1, 1, 2, MAX_SCREEN_COORD / 2, MAX_SCREEN_COORD / 2);
+    for (int i = 0; i < 1000 && board.config.output[1].screen_index == 1; i++) {
+        reports_sent = 0;
+        report(-37, 0);
+    }
+}
+
+/* #317: BR -> BL sends no walk, only the user's own report; the next one
+   takes the real cursor onto BL. */
+static void test_issue_317_no_walk_with_helper(void) {
+    snprintf(context, sizeof context, "#317: BR -> BL, helper on");
+    cross_br_to_bl_with_helper();
+    if (board.config.output[1].screen_index != 2)
+        fail("the board never crossed onto BL");
+    if (reports_sent != 1)
+        fail("BR -> BL with the helper on sent walk reports");
+    report(-37, 0);
+    if (world[1].screen != 2)
+        fail("the next report did not take the cursor onto BL");
+}
+
+/* #317: touch BR's left edge, then move only straight up: the helper says
+   the cursor is still on BR, so it lands on the Mac monitor above BR. */
+static void test_issue_317_edge_then_up(void) {
+    snprintf(context, sizeof context, "#317: BR edge then up, helper on");
+    cross_br_to_bl_with_helper();
+    for (int i = 0; i < 1000 && board.active_output == 1; i++)
+        report(0, -23);
+    if (board.active_output != 0 || world[0].screen != 1 ||
+        board.config.output[0].screen_index != 1)
+        fail("BR edge then up did not land on the Mac monitor above BR");
 }
 
 /* ---- Windows in real pixels (#312) ---------------------------------------- */
@@ -748,6 +819,8 @@ int main(void) {
     for_each_pixel_case(br_to_bl_to_mac);
     for_each_pixel_case(mac_to_bl);
     test_issue_310_layout();
+    test_issue_317_no_walk_with_helper();
+    test_issue_317_edge_then_up();
     for_each_layout(push_every_way);
     static const int gains[] = {60, 80, 125, 160, ENHANCED_PRECISION};
     for (size_t g = 0; g < sizeof gains / sizeof gains[0]; g++) {

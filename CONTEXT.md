@@ -237,6 +237,17 @@ Segment n on A meets segment n on B, and the cursor leaves at some fraction alon
 arrives at the same fraction along the other. A monitor with no segment does not cross.
 _Avoid_: range (one side of a segment), pair, link, mapping
 
+**Chain crossing**:
+The cursor moving from one monitor to the next monitor of the same computer. Crossing the
+**Seam** moves it to the other computer instead.
+_Avoid_: screen switch, desktop switch, hop
+
+**Walk**:
+How the board moves the cursor onto another monitor of a computer with no helper to place it:
+it puts the cursor on the edge of the monitor it is on, then sends small pushes so the computer
+itself moves the cursor across. The pushes show as a small jump.
+_Avoid_: nudge (one push of a walk), edge-and-nudge, placement (what a helper does)
+
 **Layout**:
 The picture of both computers' monitors on the config page. Every fact the board needs — chain
 axis, border direction, monitor count and segments — is derived from where the boxes sit; the
@@ -263,9 +274,10 @@ _Avoid_: pointer speed (that is Windows' setting), sensitivity, DPI
 
 **Estimate**:
 Where the board believes the cursor is on a monitor it cannot place: a Windows monitor past the
-main one, with no helper running. Windows moves the cursor there; the board works out the same
-movement from the counts it sent (Windows' pointer maths, ADR-0017), and crosses when the
-estimate reaches the seam.
+main one. Windows moves the cursor there; the board works out the same movement from the counts
+it sent (Windows' pointer maths, ADR-0017), and crosses when the estimate reaches the seam. With a
+helper running, the helper reads the real position before each crossing out, so an estimate that
+is out after a crossing with no **Walk** does no harm (#317).
 _Avoid_: guess, position (the helper reports a real position), tracking
 
 **Part-pixel**:

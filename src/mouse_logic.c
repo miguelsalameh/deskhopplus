@@ -252,7 +252,7 @@ static int32_t send_relative(device_t *state, const output_t *output, int direct
  * from the edge the walk's absolute report put it on, past that edge. Windows
  * keeps a relative cursor there, so the board's pointer must match it, or the
  * next small move back would cross straight back (#310).
- * ponytail: ignores Enhance pointer precision; a helper re-anchors exactly. */
+ * ponytail: ignores Enhance pointer precision; only helper-free crossings walk. */
 static dh_mouse_coordinates_t walk_landing(device_t *state, const output_t *output, int direction,
                                            dh_mouse_coordinates_t from) {
     const bool vertical = dh_direction_is_vertical((dh_direction_t)direction);
@@ -278,8 +278,12 @@ static void switch_virtual_desktop(device_t *state, output_t *output, int new_in
             /* Off the absolute main screen, the report that hit the edge was
                absolute and stopped there; Windows would leave the cursor on
                the main screen until the next move. Walk it across now (#310).
+               With a helper, skip the walk and its jump (#317): the next
+               move takes the cursor across, and a seam crossing first asks
+               the helper where it really is.
                Between relative screens, that report itself moved it across. */
-            if (!state->relative_mouse) {
+            if (!state->relative_mouse &&
+                !channel_output_helper_present((uint8_t)output->number)) {
                 walk_one_screen(state, pointer, direction);
                 const dh_mouse_coordinates_t landed = walk_landing(state, output, direction, pointer);
                 state->pointer_x = (int16_t)landed.x;
