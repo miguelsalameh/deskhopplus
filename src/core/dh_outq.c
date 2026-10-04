@@ -190,7 +190,7 @@ dh_outq_result dh_outq_offer_pair(dh_outq *q, const uint8_t *first, size_t first
         refuse(q, &q->refused_priority);
         return DH_OUTQ_ERR_OVERSIZE;
     }
-    if (q->priority.len > 0 || q->priority_stage_used > 0 || band_in_flight(&q->bulk)) {
+    if (dh_outq_pair_busy(q)) {
         refuse(q, &q->refused_priority);
         return DH_OUTQ_ERR_BUSY;
     }
@@ -264,4 +264,8 @@ bool dh_outq_busy(const dh_outq *q) {
 
 bool dh_outq_priority_full(const dh_outq *q) {
     return q->priority.len > 0 && q->priority_stage_used >= DH_OUTQ_PRIORITY_DEPTH;
+}
+
+bool dh_outq_pair_busy(const dh_outq *q) {
+    return q->priority.len > 0 || q->priority_stage_used > 0 || band_in_flight(&q->bulk);
 }

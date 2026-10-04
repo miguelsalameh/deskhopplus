@@ -665,6 +665,78 @@ static void test_arrival_waits_for_a_busy_priority_lane(void) {
     CHECK(arrivals_after_step(202) == 1);
 }
 
+/* A crossing raises PLACE on core 1 and ARRIVAL on core 0 at once. Only
+   channel_task builds frames, so each gets its own counter: the helper drops a
+   repeated counter as a replay, and a dropped PLACE left the cursor parked
+   (#320). The helper's own replay check reads them here. */
+static void test_a_placement_and_an_arrival_never_share_a_counter(void) {
+    init();
+    CHECK(arrivals_after_step(200) == 0);
+    const uint8_t place[DH_PLACE_BODY_SIZE] = {1, 2, 3, 4, 5};
+    CHECK(channel_lifecycle_owe_place(&c, place, 77, 201));
+    channel_lifecycle_arrive(&c, 0, 0);
+    CHECK(drain(sizeof wire) == 0);
+
+    channel_lifecycle_step(&c, 201, NULL);
+    dh_auth_counter seen;
+    dh_auth_counter_init(&seen);
+    uint8_t types[4];
+    size_t n = 0, len;
+    while ((len = drain(sizeof wire)) > 0) {
+        dh_frame_view frame;
+        size_t consumed = 0;
+        CHECK(dh_frame_decode(wire, len, &frame, &consumed) == DH_FRAME_OK);
+        const uint8_t *body = NULL;
+        size_t body_len = 0;
+        CHECK(dh_auth_open(c.session.k_b2h, &frame.hdr, frame.payload, &seen, &body,
+                           &body_len) == DH_AUTH_OK);
+        if (frame.hdr.type == DH_MSG_PLACE)
+            CHECK(body_len == sizeof place && memcmp(body, place, sizeof place) == 0);
+        if (frame.hdr.type == DH_MSG_POS_QUERY)
+            CHECK(body_len == 1 && body[0] == 77);
+        CHECK(n < sizeof types);
+        types[n++] = frame.hdr.type;
+    }
+    CHECK(n == 2 && types[0] == DH_MSG_PLACE && types[1] == DH_MSG_POS_QUERY);
+    CHECK(arrivals_after_step(202) == 1);
+}
+
+/* An owed placement waits while the priority lane is busy, and a newer one
+   replaces it: one PLACE goes, with the newest body and query id (#320). */
+static void test_an_owed_placement_waits_and_the_newest_wins(void) {
+    init();
+    CHECK(arrivals_after_step(200) == 0);
+    const uint8_t query[] = {0};
+    CHECK(channel_lifecycle_emit_placement(&c, DH_MSG_POS_QUERY, query, sizeof query, 201));
+    const uint8_t old_place[DH_PLACE_BODY_SIZE] = {1};
+    const uint8_t new_place[DH_PLACE_BODY_SIZE] = {2};
+    CHECK(channel_lifecycle_owe_place(&c, old_place, 5, 201));
+    CHECK(sent_after_step(DH_MSG_PLACE, 202) == 0);
+
+    CHECK(channel_lifecycle_owe_place(&c, new_place, 6, 202));
+    channel_lifecycle_step(&c, 203, NULL);
+    unsigned places = 0;
+    size_t len;
+    while ((len = drain(sizeof wire)) > 0) {
+        const uint8_t *body = wire + DH_FRAME_HEADER_SIZE + DH_FRAME_AUTH_PREFIX_SIZE;
+        if (wire[0] == DH_MSG_PLACE) {
+            ++places;
+            CHECK(body[0] == 2);
+        }
+        if (wire[0] == DH_MSG_POS_QUERY)
+            CHECK(body[0] == 6);
+    }
+    CHECK(places == 1);
+    CHECK(sent_after_step(DH_MSG_PLACE, 204) == 0);
+
+    /* Past the crossing timeout the board has walked: a late PLACE would
+       move the cursor a second time. */
+    CHECK(channel_lifecycle_emit_placement(&c, DH_MSG_POS_QUERY, query, sizeof query, 300));
+    CHECK(channel_lifecycle_owe_place(&c, new_place, 7, 300));
+    CHECK(sent_after_step(DH_MSG_PLACE, 301) == 0);
+    CHECK(sent_after_step(DH_MSG_PLACE, 300 + CHANNEL_PLACE_STALE_MS + 1) == 0);
+}
+
 /* PEER_HELPER bodies the step sent this pass, in order, as a string of '0'
    and '1'; everything else drained is ignored. */
 static const char *peer_helper_after_step(uint32_t now) {
@@ -794,6 +866,8 @@ int main(void) {
     test_inbound_pressure_retains_frames_behind_the_counted_loss();
     test_arrival_goes_only_to_the_new_active_outputs_helper();
     test_arrival_waits_for_a_busy_priority_lane();
+    test_a_placement_and_an_arrival_never_share_a_counter();
+    test_an_owed_placement_waits_and_the_newest_wins();
     test_peer_helper_status_follows_the_peer_heartbeat();
     test_each_session_is_told_the_peer_status();
     test_the_helpers_host_sleep_reaches_sleep_sync();

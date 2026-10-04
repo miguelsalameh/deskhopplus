@@ -64,9 +64,6 @@ void channel_lifecycle_unlock(void) {
     critical_section_exit(&channel.out_lock);
 }
 
-static bool channel_emit_placement_body(uint8_t type, const uint8_t *body, size_t body_len);
-static bool channel_emit_placement_query(const uint8_t *place_body, uint8_t query_id);
-
 static uint32_t channel_now_ms(void) {
     /*
      * Milliseconds off the 64-bit timer, so this counter uses the full uint32
@@ -293,11 +290,8 @@ void channel_place_cursor(uint8_t output, uint8_t screen, uint8_t chain, uint8_t
         .entry_position = position,
     };
     uint8_t body[DH_PLACE_BODY_SIZE];
-    if (!dh_place_encode(&place, body, sizeof body))
-        return;
-    const uint8_t query[] = {0};
-    if (channel_emit_placement_body(DH_MSG_PLACE, body, sizeof body))
-        (void)channel_emit_placement_body(DH_MSG_POS_QUERY, query, sizeof query);
+    if (dh_place_encode(&place, body, sizeof body))
+        (void)channel_lifecycle_owe_place(&channel.lifecycle, body, 0, channel_now_ms());
 }
 
 bool channel_place_cursor_correlated(uint8_t output, uint8_t screen, uint8_t chain,
@@ -324,46 +318,7 @@ bool channel_place_cursor_correlated(uint8_t output, uint8_t screen, uint8_t cha
     };
     uint8_t body[DH_PLACE_BODY_SIZE];
     return dh_place_encode(&place, body, sizeof body) &&
-           channel_emit_placement_query(body, query_id);
-}
-
-static bool channel_emit_placement_body(uint8_t type, const uint8_t *body, size_t body_len) {
-    return channel_lifecycle_emit_placement(&channel.lifecycle, type, body, body_len,
-                                             channel_now_ms());
-}
-
-/* PLACE and its correlated POS_QUERY are one transaction on the channel. Do
-   not queue PLACE unless the priority band can accept both frames: falling
-   back after sending only the placement would recreate the cross-endpoint race
-   this transaction exists to remove. */
-static bool channel_emit_placement_query(const uint8_t *place_body, uint8_t query_id) {
-    uint8_t place_frame[DH_FRAME_HEADER_SIZE + DH_FRAME_AUTH_PREFIX_SIZE + DH_PLACE_BODY_SIZE];
-    uint8_t query_frame[DH_FRAME_HEADER_SIZE + DH_FRAME_AUTH_PREFIX_SIZE + DH_POS_QUERY_BODY_SIZE];
-    size_t place_len = 0;
-    size_t query_len = 0;
-    const uint8_t query_body[] = {query_id};
-    const dh_frame_view place = {
-        .hdr = {.type = DH_MSG_PLACE, .flags = 0, .len = DH_PLACE_BODY_SIZE},
-        .payload = place_body,
-    };
-    const dh_frame_view query = {
-        .hdr = {.type = DH_MSG_POS_QUERY, .flags = 0, .len = DH_POS_QUERY_BODY_SIZE},
-        .payload = query_body,
-    };
-
-    critical_section_enter_blocking(&channel.out_lock);
-    bool queued = false;
-    if (dh_session_emit_relayed(&channel.lifecycle.session, &place, place_frame, sizeof place_frame,
-                                &place_len) == DH_FRAME_OK &&
-        dh_session_emit_relayed(&channel.lifecycle.session, &query, query_frame, sizeof query_frame,
-                                &query_len) == DH_FRAME_OK &&
-        dh_outq_offer_pair(&channel.lifecycle.out, place_frame, place_len,
-                           query_frame, query_len) == DH_OUTQ_OK) {
-        dh_session_note_sent(&channel.lifecycle.session, channel_now_ms());
-        queued = true;
-    }
-    critical_section_exit(&channel.out_lock);
-    return dh_txq_track(&channel.lifecycle.tx, queued);
+           channel_lifecycle_owe_place(&channel.lifecycle, body, query_id, channel_now_ms());
 }
 
 /*

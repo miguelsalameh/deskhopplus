@@ -240,6 +240,10 @@ bool dh_outq_busy(const dh_outq *q);
    sender that waits and retries, so waiting is not counted as a refusal. */
 bool dh_outq_priority_full(const dh_outq *q);
 
+/* True when dh_outq_offer_pair would be refused as busy: it needs the
+   priority band empty and no bulk frame part-sent. */
+bool dh_outq_pair_busy(const dh_outq *q);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

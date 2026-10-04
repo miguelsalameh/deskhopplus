@@ -54,6 +54,7 @@ void channel_lifecycle_on_frame(channel_lifecycle *c, const dh_frame_view *frame
     if (rc == DH_FRAME_OK && reply_len > 0 && reply[0] == DH_MSG_HELLO_ACK) {
         channel_lifecycle_lock();
         reset_output(c);
+        c->place_sent = c->place_owed;
         channel_lifecycle_unlock();
         reset_readers(c);
         c->report_used = 0;
@@ -84,6 +85,7 @@ void channel_lifecycle_link_lost(channel_lifecycle *c) {
     channel_lifecycle_lock();
     c->cursor_query_origin = CURSOR_QUERY_NONE;
     c->cursor_query_id = 0;
+    c->place_sent = c->place_owed;
     reset_output(c);
     channel_lifecycle_unlock();
 }
@@ -293,6 +295,70 @@ bool channel_lifecycle_emit_placement(channel_lifecycle *c, uint8_t type, const 
            channel_lifecycle_queue(c, frame_bytes, frame_len, now);
 }
 
+bool channel_lifecycle_owe_place(channel_lifecycle *c, const uint8_t *body, uint8_t query_id,
+                                 uint32_t now) {
+    channel_lifecycle_lock();
+    const bool owed = c->session.present;
+    if (owed) {
+        memcpy(c->place_body, body, sizeof c->place_body);
+        c->place_query_id = query_id;
+        c->place_owed_at = now;
+        c->place_owed++;
+    }
+    channel_lifecycle_unlock();
+    return owed;
+}
+
+/* The owed PLACE and POS_QUERY, as one pair: the helper reads the cursor only
+   after placing it. Waits while the priority lane cannot take both, but not
+   past the board's crossing timeout, which has walked the cursor by then. */
+static void pump_place(channel_lifecycle *c, uint32_t now) {
+    channel_lifecycle_lock();
+    const uint32_t owed = c->place_owed;
+    /* Signed: the stamp is from this clock, never ahead of it (#107). */
+    if (owed != c->place_sent && (int32_t)(now - c->place_owed_at) > CHANNEL_PLACE_STALE_MS)
+        c->place_sent = owed;
+    const bool due = owed != c->place_sent && !dh_outq_pair_busy(&c->out);
+    uint8_t body[DH_PLACE_BODY_SIZE];
+    memcpy(body, c->place_body, sizeof body);
+    const uint8_t query_body[] = {c->place_query_id};
+    channel_lifecycle_unlock();
+    if (!due)
+        return;
+    if (!c->session.present) {
+        channel_lifecycle_lock();
+        c->place_sent = owed;
+        channel_lifecycle_unlock();
+        return;
+    }
+
+    uint8_t place_frame[DH_FRAME_HEADER_SIZE + DH_FRAME_AUTH_PREFIX_SIZE + DH_PLACE_BODY_SIZE];
+    uint8_t query_frame[DH_FRAME_HEADER_SIZE + DH_FRAME_AUTH_PREFIX_SIZE + DH_POS_QUERY_BODY_SIZE];
+    size_t place_len = 0, query_len = 0;
+    const dh_frame_view place = {
+        .hdr = {.type = DH_MSG_PLACE, .flags = 0, .len = DH_PLACE_BODY_SIZE},
+        .payload = body,
+    };
+    const dh_frame_view query = {
+        .hdr = {.type = DH_MSG_POS_QUERY, .flags = 0, .len = DH_POS_QUERY_BODY_SIZE},
+        .payload = query_body,
+    };
+    if (dh_session_emit_relayed(&c->session, &place, place_frame, sizeof place_frame,
+                                &place_len) != DH_FRAME_OK ||
+        dh_session_emit_relayed(&c->session, &query, query_frame, sizeof query_frame,
+                                &query_len) != DH_FRAME_OK)
+        return;
+    channel_lifecycle_lock();
+    const bool queued = dh_outq_offer_pair(&c->out, place_frame, place_len, query_frame,
+                                           query_len) == DH_OUTQ_OK;
+    if (queued) {
+        dh_session_note_sent(&c->session, now);
+        c->place_sent = owed;
+    }
+    channel_lifecycle_unlock();
+    (void)dh_txq_track(&c->tx, queued);
+}
+
 void channel_lifecycle_arrive(channel_lifecycle *c, uint8_t role, uint8_t new_output) {
     channel_lifecycle_lock();
     c->arrival_owed = new_output == role && c->session.present;
@@ -439,6 +505,7 @@ static void pump_query(channel_lifecycle *c, uint32_t now, void *context) {
 
 void channel_lifecycle_step(channel_lifecycle *c, uint32_t now, void *context) {
     drain_reports(c, now, context);
+    pump_place(c, now);
     pump_query(c, now, context);
     pump_owed(c, &c->arrival_owed, DH_MSG_ARRIVAL, now);
     pump_peer_board_session(c, now);

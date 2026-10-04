@@ -8,6 +8,7 @@
 #include "dh_relay.h"
 #include "usb_descriptors.h"
 #include "dh_outq.h"
+#include "dh_place.h"
 #include "dh_session.h"
 #include "dh_txq.h"
 
@@ -123,6 +124,18 @@ typedef struct {
        with PLACE and POS_QUERY, and a refused arrival would be lost. */
     bool arrival_owed;
 
+    /* A PLACE and its POS_QUERY owed to this board's helper (#320). Set on
+       either core under the outbound lock, sent by channel_task on core 0: only
+       core 0 builds frames, because each spends the session's next counter
+       and two cores spending it at once gave two frames one counter, and the
+       helper drops the second as a replay. `place_owed` counts requests, so
+       a newer one made while channel_task builds is not cleared with it. */
+    uint32_t place_owed;
+    uint32_t place_sent;
+    uint32_t place_owed_at;
+    uint8_t place_body[DH_PLACE_BODY_SIZE];
+    uint8_t place_query_id;
+
     /*
      * Whether the peer board's helper has a session, for this board's helper to
      * show (#275). The peer says so in every inter-board heartbeat.
@@ -171,6 +184,17 @@ bool channel_lifecycle_send_relay(const dh_relay_packet *packet);
 
 bool channel_lifecycle_emit_placement(channel_lifecycle *c, uint8_t type,
                                       const uint8_t *body, size_t len, uint32_t now);
+/* How long an owed placement may wait for the priority lane: the board's
+   crossing timeout (30 ms), after which it has walked the cursor instead. */
+#define CHANNEL_PLACE_STALE_MS 30
+
+/* Owe this board's helper a PLACE of `body` and a POS_QUERY of `query_id`, at
+   `now` on channel_task's clock; channel_lifecycle_step sends both, retrying
+   while the priority lane is busy, for up to CHANNEL_PLACE_STALE_MS. A newer
+   placement replaces one not yet sent, query id too: the older crossing then
+   times out and walks. False with no session. Either core (#320). */
+bool channel_lifecycle_owe_place(channel_lifecycle *c, const uint8_t *body, uint8_t query_id,
+                                 uint32_t now);
 /* The active output is now `new_output`. When that is this board's `role` and a
    helper is live, an ARRIVAL is owed to it and channel_lifecycle_step sends it,
    retrying while the priority lane is full. A switch away cancels it (#250). */
