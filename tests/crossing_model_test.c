@@ -31,7 +31,9 @@
  * next as the hardware does, and the
  * board, with that pointer speed and monitor size saved, must keep its
  * estimate in the pixel the cursor is in, at every pointer speed, monitor
- * size and hand speed.
+ * size and hand speed, with the helpers off and on (on, not while the
+ * estimate is unanchored, #317). There the Windows helper answers in whole
+ * pixels, rounded as the real one rounds (#322).
  */
 
 #include <stdio.h>
@@ -86,6 +88,7 @@ static int windows_gain = 100;
    report's part-pixel for the next, as the hardware showed. 0: off. */
 static int pixel_w, pixel_h;
 static int pixel_mult32;         /* the multiplier, in 1/32 */
+static bool pixel_helpers;       /* pixel mode with both helpers on (#322) */
 static long last_rel_px32_x, last_rel_px32_y;  /* after the last relative report */
 static unsigned long checks, layouts_run;
 static int reports_sent;         /* mouse reports the board has sent */
@@ -216,6 +219,8 @@ static void helper_place(uint8_t output, uint8_t screen, uint8_t border, uint16_
         case TOP: c->y = MIN_SCREEN_COORD; c->x = along; break;
         case BOTTOM: c->y = MAX_SCREEN_COORD; c->x = along; break;
     }
+    if (pixel_w && c->os == WINDOWS)
+        place_px(c);
 }
 
 bool channel_output_helper_present(uint8_t output) {
@@ -247,6 +252,15 @@ cursor_query_result_t channel_query_cursor(uint8_t output, uint8_t query_id) {
     return CURSOR_QUERY_SENT;
 }
 
+/* Pixel mode (#322): the board's units for a whole pixel, as the Windows
+   helper sends it, round(px * 65535 / (span - 1)), and channel.c converts
+   it, round(n * 32767 / 65535). Row 1 of 1080 arrives as 30 units, which
+   the board's pixel maths call row 0. */
+static int16_t helper_units(long px32, int span) {
+    const long n = (px32 / 32 * 65535 + (span - 1) / 2) / (span - 1);
+    return (int16_t)((n * MAX_SCREEN_COORD + 32767) / 65535);
+}
+
 /* The helper's answer, then the board's completion of the crossing. */
 static void settle(void) {
     answered = pending_query != 0;
@@ -254,8 +268,11 @@ static void settle(void) {
         const uint8_t q = pending_query, out = pending_output;
         pending_query = 0;
         const computer_t *c = &world[out];
-        (void)apply_helper_cursor_position(&board, out, (uint8_t)c->screen,
-                                           (int16_t)c->x, (int16_t)c->y, q);
+        const bool pixels = pixel_w && c->os == WINDOWS;
+        (void)apply_helper_cursor_position(
+            &board, out, (uint8_t)c->screen,
+            pixels ? helper_units(c->px32_x, pixel_w) : (int16_t)c->x,
+            pixels ? helper_units(c->px32_y, pixel_h) : (int16_t)c->y, q);
         mouse_crossing_task(&board, 1000000u);
     }
     mouse_crossing_task(&board, 1000000u);
@@ -695,12 +712,14 @@ static int page_speed(int pixels, int mult32) {
     return speed < 1 ? 1 : speed > 128 ? 128 : speed;
 }
 
-/* #310's desk without helpers (Mac above, Windows below, both chains left),
-   with the pointer speed and monitor size saved as the page saves them. */
+/* #310's desk (Mac above, Windows below, both chains left), helpers as
+   pixel_helpers says, with the pointer speed and monitor size saved as the
+   page saves them. */
 static void build_pixel_desk(int step, int w, int h) {
     const layout_t l = {
         .arrangement = 0, .os = {MACOS, WINDOWS}, .count = {2, 2},
-        .chain = {LEFT, LEFT}, .offset = 0, .mapped = true, .helper = {false, false},
+        .chain = {LEFT, LEFT}, .offset = 0, .mapped = true,
+        .helper = {pixel_helpers, pixel_helpers},
     };
     pixel_w = w;
     pixel_h = h;
@@ -715,11 +734,12 @@ static void build_pixel_desk(int step, int w, int h) {
 }
 
 /* One report, then: on a relative Windows screen the board's estimate is in
-   the pixel the cursor is in, on the same screen. */
+   the pixel the cursor is in, on the same screen, unless it is unanchored
+   (#317; see check()). */
 static void pixel_report(int dx, int dy) {
     report(dx, dy);
     const computer_t *win = &world[1];
-    if (!board.relative_mouse || board.active_output != 1)
+    if (!board.relative_mouse || board.active_output != 1 || unanchored)
         return;
     const long x = (long)board.pointer_x * pixel_w / (MAX_SCREEN_COORD + 1);
     const long y = (long)board.pointer_y * pixel_h / (MAX_SCREEN_COORD + 1);
@@ -772,15 +792,20 @@ static const int pixel_strokes[] = {1, 2, 3, 5, 7, 15, 40, 127};
 static const int pixel_sizes[][2] = {{1920, 1080}, {2560, 1440}, {3840, 2160}};
 
 static void for_each_pixel_case(void (*run)(int step, int w, int h, int stroke)) {
-    for (size_t z = 0; z < 3; z++)
-        for (int step = 1; step <= (int)DH_WINDOWS_POINTER_STEPS; step++)
-            for (size_t s = 0; s < sizeof pixel_strokes / sizeof pixel_strokes[0]; s++) {
-                const int stroke = pixel_strokes[s];
-                snprintf(context, sizeof context, "pixels %dx%d pointer speed %d stroke %d",
-                         pixel_sizes[z][0], pixel_sizes[z][1], step, stroke);
-                run(step, pixel_sizes[z][0], pixel_sizes[z][1], stroke);
-            }
+    for (int helpers = 0; helpers < 2; helpers++) {
+        pixel_helpers = helpers;
+        for (size_t z = 0; z < 3; z++)
+            for (int step = 1; step <= (int)DH_WINDOWS_POINTER_STEPS; step++)
+                for (size_t s = 0; s < sizeof pixel_strokes / sizeof pixel_strokes[0]; s++) {
+                    const int stroke = pixel_strokes[s];
+                    snprintf(context, sizeof context,
+                             "pixels %dx%d pointer speed %d stroke %d helpers %d",
+                             pixel_sizes[z][0], pixel_sizes[z][1], step, stroke, helpers);
+                    run(step, pixel_sizes[z][0], pixel_sizes[z][1], stroke);
+                }
+    }
     pixel_w = 0;
+    pixel_helpers = false;
 }
 
 /* #314: from the middle of Windows' second monitor (BL), sideways a while,
@@ -799,7 +824,7 @@ static void bl_to_mac(int step, int w, int h, int stroke) {
 /* #315: from the middle of Windows' main monitor (BR) left onto the second
    (BL), where the board's walk puts the cursor, a third of the way in, then
    up into the Mac. The crossing sends the user's report, the walk's absolute
-   edge report and one push (#318). */
+   edge report and one push (#318); with the helpers on, no walk (#317). */
 static void br_to_bl_to_mac(int step, int w, int h, int stroke) {
     build_pixel_desk(step, w, h);
     start(1, 1, 2, MAX_SCREEN_COORD / 2, MAX_SCREEN_COORD * 3 / 4);
@@ -809,8 +834,10 @@ static void br_to_bl_to_mac(int step, int w, int h, int stroke) {
         const int before = board.config.output[1].screen_index;
         reports_sent = 0;
         pixel_report(-stroke, 0);
-        if (before == 1 && board.config.output[1].screen_index == 2 && reports_sent != 3)
-            fail("BR -> BL, helper off: the walk is not one push");
+        if (before == 1 && board.config.output[1].screen_index == 2 &&
+            reports_sent != (pixel_helpers ? 1 : 3))
+            fail(pixel_helpers ? "BR -> BL, helper on: sent walk reports"
+                               : "BR -> BL, helper off: the walk is not one push");
     }
     if (board.config.output[1].screen_index != 2) {
         fail("the board did not follow the cursor onto Windows' second monitor");
@@ -822,7 +849,8 @@ static void br_to_bl_to_mac(int step, int w, int h, int stroke) {
 /* #318: from BL right onto BR, then back left onto BL. The last relative
    report on BL can leave Windows a part-pixel to the right, and BR's
    absolute reports keep it, so the walk's one push left must still move
-   the cursor a whole pixel past BR's edge. */
+   the cursor a whole pixel past BR's edge. With the helpers on there is no
+   walk, and the user's own pushes cross. */
 static void bl_to_br_to_bl(int step, int w, int h, int stroke) {
     build_pixel_desk(step, w, h);
     start(1, 2, 2, MAX_SCREEN_COORD / 2, MAX_SCREEN_COORD * 3 / 4);
@@ -831,13 +859,18 @@ static void bl_to_br_to_bl(int step, int w, int h, int stroke) {
         pixel_report(stroke, 0);
     for (int i = 0; i < 100000 && board.config.output[1].screen_index == 1; i++)
         pixel_report(-stroke, 0);
+    /* With the helper on there is no walk: the user's next pixel crosses (#317). */
+    for (int i = 0; i < 100000 && pixel_helpers && world[1].screen == 1 &&
+                    board.config.output[1].screen_index == 2; i++)
+        pixel_report(-stroke, 0);
     if (board.config.output[1].screen_index != 2 || world[1].screen != 2)
-        fail("BL -> BR -> BL, helper off: did not land on BL");
+        fail("BL -> BR -> BL: did not land on BL");
 }
 
 /* #315: down from the Mac's second monitor (TL) onto Windows' second (BL).
-   The walk must leave the cursor on BL's top edge, within 2 pixels of under
-   where it left the Mac, with the estimate on it; then a short move down. */
+   The walk (or with the helpers on, PLACE) must leave the cursor on BL's top
+   edge, within 2 pixels of under where it left the Mac, with the estimate on
+   it; then a short move down. */
 static void mac_to_bl(int step, int w, int h, int stroke) {
     build_pixel_desk(step, w, h);
     const int mac_x = MAX_SCREEN_COORD / 3;
