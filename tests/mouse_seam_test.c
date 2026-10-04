@@ -663,35 +663,51 @@ static void test_source_response_away_from_edge_cancels_crossing(void) {
           "source response after reversing away still crossed outputs");
 }
 
-/* #321: with Windows' maths saved, the helper's row 1 of 1080 arrives as 30,
-   which those maths call row 0; every 1-count push re-asked and was cancelled.
-   Within one pixel of the edge is at it, at either end; two pixels is not. */
-static void test_source_response_one_pixel_short_still_crosses(void) {
-    static const struct { enum screen_pos_e edge; int16_t y; bool crosses; } cases[] = {
-        
-        {TOP, 30, true}, {TOP, 61, false},
-        {BOTTOM, 32737, true}, {BOTTOM, 32706, false},
-    };
-    for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
-        device_t state = stacked_computers_state();
-        state.active_output = 0;
-        state.config.output[0].os = WINDOWS;
-        state.config.output[0].screen_index = 2;
-        state.config.output[0].border_direction = (uint8_t)cases[i].edge;
-        state.config.output[0].pointer_speed = 10;
-        state.config.output[0].monitor_width = 1920;
-        state.config.output[0].monitor_height = 1080;
-        state.relative_mouse = true;
-        source_query_available = true;
-        output_switches = 0;
-        do_screen_switch(&state, cases[i].edge);
-        CHECK(apply_helper_cursor_position(&state, 0, 2, 20000, cases[i].y,
-                                           state.cursor_crossing.query_id),
-              "source position was refused");
-        mouse_crossing_task(&state, 1);
-        CHECK((output_switches == 1) == cases[i].crosses,
-              "a source answer near the edge crossed wrongly");
-    }
+/* The helper's answer for pixel `row` of `pixels`, as the board receives it:
+   the helper sends round(row * 65535 / (pixels - 1)) (cursor_placement.cpp),
+   and channel.c converts that to board units. */
+static int16_t helper_row_units(int row, int pixels) {
+    const uint32_t sent = ((uint32_t)row * 65535u + (uint32_t)(pixels - 1) / 2) /
+                          (uint32_t)(pixels - 1);
+    return (int16_t)((sent * MAX_SCREEN_COORD + 32767u) / DH_SEAM_POSITION_MAX);
+}
+
+/* #321: with Windows' maths saved, the helper's answer stayed one count short
+   of the edge (row 1 at speed 10, row 2 at speed 14), and every 1-count push
+   re-asked and was cancelled. At every pointer speed, three monitor heights
+   and both vertical edges: an answer within one count's pixels of the edge
+   crosses, one a pixel further does not. */
+static void test_source_response_one_count_short_still_crosses(void) {
+    static const int heights[] = {1080, 1440, 2160};
+    static const uint8_t mult32[DH_WINDOWS_POINTER_STEPS] = DH_WINDOWS_POINTER_MULT32;
+    for (uint8_t speed = 1; speed <= DH_WINDOWS_POINTER_STEPS; speed++)
+        for (size_t h = 0; h < sizeof heights / sizeof heights[0]; h++)
+            for (int top = 0; top < 2; top++) {
+                const int one_count = (mult32[speed - 1] + 31) / 32;
+                for (int row = 0; row <= one_count + 1; row++) {
+                    device_t state = stacked_computers_state();
+                    const enum screen_pos_e edge = top ? TOP : BOTTOM;
+                    state.active_output = 0;
+                    state.config.output[0].os = WINDOWS;
+                    state.config.output[0].screen_index = 2;
+                    state.config.output[0].border_direction = (uint8_t)edge;
+                    state.config.output[0].pointer_speed = speed;
+                    state.config.output[0].monitor_width = 1920;
+                    state.config.output[0].monitor_height = (uint16_t)heights[h];
+                    state.relative_mouse = true;
+                    source_query_available = true;
+                    output_switches = 0;
+                    do_screen_switch(&state, edge);
+                    const int pixel = top ? row : heights[h] - 1 - row;
+                    CHECK(apply_helper_cursor_position(&state, 0, 2, 20000,
+                                                       helper_row_units(pixel, heights[h]),
+                                                       state.cursor_crossing.query_id),
+                          "source position was refused");
+                    mouse_crossing_task(&state, 1);
+                    CHECK((output_switches == 1) == (row <= one_count),
+                          "a source answer near the edge crossed wrongly");
+                }
+            }
 }
 
 static void test_late_source_response_cannot_satisfy_a_new_crossing(void) {
@@ -1455,7 +1471,7 @@ int main(void) {
     test_relative_source_crossing_falls_back_on_timeout();
     test_stranded_resuming_crossing_releases_mouse_input();
     test_source_response_away_from_edge_cancels_crossing();
-    test_source_response_one_pixel_short_still_crosses();
+    test_source_response_one_count_short_still_crosses();
     test_late_source_response_cannot_satisfy_a_new_crossing();
     test_post_placement_refresh_cannot_satisfy_a_source_query();
     test_pending_crossing_cancels_after_output_change();

@@ -37,6 +37,10 @@ bool dh_windows_pointer_speed_is_set(uint8_t step);
 int32_t dh_windows_estimate_offset(int32_t position, int32_t counts, uint8_t step,
                                    uint16_t pixels, int32_t speed, int8_t *part_pixel);
 
+/* Whole pixels one count can move Windows' cursor at pointer speed `step`,
+ * rounded up, or 0 when `step` is not 1–20. */
+int32_t dh_windows_pixels_per_count(uint8_t step);
+
 /* The fewest counts that move Windows' cursor at least `pixels` pixels at
  * pointer speed `step` from no part-pixel (a kept one the other way can cost
  * a pixel), or 0 when `step` is not 1–20. */

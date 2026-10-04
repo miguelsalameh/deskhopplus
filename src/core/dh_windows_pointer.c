@@ -53,6 +53,12 @@ int32_t dh_windows_counts_nearest(int32_t pixels, uint8_t step, int8_t part_pixe
     return (int32_t)(llabs(miss_next) < llabs(miss) ? c + 1 : c);
 }
 
+int32_t dh_windows_pixels_per_count(uint8_t step) {
+    if (!dh_windows_pointer_speed_is_set(step))
+        return 0;
+    return (mult32[step - 1] + 31) / 32;
+}
+
 int32_t dh_windows_counts_for_pixels(int32_t pixels, uint8_t step) {
     if (!dh_windows_pointer_speed_is_set(step))
         return 0;

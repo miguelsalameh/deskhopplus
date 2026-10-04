@@ -29,16 +29,20 @@ static bool position_is_at_pending_edge(const device_t *state, int16_t x, int16_
     const cursor_crossing_t *crossing = &state->cursor_crossing;
     int threshold = crossing->kind == CURSOR_CROSSING_CHAIN_REANCHOR
                         ? 0 : state->config.jump_threshold;
-    /* With Windows' maths (#312), the helper's whole-pixel row 1 can convert
-       to a position those maths call row 0. So within one pixel of the edge
-       is at it; else every 1-count push re-asks and is cancelled (#321). */
+    /* With Windows' maths saved (#312), the helper's answer can be one count
+       short of the edge: at speeds 10 and 14 on hardware it stayed exactly
+       that far, so every 1-count push re-asked and was cancelled. The push
+       that closes the gap is already sent, so within one count's pixels of
+       the edge is at it (#321). */
     if (crossing->kind == CURSOR_CROSSING_SOURCE_REANCHOR) {
+        const output_t *output = &state->config.output[crossing->output];
         const int32_t pixels = windows_pixels(
-            &state->config.output[crossing->output],
-            dh_direction_is_vertical((dh_direction_t)crossing->direction));
-        const int one_pixel = pixels ? (int)((MAX_SCREEN_COORD + pixels) / pixels) : 0;
-        if (one_pixel > threshold)
-            threshold = one_pixel;
+            output, dh_direction_is_vertical((dh_direction_t)crossing->direction));
+        const int one_count = pixels ? (int)((MAX_SCREEN_COORD + pixels) / pixels *
+                                             dh_windows_pixels_per_count(output->pointer_speed))
+                                     : 0;
+        if (one_count > threshold)
+            threshold = one_count;
     }
     switch (crossing->direction) {
         case LEFT: return x <= MIN_SCREEN_COORD + threshold;
