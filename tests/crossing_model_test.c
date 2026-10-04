@@ -422,7 +422,7 @@ static void check(void) {
         const int slack = vertical ? o->speed_x : o->speed_y;
         /* A move back along the chain stops a third of the way to an edge
            with a screen past it, so a fast Windows cannot run onto that
-           screen: a third in from an edge, or within a walk's nudges of it. */
+           screen: a third in from an edge, or within a walk's push of it. */
         const bool chain_vertical = o->chain_direction == TOP || o->chain_direction == BOTTOM;
         const bool along_chain = chain_vertical != vertical;
         const bool held_short = along_chain &&
@@ -661,6 +661,30 @@ static void test_issue_317_edge_then_up(void) {
         fail("BR edge then up did not land on the Mac monitor above BR");
 }
 
+/* #319: #310's desk without helpers, Mac TL <-> TR. The crossing sends the
+   user's report, the walk's absolute edge report and one push, and the
+   cursor is on the new monitor. */
+static void test_issue_319_mac_walk_is_one_push(void) {
+    const layout_t l = {
+        .arrangement = 0, .os = {MACOS, WINDOWS}, .count = {2, 2},
+        .chain = {LEFT, LEFT}, .offset = 0, .mapped = true, .helper = {false, false},
+    };
+    for (int from = 1; from <= 2; from++) {
+        const int to = 3 - from, dx = from == 2 ? 37 : -37;
+        snprintf(context, sizeof context, "#319: Mac screen %d -> %d, helper off", from, to);
+        build(&l);
+        start(0, from, 1, MAX_SCREEN_COORD / 2, MAX_SCREEN_COORD / 2);
+        for (int i = 0; i < 1000 && board.config.output[0].screen_index == from; i++) {
+            reports_sent = 0;
+            report(dx, 0);
+        }
+        if (board.config.output[0].screen_index != to || world[0].screen != to)
+            fail("did not cross");
+        if (reports_sent != 3)
+            fail("the walk is not one push");
+    }
+}
+
 /* ---- Windows in real pixels (#312) ---------------------------------------- */
 
 static const int windows_mult32[DH_WINDOWS_POINTER_STEPS] = DH_WINDOWS_POINTER_MULT32;
@@ -844,6 +868,7 @@ int main(void) {
     test_issue_310_layout();
     test_issue_317_no_walk_with_helper();
     test_issue_317_edge_then_up();
+    test_issue_319_mac_walk_is_one_push();
     for_each_layout(push_every_way);
     static const int gains[] = {60, 80, 125, 160, ENHANCED_PRECISION};
     for (size_t g = 0; g < sizeof gains / sizeof gains[0]; g++) {

@@ -8,19 +8,17 @@
 #include "main.h"
 #include <math.h>
 
-/* Pushes per walk. macOS needs a firm push to change display; Windows
-   crosses on any move of one pixel past the edge, so one push will do, and
-   the whole walk shows as a jump on its screen (#318). */
-static int walk_push_count(const output_t *output) {
-    return output->os == WINDOWS ? 1 : 5;
-}
+/* macOS push: was 5 pushes of 10 counts; one push of 2 counts crossed every
+   time on hardware, slow hand too, two monitors (#319). 1 count not tried. */
+#define MACOS_WALK_COUNTS 2
 
-/* Counts per walk push: on Windows, two pixels' worth (at a low pointer
-   speed, many). Windows keeps the part-pixel of the last relative report,
-   up to a pixel the other way, so one pixel's worth can move it none (#318). */
-static int walk_nudge(const output_t *output) {
+/* Counts in a walk's one push. Windows: two pixels' worth (at a low pointer
+   speed, many). Windows keeps the part-pixel of the last relative report, up
+   to a pixel the other way, so one pixel's worth can move it none (#318).
+   The push shows as a jump on the new monitor. */
+static int walk_push(const output_t *output) {
     if (output->os != WINDOWS)
-        return 10;
+        return MACOS_WALK_COUNTS;
     const int32_t two_pixels = dh_windows_counts_for_pixels(2, output->pointer_speed);
     return two_pixels > 2 ? two_pixels : 2;
 }
@@ -169,7 +167,7 @@ static void switch_to_another_pc(
 
 /* Walk the OS cursor one screen in direction, starting from `from`:
  * 1. An absolute report puts the cursor on the edge of the screen it is on now.
- * 2. Relative nudges make the OS itself move it onto the next screen.
+ * 2. One relative push makes the OS itself move it onto the next screen.
  * The board cannot pick a screen with an absolute report on macOS (current screen)
  * or Windows (main screen), so this is the only helper-free way across (#310). */
 static void walk_one_screen(device_t *state, dh_mouse_coordinates_t from, int direction) {
@@ -183,11 +181,11 @@ static void walk_one_screen(device_t *state, dh_mouse_coordinates_t from, int di
     };
 
     const output_t *output = &state->config.output[state->active_output];
-    const dh_mouse_coordinates_t nudge =
-        dh_mouse_nudge((dh_direction_t)direction, walk_nudge(output));
-    mouse_report_t move_relative_one = {
-        .x = (int16_t)nudge.x,
-        .y = (int16_t)nudge.y,
+    const dh_mouse_coordinates_t push =
+        dh_mouse_nudge((dh_direction_t)direction, walk_push(output));
+    mouse_report_t push_report = {
+        .x = (int16_t)push.x,
+        .y = (int16_t)push.y,
         .mode = RELATIVE,
         /* Force buttons to 0 for relative movement to avoid duplicating the button
            press state, which would leave the relative HID mouse permanently stuck
@@ -196,9 +194,7 @@ static void walk_one_screen(device_t *state, dh_mouse_coordinates_t from, int di
     };
 
     output_mouse_report(&edge_position, state);
-
-    for (int i = 0; i < walk_push_count(output); i++)
-        output_mouse_report(&move_relative_one, state);
+    output_mouse_report(&push_report, state);
 }
 
 /* The board's units per relative count along direction; at least 1, so a
@@ -252,7 +248,7 @@ static int32_t send_relative(device_t *state, const output_t *output, int direct
     return at;
 }
 
-/* Where a walk's nudges leave the cursor on the new screen: Windows moves it
+/* Where a walk's push leaves the cursor on the new screen: Windows moves it
  * from the edge the walk's absolute report put it on, past that edge. Windows
  * keeps a relative cursor there, so the board's pointer must match it, or the
  * next small move back would cross straight back (#310).
@@ -262,11 +258,10 @@ static dh_mouse_coordinates_t walk_landing(device_t *state, const output_t *outp
     const bool vertical = dh_direction_is_vertical((dh_direction_t)direction);
     dh_mouse_coordinates_t at = dh_mouse_edge_coordinates(
         (dh_direction_t)direction, from, MIN_SCREEN_COORD, MAX_SCREEN_COORD);
-    const dh_mouse_coordinates_t nudge = dh_mouse_nudge((dh_direction_t)direction,
-                                                        walk_nudge(output));
+    const dh_mouse_coordinates_t push = dh_mouse_nudge((dh_direction_t)direction,
+                                                       walk_push(output));
     int32_t *axis = vertical ? &at.y : &at.x;
-    for (int i = 0; i < walk_push_count(output); i++)
-        *axis = windows_moved(state, output, vertical, *axis, vertical ? nudge.y : nudge.x);
+    *axis = windows_moved(state, output, vertical, *axis, vertical ? push.y : push.x);
     *axis = on_next_monitor(*axis);
     return at;
 }
@@ -652,7 +647,7 @@ enum screen_pos_e update_mouse_position(device_t *state, mouse_values_t *values)
  * park is absolute). Walk it from there to `screen` (#310), along the middle
  * of each edge, where screens that are not level still touch; `travel` is
  * the direction the cursor crossed the seam in.
- * macOS takes every step as edge-and-nudge; its next absolute report on the
+ * macOS takes every step as a walk; its next absolute report on the
  * new screen then puts the cursor at the entry point.
  * Windows sends every absolute report to its main screen, so after the
  * first step each one is a relative move of one screen (or a push past the

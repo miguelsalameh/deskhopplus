@@ -988,12 +988,10 @@ static void test_macos_chain_fallbacks_once(void) {
     CHECK(emitted_reports[0].mode == ABSOLUTE && emitted_reports[0].buttons == 1 &&
               emitted_reports[0].x == MAX_SCREEN_COORD && emitted_reports[0].y == 100,
           "Mac fallback did not emit the source edge with the held button");
-    for (int i = 1; i < 6; i++)
-        CHECK(emitted_reports[i].mode == RELATIVE && emitted_reports[i].buttons == 0 &&
-                  emitted_reports[i].x == 10 && emitted_reports[i].y == 0 &&
-                  emitted_outputs[i] == 0,
-              "Mac fallback changed the calibrated nudge or duplicated a held button");
-    CHECK(emitted_count == 6 && state.config.output[0].screen_index == 2,
+    CHECK(emitted_reports[1].mode == RELATIVE && emitted_reports[1].buttons == 0 &&
+              emitted_reports[1].x == 2 && emitted_reports[1].y == 0 && emitted_outputs[1] == 0,
+          "Mac fallback changed the calibrated push (#319) or duplicated a held button");
+    CHECK(emitted_count == 2 && state.config.output[0].screen_index == 2,
           "unavailable Mac helper did not run the legacy fallback exactly once");
 
     state = side_by_side_state();
@@ -1006,7 +1004,7 @@ static void test_macos_chain_fallbacks_once(void) {
     mouse_crossing_query_unavailable(&state, 0, query_id);
     mouse_crossing_task(&state, 1);
     mouse_crossing_task(&state, 2);
-    CHECK(emitted_count == 6 && state.config.output[0].screen_index == 2,
+    CHECK(emitted_count == 2 && state.config.output[0].screen_index == 2,
           "refused Mac placement did not run the legacy fallback exactly once");
 
     state = side_by_side_state();
@@ -1017,10 +1015,10 @@ static void test_macos_chain_fallbacks_once(void) {
     const uint8_t timed_out_id = state.cursor_crossing.query_id;
     mouse_crossing_task(&state, 30000);
     mouse_crossing_task(&state, 30001);
-    CHECK(emitted_count == 6 && state.config.output[0].screen_index == 2,
+    CHECK(emitted_count == 2 && state.config.output[0].screen_index == 2,
           "timed-out Mac placement did not run the legacy fallback exactly once");
     CHECK(!apply_helper_cursor_position(&state, 0, 2, MIN_SCREEN_COORD, 100,
-                                        timed_out_id) && emitted_count == 6,
+                                        timed_out_id) && emitted_count == 2,
           "late Mac placement response was accepted after fallback");
     placement_query_available = false;
 }
@@ -1054,7 +1052,7 @@ static void test_macos_chain_requires_the_requested_placement_coordinate(void) {
               state.cursor_crossing.phase == CURSOR_CROSSING_WAITING,
           "target-screen response falsely confirmed a refused Mac placement");
     mouse_crossing_task(&state, 30000);
-    CHECK(emitted_count == 6,
+    CHECK(emitted_count == 2,
           "unconfirmed Mac placement did not reach the bounded legacy fallback");
     placement_query_available = false;
 }
@@ -1259,7 +1257,7 @@ static device_t two_by_two_state(void) {
 }
 
 /* True when output's reports from `from` on are an absolute report at the
-   edge, then relative nudges, toward direction: one helper-free walk step. */
+   edge, then a relative push, toward direction: one helper-free walk step. */
 static bool emitted_walk(uint8_t output, int from, enum screen_pos_e direction) {
     int i = from;
     while (i < emitted_count && emitted_outputs[i] != output)
@@ -1267,9 +1265,9 @@ static bool emitted_walk(uint8_t output, int from, enum screen_pos_e direction) 
     if (i + 1 >= emitted_count || emitted_reports[i].mode != ABSOLUTE ||
         emitted_reports[i].x != (direction == LEFT ? MIN_SCREEN_COORD : MAX_SCREEN_COORD))
         return false;
-    const mouse_report_t *nudge = &emitted_reports[i + 1];
-    return emitted_outputs[i + 1] == output && nudge->mode == RELATIVE && nudge->y == 0 &&
-           (direction == LEFT ? nudge->x < 0 : nudge->x > 0);
+    const mouse_report_t *push = &emitted_reports[i + 1];
+    return emitted_outputs[i + 1] == output && push->mode == RELATIVE && push->y == 0 &&
+           (direction == LEFT ? push->x < 0 : push->x > 0);
 }
 
 /* macOS puts an absolute report on the display its cursor is on. With no
@@ -1325,12 +1323,12 @@ static void test_helper_free_windows_arrival_walks_from_the_main_screen(void) {
           "helper-free crossing down from Mac TL did not select Windows BL");
     CHECK(emitted_walk(0, 0, LEFT),
           "helper-free Windows arrival did not walk from BR to BL");
-    /* The hardware report: the old 10-count nudges showed as a jump. */
-    int first_nudge = 0;
-    while (first_nudge < emitted_count && emitted_reports[first_nudge].mode != RELATIVE)
-        first_nudge++;
-    CHECK(first_nudge < emitted_count && emitted_reports[first_nudge].x == -2,
-          "Windows walk nudges are not 2 counts");
+    /* The hardware report: the old 10-count pushes showed as a jump. */
+    int first_push = 0;
+    while (first_push < emitted_count && emitted_reports[first_push].mode != RELATIVE)
+        first_push++;
+    CHECK(first_push < emitted_count && emitted_reports[first_push].x == -2,
+          "Windows walk push is not 2 counts");
     /* The hardware report: it landed mid-height at the far right, not under
        where it left the Mac. */
     CHECK(state.pointer_x == MAX_SCREEN_COORD / 2 && state.pointer_y == MIN_SCREEN_COORD,

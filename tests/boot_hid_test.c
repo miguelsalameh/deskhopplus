@@ -253,8 +253,8 @@ int main(void) {
     tud_hid_set_report_cb(3, 0, HID_REPORT_TYPE_OUTPUT, &led, 1);
     CHECK(channel_calls == 2 && received_channel == 0);
 
-    /* A walk sends an absolute report, then relative nudges, on two
-       interfaces. The host polls them in no set order, so a nudge must wait
+    /* A walk sends an absolute report, then a relative push, on two
+       interfaces. The host polls them in no set order, so the push must wait
        until the host has read the absolute report, or it lands first (#310). */
     protocol[0] = protocol[1] = HID_PROTOCOL_REPORT;
     CHECK(tud_mouse_report(ABSOLUTE, 0, 0, 100, 0, 0) && last_instance == ITF_NUM_HID);
