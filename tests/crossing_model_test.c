@@ -219,8 +219,15 @@ static void helper_place(uint8_t output, uint8_t screen, uint8_t border, uint16_
         case TOP: c->y = MIN_SCREEN_COORD; c->x = along; break;
         case BOTTOM: c->y = MAX_SCREEN_COORD; c->x = along; break;
     }
-    if (pixel_w && c->os == WINDOWS)
+    if (pixel_w && c->os == WINDOWS) {
+        /* The real helper's pixel along the edge (dh_place_target). */
+        const bool vertical = border == TOP || border == BOTTOM;
+        const int span = vertical ? pixel_w : pixel_h;
+        const long px = ((long)position * (span - 1) + 32767) / 65535;
         place_px(c);
+        *(vertical ? &c->px32_x : &c->px32_y) = px * 32;
+        sync_units(c);
+    }
 }
 
 bool channel_output_helper_present(uint8_t output) {

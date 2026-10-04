@@ -47,6 +47,9 @@ bool dh_place_encode(const dh_place *, uint8_t *, size_t);
 bool dh_place_decode(const uint8_t *, size_t, dh_place *);
 bool dh_position_encode(const dh_position *, uint8_t *, size_t);
 bool dh_position_decode(const uint8_t *, size_t, dh_position *);
+/* The pixel along a `span`-pixel edge that a PLACE entry position puts the
+   cursor on. The board uses it to match its estimate to the helper (#323). */
+int32_t dh_place_along(uint16_t position, int32_t span);
 bool dh_place_target(const dh_place *, const dh_display_rect *, size_t, size_t,
                      dh_place_point *);
 

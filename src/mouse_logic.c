@@ -6,6 +6,7 @@
  * Core 1 drives movement/completion; core 0 publishes readback under the lock.
  */
 #include "main.h"
+#include "dh_place.h"
 #include <math.h>
 
 /* macOS push: was 5 pushes of 10 counts; one push of 2 counts crossed every
@@ -834,6 +835,18 @@ static void cross_screen(device_t *state, int direction, bool source_resolved) {
                                              target->chain_direction,
                                              target->border_direction,
                                              mapped_entry.position);
+                        /* The helper puts a relative Windows cursor on pixel
+                           dh_place_along() of the edge; start the estimate
+                           in that pixel, not the one next to it (#323). */
+                        const bool seam_vertical =
+                            dh_direction_is_vertical((dh_direction_t)direction);
+                        const int32_t span = windows_pixels(target, !seam_vertical);
+                        if (state->relative_mouse && span) {
+                            const int32_t px = dh_place_along(mapped_entry.position, span);
+                            const int16_t units = (int16_t)(
+                                (px * (MAX_SCREEN_COORD + 1) + span - 1) / span);
+                            *(seam_vertical ? &state->pointer_x : &state->pointer_y) = units;
+                        }
                         cursor_trace_event(state, DH_CURSOR_TRACE_PLACE, 0, 0, 0,
                                            (uint8_t)direction, (uint8_t)transition);
                     }

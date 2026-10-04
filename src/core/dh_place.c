@@ -73,6 +73,10 @@ static uint64_t directional_distance(const dh_display_rect *from,
     return (uint64_t)(delta < 0 ? -delta : delta);
 }
 
+int32_t dh_place_along(uint16_t position, int32_t span) {
+    return (int32_t)(((uint64_t)position * (uint32_t)(span - 1) + 32767u) / 65535u);
+}
+
 bool dh_place_target(const dh_place *place, const dh_display_rect *displays, size_t count,
                      size_t primary_index, dh_place_point *point) {
     if (place == NULL || displays == NULL || point == NULL || count == 0 ||
@@ -102,10 +106,8 @@ bool dh_place_target(const dh_place *place, const dh_display_rect *displays, siz
     const dh_display_rect *target = &displays[current];
     if (target->width <= 0 || target->height <= 0)
         return false;
-    const int32_t x_along = (int32_t)(((uint64_t)place->entry_position *
-                                       (uint32_t)(target->width - 1) + 32767u) / 65535u);
-    const int32_t y_along = (int32_t)(((uint64_t)place->entry_position *
-                                       (uint32_t)(target->height - 1) + 32767u) / 65535u);
+    const int32_t x_along = dh_place_along(place->entry_position, target->width);
+    const int32_t y_along = dh_place_along(place->entry_position, target->height);
     point->display_index = current;
     switch (place->border_direction) {
         case DH_DIRECTION_LEFT:
