@@ -774,19 +774,41 @@ static void bl_to_mac(int step, int w, int h, int stroke) {
 
 /* #315: from the middle of Windows' main monitor (BR) left onto the second
    (BL), where the board's walk puts the cursor, a third of the way in, then
-   up into the Mac. */
+   up into the Mac. The crossing sends the user's report, the walk's absolute
+   edge report and one push (#318). */
 static void br_to_bl_to_mac(int step, int w, int h, int stroke) {
     build_pixel_desk(step, w, h);
     start(1, 1, 2, MAX_SCREEN_COORD / 2, MAX_SCREEN_COORD * 3 / 4);
     place_px(&world[1]);
     computer_t *win = &world[1];
-    for (int i = 0; i < 100000 && !(win->screen == 2 && win->px32_x < (long)w * 32 * 2 / 3); i++)
+    for (int i = 0; i < 100000 && !(win->screen == 2 && win->px32_x < (long)w * 32 * 2 / 3); i++) {
+        const int before = board.config.output[1].screen_index;
+        reports_sent = 0;
         pixel_report(-stroke, 0);
+        if (before == 1 && board.config.output[1].screen_index == 2 && reports_sent != 3)
+            fail("BR -> BL, helper off: the walk is not one push");
+    }
     if (board.config.output[1].screen_index != 2) {
         fail("the board did not follow the cursor onto Windows' second monitor");
         return;
     }
     push_up_into_mac(stroke);
+}
+
+/* #318: from BL right onto BR, then back left onto BL. The last relative
+   report on BL can leave Windows a part-pixel to the right, and BR's
+   absolute reports keep it, so the walk's one push left must still move
+   the cursor a whole pixel past BR's edge. */
+static void bl_to_br_to_bl(int step, int w, int h, int stroke) {
+    build_pixel_desk(step, w, h);
+    start(1, 2, 2, MAX_SCREEN_COORD / 2, MAX_SCREEN_COORD * 3 / 4);
+    place_px(&world[1]);
+    for (int i = 0; i < 100000 && board.config.output[1].screen_index == 2; i++)
+        pixel_report(stroke, 0);
+    for (int i = 0; i < 100000 && board.config.output[1].screen_index == 1; i++)
+        pixel_report(-stroke, 0);
+    if (board.config.output[1].screen_index != 2 || world[1].screen != 2)
+        fail("BL -> BR -> BL, helper off: did not land on BL");
 }
 
 /* #315: down from the Mac's second monitor (TL) onto Windows' second (BL).
@@ -818,6 +840,7 @@ int main(void) {
     for_each_pixel_case(bl_to_mac);
     for_each_pixel_case(br_to_bl_to_mac);
     for_each_pixel_case(mac_to_bl);
+    for_each_pixel_case(bl_to_br_to_bl);
     test_issue_310_layout();
     test_issue_317_no_walk_with_helper();
     test_issue_317_edge_then_up();

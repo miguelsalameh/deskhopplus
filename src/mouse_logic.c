@@ -8,16 +8,21 @@
 #include "main.h"
 #include <math.h>
 
-#define WALK_NUDGE_COUNT 5
+/* Pushes per walk. macOS needs a firm push to change display; Windows
+   crosses on any move of one pixel past the edge, so one push will do, and
+   the whole walk shows as a jump on its screen (#318). */
+static int walk_push_count(const output_t *output) {
+    return output->os == WINDOWS ? 1 : 5;
+}
 
-/* Counts per walk nudge. macOS needs a firm push to change display; Windows
-   crosses on any count that moves its cursor a pixel (at a low pointer
-   speed, many), and the whole walk shows as a jump on its screen. */
+/* Counts per walk push: on Windows, two pixels' worth (at a low pointer
+   speed, many). Windows keeps the part-pixel of the last relative report,
+   up to a pixel the other way, so one pixel's worth can move it none (#318). */
 static int walk_nudge(const output_t *output) {
     if (output->os != WINDOWS)
         return 10;
-    const int32_t one_pixel = dh_windows_counts_for_pixels(1, output->pointer_speed);
-    return one_pixel > 2 ? one_pixel : 2;
+    const int32_t two_pixels = dh_windows_counts_for_pixels(2, output->pointer_speed);
+    return two_pixels > 2 ? two_pixels : 2;
 }
 
 static bool position_is_at_pending_edge(const device_t *state, int16_t x, int16_t y) {
@@ -177,9 +182,9 @@ static void walk_one_screen(device_t *state, dh_mouse_coordinates_t from, int di
         .buttons = state->mouse_buttons,
     };
 
+    const output_t *output = &state->config.output[state->active_output];
     const dh_mouse_coordinates_t nudge =
-        dh_mouse_nudge((dh_direction_t)direction,
-                       walk_nudge(&state->config.output[state->active_output]));
+        dh_mouse_nudge((dh_direction_t)direction, walk_nudge(output));
     mouse_report_t move_relative_one = {
         .x = (int16_t)nudge.x,
         .y = (int16_t)nudge.y,
@@ -192,8 +197,7 @@ static void walk_one_screen(device_t *state, dh_mouse_coordinates_t from, int di
 
     output_mouse_report(&edge_position, state);
 
-    /* Once doesn't seem reliable enough, do it a few times */
-    for (int i = 0; i < WALK_NUDGE_COUNT; i++)
+    for (int i = 0; i < walk_push_count(output); i++)
         output_mouse_report(&move_relative_one, state);
 }
 
@@ -261,7 +265,7 @@ static dh_mouse_coordinates_t walk_landing(device_t *state, const output_t *outp
     const dh_mouse_coordinates_t nudge = dh_mouse_nudge((dh_direction_t)direction,
                                                         walk_nudge(output));
     int32_t *axis = vertical ? &at.y : &at.x;
-    for (int i = 0; i < WALK_NUDGE_COUNT; i++)
+    for (int i = 0; i < walk_push_count(output); i++)
         *axis = windows_moved(state, output, vertical, *axis, vertical ? nudge.y : nudge.x);
     *axis = on_next_monitor(*axis);
     return at;

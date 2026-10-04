@@ -1336,11 +1336,11 @@ static void test_helper_free_windows_arrival_walks_from_the_main_screen(void) {
     CHECK(state.pointer_x == MAX_SCREEN_COORD / 2 && state.pointer_y == MIN_SCREEN_COORD,
           "Windows walk did not bring the cursor back under where it left the Mac");
     /* Back along the seam by counts, then past the top edge, where Windows
-       stops it whatever its speed. The walk's 5 nudges of 2 counts at speed
-       1 left it at MAX - 9. */
+       stops it whatever its speed. The walk's one nudge of 2 counts at speed
+       1 left it at MAX - 1 (#318). */
     const mouse_report_t *back = &emitted_reports[emitted_count - 2];
     const mouse_report_t *up = &emitted_reports[emitted_count - 1];
-    CHECK(back->mode == RELATIVE && back->x == MAX_SCREEN_COORD / 2 - (MAX_SCREEN_COORD - 9) &&
+    CHECK(back->mode == RELATIVE && back->x == MAX_SCREEN_COORD / 2 - (MAX_SCREEN_COORD - 1) &&
               back->y == 0 && up->mode == RELATIVE && up->x == 0 && up->y <= -MAX_SCREEN_COORD,
           "Windows walk did not move back along the seam, then onto the top edge");
     /* The hardware trace: a move down with 2 counts right went straight back. */

@@ -245,7 +245,8 @@ _Avoid_: screen switch, desktop switch, hop
 **Walk**:
 How the board moves the cursor onto another monitor of a computer with no helper to place it:
 it puts the cursor on the edge of the monitor it is on, then sends small pushes so the computer
-itself moves the cursor across. The pushes show as a small jump.
+itself moves the cursor across: one push on Windows, five on macOS. The pushes show as a small
+jump.
 _Avoid_: nudge (one push of a walk), edge-and-nudge, placement (what a helper does)
 
 **Layout**:
