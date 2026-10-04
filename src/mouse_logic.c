@@ -23,10 +23,24 @@ static int walk_push(const output_t *output) {
     return two_pixels > 2 ? two_pixels : 2;
 }
 
+static int32_t windows_pixels(const output_t *output, bool vertical);
+
 static bool position_is_at_pending_edge(const device_t *state, int16_t x, int16_t y) {
-    const int threshold = state->cursor_crossing.kind == CURSOR_CROSSING_CHAIN_REANCHOR
-                              ? 0 : state->config.jump_threshold;
-    switch (state->cursor_crossing.direction) {
+    const cursor_crossing_t *crossing = &state->cursor_crossing;
+    int threshold = crossing->kind == CURSOR_CROSSING_CHAIN_REANCHOR
+                        ? 0 : state->config.jump_threshold;
+    /* With Windows' maths (#312), the helper's whole-pixel row 1 can convert
+       to a position those maths call row 0. So within one pixel of the edge
+       is at it; else every 1-count push re-asks and is cancelled (#321). */
+    if (crossing->kind == CURSOR_CROSSING_SOURCE_REANCHOR) {
+        const int32_t pixels = windows_pixels(
+            &state->config.output[crossing->output],
+            dh_direction_is_vertical((dh_direction_t)crossing->direction));
+        const int one_pixel = pixels ? (int)((MAX_SCREEN_COORD + pixels) / pixels) : 0;
+        if (one_pixel > threshold)
+            threshold = one_pixel;
+    }
+    switch (crossing->direction) {
         case LEFT: return x <= MIN_SCREEN_COORD + threshold;
         case RIGHT: return x >= MAX_SCREEN_COORD - threshold;
         case TOP: return y <= MIN_SCREEN_COORD + threshold;
