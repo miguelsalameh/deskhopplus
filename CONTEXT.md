@@ -248,6 +248,12 @@ it puts the cursor on the edge of the monitor it is on, then sends small pushes 
 itself moves the cursor across with one push. The push shows as a small jump.
 _Avoid_: nudge (one push of a walk), edge-and-nudge, placement (what a helper does)
 
+**Refused placement**:
+The helper's answer that it did not place the cursor — an administrator window or the secure
+desktop is in front, or the computer would not move it — so the board walks instead. The helper
+never retries a refused placement later.
+_Avoid_: deferral, NAK, failed placement
+
 **Layout**:
 The picture of both computers' monitors on the config page. Every fact the board needs — chain
 axis, border direction, monitor count and segments — is derived from where the boxes sit; the
