@@ -1,4 +1,4 @@
-# deskhopplus channel protocol — v5
+# deskhopplus channel protocol — v7
 
 The single source of truth for bytes on the helper↔firmware channel. Any change here must
 update `test-vectors/frames.txt` and the shared C core (`src/core/`) in the same change.

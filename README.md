@@ -68,7 +68,7 @@ The [user guide](docs/user-guide.md) has the rest: what each menu state means, h
 
 ### USB identifiers
 
-The boards still present DeskHop's USB identifiers, `1209:C000`, until [#14](https://github.com/myn/deskhopplus/issues/14) lands. A stock DeskHop and a DeskHopPlus look the same to the operating system. The helpers still find the right one, because they look for the clipboard channel, which a stock DeskHop does not have.
+The boards present their own USB identifiers, [`1209:D35C`](https://pid.codes/1209/D35C/), in normal and config mode. A stock DeskHop presents `1209:C000`. A helper from release 1.1 or earlier looks for `1209:C000` and cannot find a 1.2 board, so update the helpers with the firmware.
 
 ---
 
@@ -113,8 +113,8 @@ Every run ends by naming the artifact to flash, its timestamp, and the firmware 
 
 ```
 FLASH THIS  /path/to/deskhopplus/build/deskhop.uf2
-  built    2026-08-11 10:07:52
-  version  180  (v0.80, crc 0xd9981727)
+  built    2026-10-05 10:07:52
+  version  1102  (v1.2, crc 0xd9981727)
 ```
 
 This matters because only board **A** is flashed directly; board B follows it over the inter-board link. B pulls when A reports a newer version, or — since the heartbeat began carrying the running image's checksum — when the version is equal and the image differs. So an ordinary rebuild reaches both boards on its own. **Bump `DH_VERSION_MINOR` in `src/core/dh_version.h` to put an *older* image on the pair**, which is never pulled whatever its checksum. A pair left split presents different USB descriptors to the two computers, so confirm both moved rather than assuming.
@@ -159,7 +159,7 @@ All I wanted was a way to use a keyboard shortcut to quickly switch outputs, pai
 - Completely **[free and open source](https://certification.oshwa.org/de000149.html)**
 - No noticeable delay when switching
 - Simply drag the mouse pointer between computers
-- No software installed — **DeskHopPlus:** still true for the keyboard and mouse. Clipboard sharing and cursor placement need the helper in *Get started* above.
+- No software installed — **DeskHopPlus:** still true for the keyboard and mouse, and for crossings between monitors. Clipboard sharing and exact cursor placement need the helper in *Get started* above.
 - Affordable and obtainable components (<15€)
 - 3D printable snap-fit case
 - Full Galvanic isolation between your outputs
@@ -234,7 +234,7 @@ The disk image is rebuilt for you **if mtools is installed**: `cmake --build` th
 
 ## Using a pre-built image
 
-Alternatively, you can use the [pre-built images](https://github.com/myn/deskhopplus/releases) — **DeskHopPlus:** this fork's releases, not DeskHop's. A stock DeskHop image does not pair with the helpers, and the version numbers here are DeskHop's. Since version 0.6 there is only a single universal image. You need the .uf2 file which you simply copy to the device in one of the following ways:
+Alternatively, you can use the [pre-built images](https://github.com/myn/deskhopplus/releases) — **DeskHopPlus:** this fork's releases, not DeskHop's. A stock DeskHop image does not pair with the helpers. This fork numbers its own releases from 1.0; the version numbers below are DeskHop's. Since version 0.6 there is only a single universal image. You need the .uf2 file which you simply copy to the device in one of the following ways:
 
 ## Upgrading firmware
 
@@ -274,7 +274,7 @@ If you're gaming, there is a chance your game might not work properly with absol
 
 ### Screensaver
 
-Supposedly built in to prevent computer from entering standby, but truth be told - it is just fun to watch. **Off by default**, will make your mouse pointer bounce around the screen like a Pong ball. When enabled, it activates after a period of inactivity defined in user config header and automatically switches off as soon as you send any output towards that screen.
+Supposedly built in to prevent computer from entering standby, but truth be told - it is just fun to watch. **Off by default**, will make your mouse pointer bounce around the screen like a Pong ball. When enabled, it activates after a period of inactivity and automatically switches off as soon as you send any output towards that screen. **DeskHopPlus:** set the idle and maximum times per output on the config page, in seconds.
 
 Potential usage example - I have a buggy USB dock that won't resume video from standby, so not allowing it to sleep can be a handy workaround.
 
@@ -394,6 +394,8 @@ _Usage_:
 - ```Left CTRL + Right Shift + X``` - Disable screensaver
 - ```Left CTRL + Caps Lock``` - Switch between outputs
 
+**DeskHopPlus:** every chord above is a default you can change on the config page. The [user guide](docs/user-guide.md#hotkeys) lists them all, with the jitter screensaver, the bootloader chords and the fixed pair chord, `Left Ctrl + Right Shift + P`.
+
 Note: some keyboards don't send both shifts at the same time properly, that's why the shortcut was changed - to work for everyone. Apologies for the confusion.
 
 ### Switch cursor height calibration
@@ -402,17 +404,19 @@ This step is not required, but it can be handy if your screens are not perfectly
 
 ![Border height difference](img/border_top_s.png)
 
-Just park your mouse on the LARGER screen at the height of the smaller/lower screen (illustrated) and press ```Right Shift + F12 + Y```. Your LED (and caps lock) should flash in confirmation.
+Just park your mouse on the LARGER screen at the height of the smaller/lower screen (illustrated) and press ```Right Shift + F12 + Y```. Your LED (and caps lock) should flash in confirmation. **DeskHopPlus:** only the board LED flashes ([#101](https://github.com/myn/deskhopplus/issues/101)). With monitors of different sizes, set the *Seam ranges* instead (see the [user guide](docs/user-guide.md#seam-ranges-which-monitor-meets-which)).
 
 Repeat for the bottom border (if it's above the larger screen's border). This will get saved to flash and it should keep this calibration value from now on.
 
 ### Multiple screens per output
 
-Windows and Mac have issues with multiple screens and absolute positioning, so workarounds are needed (still experimental). There is a better workaround under construction, but for now you have to set the operating system for each output and number of screens. **DeskHopPlus:** the cursor lands on the correct monitor with or without a helper. Set where the monitors sit by dragging them in the *Layout* at the top of the same page (see the [user guide](docs/user-guide.md#where-the-computers-sit)). On a Windows computer with no helper, also set its pointer speed and monitor size (see [Crossings early or late?](docs/user-guide.md#crossings-early-or-late-check-these-3-settings)).
+**DeskHopPlus:** each computer can drive up to seven monitors, in a row or a column, and the cursor lands on the correct one. This works with or without a helper. Upstream's experimental workaround is gone.
 
-Your main screens need to be in the middle, and secondary screen(s) on the edges. To configure the actual options, open the web configuration page for your device.
+1. Open the config page. Set **Operating System** on each output.
+2. In **Desk**, drag the monitors until the picture matches your desk (see the [user guide](docs/user-guide.md#where-the-computers-sit)).
+3. On a Windows computer with two or more monitors and no helper, also set its pointer speed and monitor size, and turn off Enhance pointer precision (see [Crossings early or late?](docs/user-guide.md#crossings-early-or-late-check-these-3-settings)).
 
-![Multiple screens per output](img/deskhop-scr.png)
+With a helper on a computer, the helper puts the cursor on the exact pixel. Without one, the board works out where the cursor is and gives it a small push onto the next monitor.
 
 ### Web configuration mode
 
@@ -430,7 +434,7 @@ Starting with fw 0.6, an improved configuration mode is introduced. To configure
 
 1. Configure the options as you wish and click save to write to device.
 
-1. Click "exit" in the menu to leave configuration mode for added safety.
+1. Click "exit" in the menu to leave configuration mode for added safety. **DeskHopPlus:** on a Mac, eject `DESKHOP` in Finder first (see the [user guide](docs/user-guide.md#layout-remapping-and-hotkeys)).
 
 <details closed>
   <summary>Linux doesn't see device? Click here.</summary>
@@ -442,7 +446,7 @@ Starting with fw 0.6, an improved configuration mode is introduced. To configure
 /etc/udev/rules.d/99-deskhop.rules
 
 ```plain
-KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="c000", GROUP="plugdev", MODE="0660"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="d35c", GROUP="plugdev", MODE="0660"
 ```
 
 </details><br />
@@ -470,7 +474,7 @@ Some features are missing on purpose, despite the fact it would make the device 
 - No input history is allowed to be retained.
 - No device-initiated keystrokes, for any reason. Only thing that comes out is what you type/trigger.
 - Outputs are physically separated and galvanically isolated with a minimal isolation voltage of 2kV.
-- All packets exchanged between devices are of fixed length, config options transferred are limited to a short list. Most options are read-only. Cross-device firmware upgrades can be disabled.
+- All packets exchanged between devices are of fixed length, config options transferred are limited to a short list. Most options are read-only. Cross-device firmware upgrades can be disabled. **DeskHopPlus:** there is no such switch. Board B pulls a newer image from board A, or a different image of the same version.
 - There is no bluetooth or wifi, networking, Internet access, etc.
 - No connected computer is considered trusted under any circumstances.
 - Configuration mode is automatically disabled after a period of inactivity.
@@ -486,7 +490,7 @@ This still doesn't guarantee anything, but I believe it makes a reasonable set o
 
 1. What happens if I have two different resolutions on my monitors?
 
-   _The mouse movement is done in abstract coordinate space and your computer figures out how that corresponds with the physical screen, so it should just work._
+   _The mouse movement is done in abstract coordinate space and your computer figures out how that corresponds with the physical screen, so it should just work._ **DeskHopPlus:** on a Windows computer with two or more monitors and no helper, set its monitor size on the config page.
 
 1. Where can I buy it?
 
@@ -525,13 +529,11 @@ There are several software alternatives you can use if that works in your partic
 
 ## Shortcomings
 
-- Windows 10 broke HID absolute coordinates behavior in KB5003637, so you can't use more than 1 screen on Windows (mouse will stay on the main screen). There is an experimental workaround with a better one on the way. **DeskHopPlus:** not with the helper running. It places the cursor on any monitor.
 - Code needs cleanup, some refactoring etc.
 - Not tested with a wide variety of devices, I don't know how it will work with your hardware. There is a reasonable chance things might not work out-of-the-box.
 - Advanced keyboards (with knobs, extra buttons or sliders) will probably face issues where this additional hardware doesn't work.
 - Super-modern mice with 300 buttons might see some buttons not work as expected.
 - NOTE: **Both computers need to be connected and provide power to the USB for this to work** (as each board gets powered by the computer it plugs into). Many desktops and laptops will provide power even when shut down nowadays. If you need to run with one board fully disconnected, you should be able to use a USB hub to plug both keyboard and mouse to a single port.
-- MacOS has issues with more than one screens, latest firmware offers an experimental workaround that fixes it. **DeskHopPlus:** not with the helper running. It places the cursor on any monitor.
 
 ## Progress
 
@@ -539,7 +541,7 @@ So, what's the deal with all the enthusiasm? I can't believe it - please allow m
 
 Planned features:
 
-- Better workarounds for multiscreen windows and macos
+- Better workarounds for multiscreen windows and macos — **DeskHopPlus:** done, with or without a helper.
 - Transparent / Gaming mode
 - Support for more than 2 outputs
 - Improvements on the configuration UI

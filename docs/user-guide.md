@@ -6,7 +6,7 @@ You need a DeskHop board pair running `deskhopplus.uf2`, and a helper on each co
 README's [Get started](../README.md#get-started) covers flashing and the first run of each helper.
 This guide starts where that ends.
 
-Two words used throughout:
+Three words used throughout:
 
 - **Board A** and **board B** are the two halves of the DeskHop. Each plugs into one computer.
   The keyboard and mouse plug into one of them, usually board A.
@@ -182,10 +182,11 @@ config mode** means there is no usable helper channel; multi-monitor hops may th
 monitor. Click **Exit** when finished, or the board leaves config mode after five minutes. Each
 entry and exit reboots the board and starts a fresh helper session.
 
-Without its helper, a computer with more than one screen gets the cursor by a walk: the board
-moves it to a screen edge and nudges it across, from the screen where it left it. A trackpad or
-a second mouse that moved the cursor in between makes the walk land on the wrong screen. Keep
-the helper running on any computer with more than one screen.
+Without its helper, a computer with more than one screen still gets the cursor on the correct
+screen. The board moves it to a screen edge and gives it a small push across, from the screen
+where it left it. The board cannot see the computer's own trackpad or a second mouse. If one of
+them moved the cursor in between, the push can land on the wrong screen. The helper places the
+cursor on the exact pixel, so run it where you can.
 
 Without its helper, Windows' second screens also run on the board's estimate of the cursor. The
 **Pointer speed** group under a Windows output with two or more screens sets it up: move its
