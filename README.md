@@ -27,6 +27,7 @@ DeskHop moves one keyboard and mouse between two computers. DeskHopPlus keeps al
 - **Cmd/Ctrl swap.** One keyboard works on both a Mac and a PC. Ctrl and Cmd swap for the computer that needs it.
 - **Configurable hotkeys.** Every chord is a setting on the config page, not a constant in the source.
 - **Clipboard: text, images and files.** Copy on one computer, paste on the other. A large file crosses only when you accept it on the paste side.
+- **Crossings without a helper.** With no helper on either computer, the cursor still lands on the correct monitor of a computer with two or more screens. Upstream DeskHop calls this experimental. On Windows, the board copies Windows' own pointer maths to follow the cursor on screens it cannot see.
 - **Cursor placement.** A small helper on each computer puts the cursor exactly where it should land, on any monitor, not only the main one.
 - **A sealed clipboard.** Clipboard data is encrypted from helper to helper. The boards relay bytes they cannot read.
 - **Helpers that install nothing.** One file per computer. No installer, no admin rights, no drivers.
@@ -407,7 +408,7 @@ Repeat for the bottom border (if it's above the larger screen's border). This wi
 
 ### Multiple screens per output
 
-Windows and Mac have issues with multiple screens and absolute positioning, so workarounds are needed (still experimental). There is a better workaround under construction, but for now you have to set the operating system for each output and number of screens. **DeskHopPlus:** with the helper running, the cursor lands on any monitor, and where the monitors sit is set by dragging them in the *Layout* at the top of the same page (see the [user guide](docs/user-guide.md#where-the-computers-sit)). Without a helper, this section still applies.
+Windows and Mac have issues with multiple screens and absolute positioning, so workarounds are needed (still experimental). There is a better workaround under construction, but for now you have to set the operating system for each output and number of screens. **DeskHopPlus:** the cursor lands on the correct monitor with or without a helper. Set where the monitors sit by dragging them in the *Layout* at the top of the same page (see the [user guide](docs/user-guide.md#where-the-computers-sit)). On a Windows computer with no helper, also set its pointer speed and monitor size (see [Crossings early or late?](docs/user-guide.md#crossings-early-or-late-check-these-3-settings)).
 
 Your main screens need to be in the middle, and secondary screen(s) on the edges. To configure the actual options, open the web configuration page for your device.
 
