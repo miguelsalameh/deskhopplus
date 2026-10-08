@@ -62,6 +62,7 @@ typedef struct {
         uint16_t jump_threshold;
         uint8_t enable_acceleration;
         output_t output[NUM_SCREENS];
+        uint8_t monitor_turns[NUM_SCREENS];
     } config;
     uint8_t active_output;
     int16_t pointer_x;
@@ -109,6 +110,7 @@ void mouse_crossing_task(device_t *, uint32_t);
 void cursor_output_switched(device_t *);
 void mouse_crossing_query_unavailable(device_t *, uint8_t, uint8_t);
 bool apply_helper_cursor_position(device_t *, uint8_t, uint8_t, int16_t, int16_t, uint8_t);
+uint8_t cursor_screen_from_helper(const device_t *, uint8_t, uint8_t, uint8_t);
 void cursor_crossing_init(void);
 void cursor_crossing_enter(void);
 void cursor_crossing_exit(void);

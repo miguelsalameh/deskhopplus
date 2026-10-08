@@ -191,12 +191,18 @@ typedef struct {
      */
     uint8_t sleep_idle_min;
 
-    /* The rest of the bytes that make the struct end exactly on the checksum.
-       #46's 17 bytes rounded config_t up to 160 and left four bytes of padding
-       *behind* the checksum, which is what broke persistence (#74); absorbing
-       them here keeps the tail intentional rather than whatever alignment
-       happens to leave over. */
-    uint8_t _reserved[2];
+    /*
+     * Each output's monitor turns (dh_mouse_layout_t.turns): which way
+     * monitors 2 to 5 branch off the chain, so a computer's monitors can
+     * make an L or a T around main instead of one straight line.
+     *
+     * They took the last two bytes of the second reserved word, which every
+     * configuration already written holds as zero — and zero is no turns,
+     * today's straight line — so no CURRENT_CONFIG_VERSION bump is owed.
+     * Those bytes were also what made the struct end exactly on the
+     * checksum (#74): a named member keeps that, as `_reserved` did.
+     */
+    uint8_t monitor_turns[NUM_SCREENS];
 
     // Keep checksum at the end of the struct
     uint32_t checksum;
@@ -215,6 +221,13 @@ typedef struct {
  */
 _Static_assert(offsetof(config_t, checksum) == sizeof(config_t) - sizeof(uint32_t),
                "config_t: checksum must be last, with no trailing padding (see #74)");
+
+/* The monitor turns took the last reserved bytes, so the same claim holds
+   for them: right after sleep_idle_min, and the checksum right after them. */
+_Static_assert(offsetof(config_t, monitor_turns) == offsetof(config_t, sleep_idle_min) + 1 &&
+                   offsetof(config_t, checksum) ==
+                       offsetof(config_t, monitor_turns) + sizeof(((config_t *)0)->monitor_turns),
+               "config_t: the monitor turns must fill the reserved tail, not extend the struct");
 
 #define CONFIG_FLASH_PAGE_SIZE 256u
 #define CONFIG_FLASH_SECTOR_SIZE 4096u

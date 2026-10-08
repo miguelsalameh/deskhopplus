@@ -221,9 +221,22 @@ _Avoid_: orientation, position
 **Monitor**:
 One display a computer drives. Monitors are numbered from the main monitor outward along the
 chain axis, so monitor 2 is the next one along and monitor 3 the one after. A computer's monitors
-always form one straight line.
+form one straight line, unless a **Turn** branches some of them off main onto another **Line**.
 _Avoid_: screen (the firmware's word for the same thing; the page and the guide say monitor),
 display, output (an output is the computer)
+
+**Line**:
+A straight run of a computer's monitors out of the main monitor in one direction. With no turns
+there is one line, along the chain axis; with turns there are up to four, making an L or a T
+around main. Lines meet only at main, so a walk from one line to another goes through it. A helper
+is told a monitor by its line and how many displays out of main it is.
+_Avoid_: ray, branch, arm, chain (the chain axis is the first line's direction)
+
+**Turn**:
+Which way a monitor's line runs out of main, relative to the chain axis: along it, clockwise,
+opposite or counter-clockwise. Monitors 2 to 5 each have one; later monitors run along the chain
+axis. All along is the straight line, which is how a board with no turns saved behaves.
+_Avoid_: bend, branch direction, way
 
 **Main monitor**:
 The monitor the computer's own operating system calls main. It is monitor 1, and the only one

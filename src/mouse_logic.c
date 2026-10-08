@@ -342,15 +342,50 @@ static uint32_t unsigned_magnitude(int32_t value) {
     return value < 0 ? 0u - (uint32_t)value : (uint32_t)value;
 }
 
-static dh_mouse_layout_t mouse_layout_for(const output_t *output) {
+static dh_mouse_layout_t mouse_layout_for(const device_t *state, const output_t *output) {
     return (dh_mouse_layout_t){
         .chain_direction = (dh_direction_t)output->chain_direction,
         .border_direction = (dh_direction_t)output->border_direction,
+        .turns = state->config.monitor_turns[output->number],
     };
 }
 
+/* Where the next monitor in `direction` is: one along the chain, or another
+   line of an L or a T around main. */
+static uint8_t neighbour_screen(const device_t *state, const output_t *output, int direction) {
+    const dh_mouse_layout_t layout = mouse_layout_for(state, output);
+    return (uint8_t)dh_mouse_neighbour(&layout, output->screen_index, output->screen_count,
+                                       (dh_direction_t)direction);
+}
+
+/* A helper finds a monitor by stepping out of main along one line
+   (dh_place_target), so PLACE names it by that line, not by its number. */
+typedef struct {
+    uint8_t index;
+    uint8_t line;
+} helper_line_t;
+
+static helper_line_t helper_line(const device_t *state, const output_t *output, uint8_t screen) {
+    const dh_mouse_layout_t layout = mouse_layout_for(state, output);
+    dh_direction_t line = layout.chain_direction;
+    uint8_t index = screen;
+    /* Every caller names a monitor select_cursor_screen accepted, so this
+       cannot fail; if it did, the old chain naming is left in place. */
+    (void)dh_mouse_helper_line(&layout, output->screen_count, screen, &line, &index);
+    return (helper_line_t){.index = index, .line = (uint8_t)line};
+}
+
+uint8_t cursor_screen_from_helper(const device_t *state, uint8_t output, uint8_t line,
+                                  uint8_t index) {
+    const output_t *out = &state->config.output[output];
+    const dh_mouse_layout_t layout = mouse_layout_for(state, out);
+    return (uint8_t)dh_mouse_screen_from_helper(
+        &layout, out->screen_count, line ? (dh_direction_t)line : layout.chain_direction,
+        index);
+}
+
 uint16_t get_jump_threshold(output_t *output, enum screen_pos_e direction) {
-    const dh_mouse_layout_t layout = mouse_layout_for(output);
+    const dh_mouse_layout_t layout = mouse_layout_for(&global_state, output);
     return dh_mouse_jump_threshold_for(&layout, output->screen_index, output->screen_count,
                                        (dh_direction_t)direction,
                                        global_state.config.jump_threshold);
@@ -368,7 +403,7 @@ static dh_mouse_transition_t actionable_transition_for(
     if (direction == NONE || state->switch_lock || state->gaming_mode ||
         state->boot_mouse_mode[state->active_output])
         return DH_MOUSE_TRANSITION_NONE;
-    const dh_mouse_layout_t layout = mouse_layout_for(output);
+    const dh_mouse_layout_t layout = mouse_layout_for(state, output);
     const dh_mouse_transition_t transition = dh_mouse_transition_for(
         &layout, output->screen_index, output->screen_count,
         (dh_direction_t)direction);
@@ -672,26 +707,31 @@ enum screen_pos_e update_mouse_position(device_t *state, mouse_values_t *values)
  * first step each one is a relative move of one screen (or a push past the
  * far edge of the chain's last screen). Relative moves then bring the
  * cursor back toward the entry point along the seam, and push it onto the
- * edge it came in by. The board's pointer follows the counts sent. */
+ * edge it came in by. The board's pointer follows the counts sent.
+ * Where the monitors make an L or a T, the walk goes through main; from
+ * Windows' main it is always one line out. */
 static void walk_to_arrival_screen(device_t *state, const output_t *target,
                                    uint8_t os_screen, uint8_t screen, int travel) {
     if (target->os == WINDOWS)
         os_screen = 1;
     else if (target->os != MACOS)
         return;
-    if (os_screen == screen)
+    const dh_mouse_layout_t layout = mouse_layout_for(state, target);
+    dh_direction_t route[DH_MOUSE_ROUTE_CAPACITY];
+    const int steps = dh_mouse_route(&layout, target->screen_count, os_screen, screen, route);
+    if (steps == 0)
         return;
-    const int steps = os_screen < screen ? screen - os_screen : os_screen - screen;
-    const int direction = os_screen < screen
-                              ? target->chain_direction
-                              : dh_opposite_direction((dh_direction_t)target->chain_direction);
+    const int direction = route[0];
     const dh_mouse_coordinates_t middle = {MAX_SCREEN_COORD / 2, MAX_SCREEN_COORD / 2};
     walk_one_screen(state, middle, direction);
     if (target->os == MACOS) {
         for (int step = 1; step < steps; step++)
-            walk_one_screen(state, middle, direction);
+            walk_one_screen(state, middle, route[step]);
         return;
     }
+    /* Whether a monitor lies past `screen` on its line. */
+    const bool screen_past_end =
+        dh_mouse_neighbour(&layout, screen, target->screen_count, (dh_direction_t)direction) != 0;
     const dh_mouse_coordinates_t entry = {.x = state->pointer_x, .y = state->pointer_y};
     const bool chain_vertical = dh_direction_is_vertical((dh_direction_t)direction);
     const int speed = walk_speed(target, direction);
@@ -704,7 +744,7 @@ static void walk_to_arrival_screen(device_t *state, const output_t *target,
         counts = MAX_SCREEN_COORD;
     dh_mouse_coordinates_t landed = walk_landing(state, target, direction, middle);
     int32_t *chain_at = chain_vertical ? &landed.y : &landed.x;
-    if (steps > 1 && screen == target->screen_count) {
+    if (steps > 1 && !screen_past_end) {
         /* The last screen ends the chain: push past its far edge, twice
            over, and Windows stops the cursor there even at half speed. */
         (void)send_relative(state, target, direction, 0, 2 * steps * counts);
@@ -736,7 +776,6 @@ static void walk_to_arrival_screen(device_t *state, const output_t *target,
            that moves up to three times the estimate (one fast report with
            Enhance pointer precision) still stays on this screen. */
         const bool forward = direction == DH_DIRECTION_RIGHT || direction == DH_DIRECTION_BOTTOM;
-        const bool screen_past_end = screen < target->screen_count;
         const bool screen_below = forward || screen_past_end;   /* past MIN */
         const bool screen_above = !forward || screen_past_end;  /* past MAX */
         if (distance < 0 && screen_below && distance < -(*at - MIN_SCREEN_COORD) / 3)
@@ -830,9 +869,9 @@ static void cross_screen(device_t *state, int direction, bool source_resolved) {
                                               mapped_entry.screen_index))
                         break;
                     if (helper) {
-                        channel_place_cursor((uint8_t)target->number,
-                                             mapped_entry.screen_index,
-                                             target->chain_direction,
+                        const helper_line_t named =
+                            helper_line(state, target, mapped_entry.screen_index);
+                        channel_place_cursor((uint8_t)target->number, named.index, named.line,
                                              target->border_direction,
                                              mapped_entry.position);
                         /* The helper puts a relative Windows cursor on pixel
@@ -865,8 +904,7 @@ static void cross_screen(device_t *state, int direction, bool source_resolved) {
                                     CURSOR_CROSSING_CHAIN_REANCHOR))
                 break;
             if (output->os == MACOS) {
-                const uint8_t target_screen = dh_mouse_next_screen_index(
-                    transition, output->screen_index);
+                const uint8_t target_screen = neighbour_screen(state, output, direction);
                 const int along = dh_mouse_along_seam(
                     (dh_direction_t)direction,
                     (dh_mouse_coordinates_t){.x = state->pointer_x,
@@ -887,8 +925,9 @@ static void cross_screen(device_t *state, int direction, bool source_resolved) {
                     .started_us = time_us_32(),
                 };
                 cursor_crossing_exit();
+                const helper_line_t named = helper_line(state, output, target_screen);
                 if (channel_place_cursor_correlated(
-                        state->active_output, target_screen, output->chain_direction,
+                        state->active_output, named.index, named.line,
                         (uint8_t)dh_opposite_direction((dh_direction_t)direction),
                         normalized, query_id))
                     break;
@@ -898,8 +937,7 @@ static void cross_screen(device_t *state, int direction, bool source_resolved) {
                     cursor_crossing_clear(state);
                 cursor_crossing_exit();
             }
-            switch_virtual_desktop(state, output,
-                                  dh_mouse_next_screen_index(transition, output->screen_index),
+            switch_virtual_desktop(state, output, neighbour_screen(state, output, direction),
                                   direction);
             cursor_trace_event(state, DH_CURSOR_TRACE_SWITCH, 0, 0, 0,
                                (uint8_t)direction, (uint8_t)transition);

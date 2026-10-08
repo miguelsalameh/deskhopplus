@@ -74,6 +74,39 @@ int main(void) {
     CHECK(point.display_index == 1 && point.x == 4479 && point.y == 0,
           "Windows right top seam placement was wrong");
 
+    /* An L desk: main, a smaller monitor left of it standing on the same
+       bottom edge, and one below it. The left one's centre is below main's,
+       but it is not under main: down is the one below. */
+    const dh_display_rect l_desk[] = {
+        {.x = 0, .y = 0, .width = 2560, .height = 1440},
+        {.x = -1920, .y = 360, .width = 1920, .height = 1080},
+        {.x = 0, .y = 1440, .width = 2560, .height = 1440},
+    };
+    dh_place l_down = {
+        .chain_index = 2, .chain_direction = 5, .border_direction = 4,
+        .entry_position = 32768,
+    };
+    CHECK(dh_place_target(&l_down, l_desk, 3, 0, &point) && point.display_index == 2,
+          "down from main took the monitor beside it, not the one below");
+    dh_place l_left = {
+        .chain_index = 2, .chain_direction = 1, .border_direction = 2,
+        .entry_position = 32768,
+    };
+    CHECK(dh_place_target(&l_left, l_desk, 3, 0, &point) && point.display_index == 1,
+          "left from main did not take the monitor beside it");
+
+    /* The one below set 200 px to the left: its centre is left of main's,
+       but it is not beside main. */
+    const dh_display_rect l_shifted[] = {
+        {.x = 0, .y = 0, .width = 2560, .height = 1440},
+        {.x = -1920, .y = 0, .width = 1920, .height = 1080},
+        {.x = -200, .y = 1440, .width = 2560, .height = 1440},
+    };
+    CHECK(dh_place_target(&l_left, l_shifted, 3, 0, &point) && point.display_index == 1,
+          "left from main took the monitor below it, not the one beside it");
+    CHECK(dh_place_target(&l_down, l_shifted, 3, 0, &point) && point.display_index == 2,
+          "down from main did not take the shifted monitor below it");
+
     if (failures) return 1;
     printf("place_test: all checks passed\n");
     return 0;

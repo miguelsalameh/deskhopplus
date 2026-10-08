@@ -269,12 +269,22 @@ void handle_cursor_query_msg(uart_packet_t *packet, device_t *state) {
     }
 }
 
-void channel_place_cursor(uint8_t output, uint8_t screen, uint8_t chain, uint8_t border,
+/* The line the last PLACE named its monitor by. A helper answers a position
+   query along the line it was last told (dh_place_target), so the board
+   reads the answer back along the same one. 0 until the first PLACE.
+   It is set when the PLACE is queued, so an answer to the PLACE before can
+   be read along the new line. That answer is uncorrelated, and one of the
+   two monitors is main (moves between lines go through it), so it names a
+   monitor other than the one now selected, and apply_helper_cursor_position
+   refuses it. */
+static uint8_t place_line;
+
+void channel_place_cursor(uint8_t output, uint8_t index, uint8_t line, uint8_t border,
                           uint16_t position) {
     if (output != BOARD_ROLE) {
         uart_packet_t packet = {
             .type = CURSOR_PLACE_MSG,
-            .data = {screen, chain, border},
+            .data = {index, line, border},
         };
         packet.data16[2] = position;
         (void)queue_uart_packet(&packet, &global_state);
@@ -284,24 +294,25 @@ void channel_place_cursor(uint8_t output, uint8_t screen, uint8_t chain, uint8_t
         return;
 
     const dh_place place = {
-        .chain_index = screen,
-        .chain_direction = chain,
+        .chain_index = index,
+        .chain_direction = line,
         .border_direction = border,
         .entry_position = position,
     };
+    place_line = line;
     uint8_t body[DH_PLACE_BODY_SIZE];
     if (dh_place_encode(&place, body, sizeof body))
         (void)channel_lifecycle_owe_place(&channel.lifecycle, body, 0, channel_now_ms());
 }
 
-bool channel_place_cursor_correlated(uint8_t output, uint8_t screen, uint8_t chain,
+bool channel_place_cursor_correlated(uint8_t output, uint8_t index, uint8_t line,
                                      uint8_t border, uint16_t position, uint8_t query_id) {
     if (query_id == 0)
         return false;
     if (output != BOARD_ROLE) {
         uart_packet_t packet = {
             .type = CURSOR_PLACE_MSG,
-            .data = {screen, chain, border},
+            .data = {index, line, border},
         };
         packet.data16[2] = position;
         packet.data[7] = query_id;
@@ -311,11 +322,12 @@ bool channel_place_cursor_correlated(uint8_t output, uint8_t screen, uint8_t cha
         return false;
 
     const dh_place place = {
-        .chain_index = screen,
-        .chain_direction = chain,
+        .chain_index = index,
+        .chain_direction = line,
         .border_direction = border,
         .entry_position = position,
     };
+    place_line = line;
     uint8_t body[DH_PLACE_BODY_SIZE];
     return dh_place_encode(&place, body, sizeof body) &&
            channel_lifecycle_owe_place(&channel.lifecycle, body, query_id, channel_now_ms());
@@ -353,8 +365,12 @@ void channel_lifecycle_position(void *context, const uint8_t *body, size_t body_
        It describes this board's output, so applying it while the peer
        is active would rewind the global pointer to stale coordinates. */
     if (state->active_output != BOARD_ROLE ||
-        !dh_position_decode(body, body_len, &position) || position.chain_index == 0 ||
-        position.chain_index > state->config.output[BOARD_ROLE].screen_count)
+        !dh_position_decode(body, body_len, &position) || position.chain_index == 0)
+        return;
+    /* From here on, the board's own monitor number, not the helper's. */
+    position.chain_index =
+        cursor_screen_from_helper(state, BOARD_ROLE, place_line, position.chain_index);
+    if (position.chain_index == 0)
         return;
     const int16_t pointer_x = (int16_t)(
         ((uint32_t)position.x * MAX_SCREEN_COORD + 32767u) / DH_SEAM_POSITION_MAX);

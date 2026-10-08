@@ -73,6 +73,18 @@ static uint64_t directional_distance(const dh_display_rect *from,
     return (uint64_t)(delta < 0 ? -delta : delta);
 }
 
+/* Whether `candidate` shares some of `from`'s span across `direction`: a
+   display beside it for left and right, above or below it for up and down. */
+static bool lines_up(const dh_display_rect *from, const dh_display_rect *candidate,
+                     uint8_t direction) {
+    const bool horizontal = direction == DH_DIRECTION_LEFT || direction == DH_DIRECTION_RIGHT;
+    const int64_t from_start = horizontal ? from->y : from->x;
+    const int64_t from_end = from_start + (horizontal ? from->height : from->width);
+    const int64_t start = horizontal ? candidate->y : candidate->x;
+    const int64_t end = start + (horizontal ? candidate->height : candidate->width);
+    return start < from_end && from_start < end;
+}
+
 int32_t dh_place_along(uint16_t position, int32_t span) {
     return (int32_t)(((uint64_t)position * (uint32_t)(span - 1) + 32767u) / 65535u);
 }
@@ -85,16 +97,23 @@ bool dh_place_target(const dh_place *place, const dh_display_rect *displays, siz
 
     size_t current = primary_index;
     for (uint8_t screen = 1; screen < place->chain_index; screen++) {
+        /* The nearest display that way. One that lines up with this one wins,
+           so where monitors make an L, a smaller monitor beside main is not
+           taken for the one below it. With none lined up, the nearest. */
         size_t next = count;
         uint64_t best = UINT64_MAX;
+        bool best_lines_up = false;
         for (size_t i = 0; i < count; i++) {
             if (i == current || !lies_in_direction(&displays[current], &displays[i],
                                                    place->chain_direction))
                 continue;
+            const bool lined_up =
+                lines_up(&displays[current], &displays[i], place->chain_direction);
             const uint64_t distance = directional_distance(
                 &displays[current], &displays[i], place->chain_direction);
-            if (distance < best) {
+            if ((lined_up && !best_lines_up) || (lined_up == best_lines_up && distance < best)) {
                 best = distance;
+                best_lines_up = lined_up;
                 next = i;
             }
         }

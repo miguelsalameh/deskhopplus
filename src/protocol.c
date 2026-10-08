@@ -136,6 +136,12 @@ const field_map_t api_field_map[] = {
     { 103, false, UINT8,  1, offsetof(device_t, config.sleep_sync) },
     { 104, false, UINT8,  1, offsetof(device_t, config.sleep_idle_min) }, /* Sleep when idle (#303) */
 
+    /* Each output's monitor turns: an L or a T around main. Both boards hold
+       both, like the chain directions, since the active board walks and
+       names monitors of either output. */
+    { 105, false, UINT8,  1, offsetof(device_t, config.monitor_turns[0]) },
+    { 106, false, UINT8,  1, offsetof(device_t, config.monitor_turns[1]) },
+
     /*
      * What this board has dropped on the helper channel, since boot.
      *

@@ -85,8 +85,10 @@ cursor_query_result_t channel_query_cursor(uint8_t output, uint8_t query_id);
 void handle_cursor_query_msg(uart_packet_t *, device_t *);
 
 /* Ask the helper on `output` to place the entry cursor on a mapped monitor.
-   Fire-and-forget: HID positioning remains the fallback when no helper is live. */
-void channel_place_cursor(uint8_t output, uint8_t screen, uint8_t chain, uint8_t border,
+   Fire-and-forget: HID positioning remains the fallback when no helper is live.
+   The monitor is named in the helper's terms: `index` displays out of main
+   (1 is main) along `line` (dh_mouse_helper_line). */
+void channel_place_cursor(uint8_t output, uint8_t index, uint8_t line, uint8_t border,
                           uint16_t position);
-bool channel_place_cursor_correlated(uint8_t output, uint8_t screen, uint8_t chain,
+bool channel_place_cursor_correlated(uint8_t output, uint8_t index, uint8_t line,
                                      uint8_t border, uint16_t position, uint8_t query_id);

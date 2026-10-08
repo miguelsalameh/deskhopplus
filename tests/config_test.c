@@ -99,18 +99,18 @@ static void test_every_payload_byte_is_covered(void) {
     }
 }
 
-/* The reserved bytes exist precisely to absorb padding that would otherwise
+/* The tail bytes, now the monitor turns, absorb padding that would otherwise
    sit behind the checksum (#46/#74). They are the last thing the CRC covers,
    so they are the first thing a short range drops. */
-static void test_the_reserved_tail_is_covered(void) {
+static void test_the_monitor_turns_tail_is_covered(void) {
     config_t cfg = a_populated_config();
-    cfg._reserved[sizeof cfg._reserved - 1] ^= 0xFFu;
+    cfg.monitor_turns[sizeof cfg.monitor_turns - 1] ^= 0xFFu;
     CHECK(!config_is_valid(&cfg), "tail",
           "the last byte before the checksum is outside the checksum");
 
     config_t other = a_populated_config();
-    other._reserved[0] ^= 0x1u;
-    CHECK(!config_is_valid(&other), "tail", "a single bit in the reserved tail went unnoticed");
+    other.monitor_turns[0] ^= 0x1u;
+    CHECK(!config_is_valid(&other), "tail", "a single bit in the monitor turns went unnoticed");
 }
 
 static void test_the_checksum_itself_is_checked(void) {
@@ -286,7 +286,7 @@ static void test_seam_ranges_survive_persistence(void) {
 int main(void) {
     test_a_sealed_config_validates();
     test_every_payload_byte_is_covered();
-    test_the_reserved_tail_is_covered();
+    test_the_monitor_turns_tail_is_covered();
     test_the_checksum_itself_is_checked();
     test_magic_and_version_are_refused_distinctly();
     test_sealing_is_idempotent();

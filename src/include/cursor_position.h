@@ -16,5 +16,9 @@ void cursor_crossing_exit(void);
 
 bool apply_helper_cursor_position(device_t *, uint8_t output, uint8_t screen,
                                   int16_t x, int16_t y, uint8_t query_id);
+/* The monitor of `output` a helper means by `index` displays out of main
+   along `line` (0: along the chain), or 0 for none. */
+uint8_t cursor_screen_from_helper(const device_t *, uint8_t output, uint8_t line,
+                                  uint8_t index);
 void handle_cursor_position_msg(uart_packet_t *, device_t *);
 void handle_cursor_query_unavailable_msg(uart_packet_t *, device_t *);

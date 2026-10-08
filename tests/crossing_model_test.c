@@ -71,6 +71,11 @@ typedef struct {
     int offset;                  /* B's main screen, along the seam, in cells */
     bool mapped;
     bool helper[2];
+    uint8_t turns[2];            /* config.monitor_turns; nonzero needs cells */
+    /* A's screens by hand, for a desk that is not one straight line:
+       cell[k] is screen k's cell, with main at (0,0). */
+    bool a_cells;
+    int cell[MAX_CHAIN + 1][2];
 } layout_t;
 
 device_t global_state;
@@ -234,11 +239,39 @@ bool channel_output_helper_present(uint8_t output) {
     return world[output].helper;
 }
 
-void channel_place_cursor(uint8_t output, uint8_t screen, uint8_t chain, uint8_t border,
+static int unit_x(int d);
+static int unit_y(int d);
+
+/* The real helper's search (dh_place_target): `index - 1` displays out of
+   main, each the next one along `way`. */
+static int helper_display(const computer_t *c, uint8_t index, uint8_t way) {
+    int at = 1;
+    for (int step = 1; at && step < index; step++)
+        at = screen_at(c, c->cell_x[at] + unit_x(way), c->cell_y[at] + unit_y(way));
+    return at;
+}
+
+/* The line each helper was last told; it answers along that line only. */
+static uint8_t helper_line[2];
+
+void channel_place_cursor(uint8_t output, uint8_t index, uint8_t line, uint8_t border,
                           uint16_t position) {
-    (void)chain;
-    if (world[output].helper)
-        helper_place(output, screen, border, position);
+    if (!world[output].helper)
+        return;
+    helper_line[output] = line;
+    helper_place(output, (uint8_t)helper_display(&world[output], index, line), border, position);
+}
+
+/* The real helpers' answer (positionBody): the cursor's display as an index
+   along the last PLACE's line, or no answer off that line. 0: no answer. */
+static uint8_t helper_index(int output) {
+    const computer_t *c = &world[output];
+    const uint8_t line = helper_line[output] ? helper_line[output]
+                                             : board.config.output[output].chain_direction;
+    for (uint8_t index = 1; index <= c->count; index++)
+        if (helper_display(c, index, line) == c->screen)
+            return index;
+    return 0;
 }
 
 bool channel_place_cursor_correlated(uint8_t output, uint8_t screen, uint8_t chain,
@@ -276,8 +309,14 @@ static void settle(void) {
         pending_query = 0;
         const computer_t *c = &world[out];
         const bool pixels = pixel_w && c->os == WINDOWS;
+        /* channel.c reads the answer back along the line it last sent. */
+        const uint8_t index = helper_index(out);
+        if (!index)
+            continue;
+        const uint8_t line = helper_line[out] ? helper_line[out]
+                                              : board.config.output[out].chain_direction;
         (void)apply_helper_cursor_position(
-            &board, out, (uint8_t)c->screen,
+            &board, out, cursor_screen_from_helper(&board, out, line, index),
             pixels ? helper_units(c->px32_x, pixel_w) : (int16_t)c->x,
             pixels ? helper_units(c->px32_y, pixel_h) : (int16_t)c->y, q);
         mouse_crossing_task(&board, 1000000u);
@@ -297,6 +336,7 @@ static bool build(const layout_t *l) {
     memset(&board, 0, sizeof board);
     board.config.enable_acceleration = 1;
     pending_query = 0;
+    helper_line[0] = helper_line[1] = 0;
     unanchored = false;
     const int border[2] = {
         l->arrangement == 0 ? BOTTOM : RIGHT,
@@ -314,9 +354,12 @@ static bool build(const layout_t *l) {
             by = l->arrangement == 0 ? 1 : l->offset;
         }
         for (int k = 1; k <= c->count; k++) {
-            c->cell_x[k] = bx + (k - 1) * unit_x(l->chain[o]);
-            c->cell_y[k] = by + (k - 1) * unit_y(l->chain[o]);
+            c->cell_x[k] = o == 0 && l->a_cells ? l->cell[k][0]
+                                                : bx + (k - 1) * unit_x(l->chain[o]);
+            c->cell_y[k] = o == 0 && l->a_cells ? l->cell[k][1]
+                                                : by + (k - 1) * unit_y(l->chain[o]);
         }
+        board.config.monitor_turns[o] = l->turns[o];
         board.config.output[o] = (output_t){
             .number = (uint8_t)o, .screen_count = (uint8_t)c->count, .screen_index = 1,
             .speed_x = 16, .speed_y = 28, .os = (uint8_t)c->os,
@@ -601,7 +644,7 @@ static void wander(const layout_t *l, uint32_t run_seed) {
 }
 
 static void for_each_layout(void (*run)(const layout_t *)) {
-    layout_t l;
+    layout_t l = {0};
     for (l.arrangement = 0; l.arrangement < 2; l.arrangement++)
     for (int os = 0; os < 4; os++)
     for (l.count[0] = 1; l.count[0] <= MAX_CHAIN; l.count[0]++)
@@ -707,6 +750,88 @@ static void test_issue_319_mac_walk_is_one_push(void) {
         if (reports_sent != 3)
             fail("the walk is not one push");
     }
+}
+
+/* ---- a desk that branches ------------------------------------------------ */
+
+/* The L desk: A's monitors branch off main, B is a straight line.
+ *   A2 A1 | B1
+ *      A3 | B2      (B2 only when B has two)
+ * A's chain runs left to A2; A3 turns counter-clockwise off it, below main. */
+static layout_t l_desk(int os_a, int os_b, int b_count, bool helper_a, bool helper_b) {
+    return (layout_t){
+        .arrangement = 1, .os = {os_a, os_b}, .count = {3, b_count},
+        .chain = {LEFT, BOTTOM}, .offset = 0, .mapped = true,
+        .helper = {helper_a, helper_b},
+        .turns = {DH_MOUSE_TURN(3, DH_MOUSE_TURN_COUNTER_CLOCKWISE), 0},
+        .a_cells = true, .cell = {{0, 0}, {0, 0}, {-1, 0}, {0, 1}},
+    };
+}
+
+/* Pushes one way until the board leaves `screen` of `output`, or gives up. */
+static void push_off(int dx, int dy) {
+    const int output = board.active_output;
+    const int screen = board.config.output[output].screen_index;
+    for (int i = 0; i < 1000 && board.active_output == output &&
+                    (int)board.config.output[output].screen_index == screen; i++)
+        report(dx, dy);
+}
+
+static void expect_on(int output, int screen, const char *step) {
+    if (board.active_output != output || (int)board.config.output[output].screen_index != screen ||
+        world[output].screen != screen) {
+        char what[120];
+        snprintf(what, sizeof what, "%s: board on %c%d, cursor on %c%d", step,
+                 'A' + board.active_output, board.config.output[board.active_output].screen_index,
+                 'A' + output, world[output].screen);
+        fail(what);
+    }
+}
+
+/* The L desk with B of one or two monitors, every pair of systems, each
+ * helper on and off. Not with Windows' helper on A: the helpers answer a
+ * position query only along the line of the last PLACE, and a Windows cursor
+ * moves between lines by itself with no PLACE, so a query off that line gets
+ * no answer. A Mac is only queried right after a PLACE. A helper that
+ * answered along any line would lift this. (A straight line has the same
+ * desk under check()'s #317 allowance in the layout sweeps.) */
+static void for_each_l_desk(void (*run)(const layout_t *)) {
+    for (int b_count = 1; b_count <= 2; b_count++)
+        for (int h = 0; h < 4; h++)
+            for (int os = 0; os < 4; os++) {
+                const layout_t l = l_desk(os & 1 ? WINDOWS : MACOS, os & 2 ? WINDOWS : MACOS,
+                                          b_count, h & 1, (h & 2) != 0);
+                if (l.os[0] == WINDOWS && l.helper[0])
+                    continue;
+                run(&l);
+            }
+}
+
+/* B1 -> A1 -> A2 -> A1 -> A3, then right: to B2, or a wall when B has one. */
+static void tour_l_desk(const layout_t *l) {
+    describe(l, "L desk tour");
+    if (!build(l)) {
+        fail("the L desk does not build");
+        return;
+    }
+    start(1, 1, 1, MAX_SCREEN_COORD / 2, MAX_SCREEN_COORD / 2);
+    push_off(-37, 0);
+    expect_on(0, 1, "B1 left");
+    push_off(-37, 0);
+    expect_on(0, 2, "A1 left");
+    push_off(37, 0);
+    expect_on(0, 1, "A2 right");
+    push_off(0, 23);
+    expect_on(0, 3, "A1 down");
+    push_off(37, 0);
+    expect_on(l->count[1] == 2 ? 1 : 0, l->count[1] == 2 ? 2 : 3, "A3 right");
+}
+
+/* Every start and every way, then long wanders: the board always knows
+   which monitor the cursor is on. */
+static void sweep_l_desk(const layout_t *l) {
+    push_every_way(l);
+    run_wander(l);
 }
 
 /* ---- Windows in real pixels (#312) ---------------------------------------- */
@@ -909,6 +1034,8 @@ int main(void) {
     test_issue_317_no_walk_with_helper();
     test_issue_317_edge_then_up();
     test_issue_319_mac_walk_is_one_push();
+    for_each_l_desk(tour_l_desk);
+    for_each_l_desk(sweep_l_desk);
     for_each_layout(push_every_way);
     static const int gains[] = {60, 80, 125, 160, ENHANCED_PRECISION};
     for (size_t g = 0; g < sizeof gains / sizeof gains[0]; g++) {
