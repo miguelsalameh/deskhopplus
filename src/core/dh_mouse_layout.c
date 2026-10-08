@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Copyright (c) 2026 Derek Reynolds */
+/* Modified by Miguel Salameh, 2026, for deskhopplus. */
 
 #include "dh_mouse_layout.h"
 

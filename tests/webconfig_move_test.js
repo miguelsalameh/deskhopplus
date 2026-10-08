@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 Derek Reynolds
+// Modified by Miguel Salameh, 2026, for deskhopplus.
 //
 // The write side of the Layout (#212): fieldsFromLayout derives the board's
 // fields from where the boxes sit, and moveMonitor moves a computer's block.

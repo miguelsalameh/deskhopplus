@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 # Modified by Derek Reynolds, 2026, for deskhopplus.
+# Modified by Miguel Salameh, 2026, for deskhopplus.
 
 from dataclasses import dataclass, field
 from pathlib import Path

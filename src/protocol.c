@@ -8,6 +8,7 @@
  *
  * See the file LICENSE for the full license text.
  * Modified by Derek Reynolds, 2026, for deskhopplus.
+ * Modified by Miguel Salameh, 2026, for deskhopplus.
  */
 #include "main.h"
 
