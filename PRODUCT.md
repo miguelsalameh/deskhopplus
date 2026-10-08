@@ -70,8 +70,8 @@ remapping and hotkeys*) documents the page and must stay in step with it.
 **Sections today.** Topbar with Connect / Read / Save / Exit and the
 maintenance buttons; Layout (drag picture with a status line); Output A and
 Output B columns; a closed Advanced panel holding Screen Count, Border
-Direction, Chain Direction, four seam segments and the legacy seam start/end for
-both outputs; Common Config; Device Status with the cursor transition trace.
+Direction, Chain Direction, Monitor Turns, four seam segments and the legacy seam
+start/end for both outputs; Common Config; Device Status with the cursor transition trace.
 
 **Save is the boundary.** A page gesture or edit changes the page's fields
 only. **Save** sends them to the board; **Read** throws unsaved changes away.

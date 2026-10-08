@@ -240,20 +240,24 @@ are the segments: which monitor meets which, and in what order. Move things by d
 
 - Drag a computer's **label bar** to move that computer as a block: to another side of the other
   computer, or along the seam in half-monitor steps.
-- Drag **Main** onto the last box of its own line to flip the line. Main lands on the far end, the
-  other boxes stay put and are renumbered from Main, and Chain Direction flips with it. Main
-  dropped on an empty cell is not moved; drag the label to move the whole computer.
-- Drag **any other box** to a cell beside, above or below Main to turn the line that way; the rest
-  follow. So a row becomes a column by dragging monitor 2 under Main.
-- **+** under the picture adds a monitor at the end of the line, up to seven. **−** removes the
-  last one, never Main.
+- Drag **Main** onto the last box of its own line to flip a straight line. Main lands on the far
+  end, the other boxes stay put and are renumbered from Main, and Chain Direction flips with it.
+  Main dropped on an empty cell is not moved, and Main of an L or a T does not flip; drag the label
+  to move the whole computer.
+- Drag **any other box** to a cell beside, above or below Main. It moves alone, to the end of the
+  line out of Main that cell is on, and the boxes past where it was close up. So a computer's
+  monitors can make an L or a T around Main: with `[3][2][Main]`, dragging 3 under Main gives
+  `[2][Main]` with 3 below. A row becomes a column one box at a time.
+- **+** under the picture adds a monitor at the end of monitor 2's line, up to seven. **−** removes
+  the highest-numbered one, never Main.
 - A one-monitor computer's only box moves the computer, the same as its label.
 - Keyboard: Tab to a box and press an arrow key. That is the same as dropping it one cell over.
 
 A drop fills in the fields for you, the same as picking them by hand: **Save** sends them to the
 board, **Read** throws them away. A drop the board cannot run — a gap, an overlap, a corner-only
-touch, the main monitor away from the seam, or more than four segments — is not made; one line
-under the picture says why, and the picture stays as it was.
+touch, computers meeting along more than one edge, the main monitor of a straight line away from
+the seam, or more than four segments — is not made; one line under the picture says why, and the
+picture stays as it was.
 
 Set **Operating System** on each output. The lock-both-computers chord and the Cmd/Ctrl swap
 default depend on it.
@@ -272,6 +276,13 @@ redraws the picture. Values the picture cannot draw exactly show a note. Each ou
 - **Chain Direction** — which way this computer's own monitors run from its main monitor: Left,
   Right, Top or Bottom. Screen 1 is the main monitor; screen 2 is the next one along that
   direction.
+- **Monitor Turns** — which way monitors 2 to 5 branch off Main, for an L or a T: two bits per
+  monitor, from monitor 2 in the lowest bits, each 0 along Chain Direction, 1 clockwise from it,
+  2 opposite, 3 counter-clockwise. Monitors 6 and 7 run along Chain Direction. 0 is a straight
+  line. The picture sets it; a monitor on a turned line crosses to the other computer from its
+  own edge facing it. Both boards need firmware that knows this field: update them before you
+  save an L or a T, because a board on older firmware ignores the field and runs a straight line,
+  and Save does not resend a field the page read back unchanged.
 
 Side by side, with the Windows machine on the right of the Mac: Mac's Border Direction is Right,
 Windows's is Left. One above the other, Mac on top: Mac's Border Direction is Bottom, Windows's is

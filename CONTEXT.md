@@ -239,9 +239,10 @@ axis. All along is the straight line, which is how a board with no turns saved b
 _Avoid_: bend, branch direction, way
 
 **Main monitor**:
-The monitor the computer's own operating system calls main. It is monitor 1, and the only one
-that can cross when the chain axis points at the other computer. The user does not choose it
-here; the layout only says where it sits.
+The monitor the computer's own operating system calls main. It is monitor 1. On a straight line
+whose chain axis points at the other computer it is the only one that can cross; with turns, any
+monitor whose edge faces the other computer can. The user does not choose it here; the layout only
+says where it sits.
 _Avoid_: primary, first screen, screen 1
 
 **Segment**:
@@ -269,8 +270,8 @@ _Avoid_: deferral, NAK, failed placement
 
 **Layout**:
 The picture of both computers' monitors on the config page. Every fact the board needs — chain
-axis, border direction, monitor count and segments — is derived from where the boxes sit; the
-picture holds nothing of its own. **Advanced** is the same settings shown one field at a time.
+axis, turns, border direction, monitor count and segments — is derived from where the boxes sit;
+the picture holds nothing of its own. **Advanced** is the same settings shown one field at a time.
 _Avoid_: arrangement, screen setup, map, grid (the grid is what the layout snaps to)
 
 **Pointer speed**:

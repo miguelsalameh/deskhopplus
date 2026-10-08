@@ -163,6 +163,9 @@ OUTPUT_ = [
     FormField(0, "Chain Direction", 2,
               {1: "Left", 2: "Right", 4: "Top", 5: "Bottom"}, "uint8",
               output_keys=(98, 99)),
+    # Which way monitors 2 to 5 branch off Main, two bits each (CONTEXT.md:
+    # Turn). The layout picture writes it; 0 is a straight line.
+    FormField(0, "Monitor Turns", 0, {}, "uint8", output_keys=(105, 106)),
     FormField(8, "Cursor Park Position", 0, {0: "Top", 1: "Bottom", 3: "Previous"}, "uint8"),
     # Page-only controls that write Speed X / Y (#311); its key is Speed X's.
     FormField(1011, "Pointer speed", elem="label"),
@@ -201,6 +204,7 @@ def generate_output(base, data, output_index=None):
             "name": field.name,
             "advanced": field.name in (
                 "Screen Count", "Speed X", "Speed Y", "Border Direction", "Chain Direction",
+                "Monitor Turns",
                 "Seam ranges — Start/End show layout offset",
                 "Legacy seam fallback start (not layout offset)",
                 "Legacy seam fallback end (not layout offset)",
